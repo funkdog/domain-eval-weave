@@ -62,12 +62,39 @@ test("holdout freshness is checked before a model is exposed", async () => {
       task_id: "ledger-concurrency-v1",
       bucket: "holdout" as const,
     };
+    await assert.rejects(
+      ledger.write(holdout),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "HOLDOUT_RESERVATION_MISSING",
+    );
+    await ledger.reserveHoldout("ledger-concurrency-v1", "suite-1");
     await ledger.write(holdout);
     await assert.rejects(
       ledger.assertHoldoutUnexposed("ledger-concurrency-v1"),
       (error: unknown) =>
         error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_EXPOSED",
     );
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("concurrent Suites atomically reserve the one allowed holdout exposure", async () => {
+  const scratch = await scratchRoot("phase2-holdout-reservation");
+  const ledger = new ExposureLedger(`${scratch}/instance`);
+  try {
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 32 }, (_, index) =>
+        ledger.reserveHoldout("ledger-concurrency-v1", `suite-${index}`),
+      ),
+    );
+    assert.equal(attempts.filter((attempt) => attempt.status === "fulfilled").length, 1);
+    assert.equal(attempts.filter((attempt) => attempt.status === "rejected").length, 31);
+    for (const attempt of attempts) {
+      if (attempt.status === "fulfilled") continue;
+      assert.equal(attempt.reason instanceof ExposureLedgerError, true);
+      assert.equal((attempt.reason as ExposureLedgerError).code, "HOLDOUT_ALREADY_RESERVED");
+    }
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

@@ -23,6 +23,12 @@ export interface ExposureWrite {
   readonly sha256: string;
 }
 
+interface HoldoutReservation {
+  readonly schema_version: 1;
+  readonly task_id: string;
+  readonly suite_id: string;
+}
+
 function isPathInside(root: string, candidate: string): boolean {
   const relation = relative(root, candidate);
   return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
@@ -124,6 +130,49 @@ async function readRecord(path: string, expectedId?: string): Promise<ExposureRe
   return record;
 }
 
+async function readReservation(path: string): Promise<HoldoutReservation> {
+  const stat = await lstat(path);
+  if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600) {
+    throw new ExposureLedgerError(
+      "HOLDOUT_RESERVATION_INVALID",
+      "holdout reservation must be a physical 0600 file",
+    );
+  }
+  const text = await readFile(path, "utf8");
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(text);
+  } catch {
+    throw new ExposureLedgerError("HOLDOUT_RESERVATION_INVALID", "holdout reservation is not JSON");
+  }
+  if (
+    typeof decoded !== "object" ||
+    decoded === null ||
+    Array.isArray(decoded) ||
+    Object.keys(decoded).sort().join(",") !== "schema_version,suite_id,task_id"
+  ) {
+    throw new ExposureLedgerError(
+      "HOLDOUT_RESERVATION_INVALID",
+      "holdout reservation has an unknown shape",
+    );
+  }
+  const record = decoded as Record<string, unknown>;
+  if (
+    record.schema_version !== 1 ||
+    typeof record.task_id !== "string" ||
+    !ID_PATTERN.test(record.task_id) ||
+    typeof record.suite_id !== "string" ||
+    !ID_PATTERN.test(record.suite_id) ||
+    canonicalJson(record) !== text
+  ) {
+    throw new ExposureLedgerError(
+      "HOLDOUT_RESERVATION_INVALID",
+      "holdout reservation is not canonical or normalized",
+    );
+  }
+  return record as unknown as HoldoutReservation;
+}
+
 export class ExposureLedger {
   readonly #instanceRoot: string;
 
@@ -145,6 +194,35 @@ export class ExposureLedger {
     );
   }
 
+  async #reservationRoot(): Promise<string> {
+    await ensurePrivateDirectory(this.#instanceRoot, "INSTANCE_ROOT_INVALID");
+    return ensurePrivateDirectory(
+      resolve(this.#instanceRoot, "holdout-reservations"),
+      "HOLDOUT_RESERVATION_ROOT_INVALID",
+    );
+  }
+
+  async #assertHoldoutReservation(record: ExposureRecord): Promise<void> {
+    if (record.bucket !== "holdout") return;
+    const root = await this.#reservationRoot();
+    let reservation: HoldoutReservation;
+    try {
+      reservation = await readReservation(resolve(root, `${record.task_id}.json`));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      throw new ExposureLedgerError(
+        "HOLDOUT_RESERVATION_MISSING",
+        "holdout exposure requires an atomic Suite reservation",
+      );
+    }
+    if (reservation.task_id !== record.task_id || reservation.suite_id !== record.suite_id) {
+      throw new ExposureLedgerError(
+        "HOLDOUT_RESERVATION_MISMATCH",
+        "holdout exposure is not owned by the reserving Suite",
+      );
+    }
+  }
+
   async write(input: unknown): Promise<ExposureWrite> {
     const record = parseExposureRecord(input);
     const expectedId = phase2ExposureId(record.suite_id, record.task_id, record.arm);
@@ -154,6 +232,7 @@ export class ExposureLedger {
         "exposure id must be derived from Suite, Task, and arm",
       );
     }
+    await this.#assertHoldoutReservation(record);
     const root = await this.#root();
     const path = resolve(root, `${record.exposure_id}.json`);
     if (!isPathInside(root, path)) {
@@ -212,6 +291,48 @@ export class ExposureLedger {
         "HOLDOUT_ALREADY_EXPOSED",
         `holdout Task has an existing model exposure: ${taskId}`,
       );
+    }
+  }
+
+  async reserveHoldout(taskId: string, suiteId: string): Promise<void> {
+    if (!ID_PATTERN.test(taskId) || !ID_PATTERN.test(suiteId)) {
+      throw new ExposureLedgerError(
+        "EXPOSURE_ID_INVALID",
+        "holdout Task and Suite ids must be normalized",
+      );
+    }
+    await this.assertHoldoutUnexposed(taskId);
+    const root = await this.#reservationRoot();
+    const path = resolve(root, `${taskId}.json`);
+    if (!isPathInside(root, path)) {
+      throw new ExposureLedgerError(
+        "HOLDOUT_RESERVATION_PATH_ESCAPE",
+        "holdout reservation escapes its root",
+      );
+    }
+    const reservation: HoldoutReservation = {
+      schema_version: 1,
+      task_id: taskId,
+      suite_id: suiteId,
+    };
+    const bytes = Buffer.from(canonicalJson(reservation), "utf8");
+    const temporary = resolve(root, `.${taskId}.tmp-${randomUUID()}`);
+    try {
+      await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 });
+      try {
+        await link(temporary, path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const existing = await readReservation(path);
+        if (canonicalJson(existing) !== bytes.toString("utf8")) {
+          throw new ExposureLedgerError(
+            "HOLDOUT_ALREADY_RESERVED",
+            `holdout Task is already reserved by another Suite: ${taskId}`,
+          );
+        }
+      }
+    } finally {
+      await rm(temporary, { force: true });
     }
   }
 }

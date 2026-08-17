@@ -30,7 +30,7 @@ export async function executePlannedSuite<T>(input: {
   readonly triggerFirst: boolean;
   readonly campaignIdForTask: (task: TaskEntry) => string;
   readonly holdoutGate: {
-    readonly assertHoldoutUnexposed: (taskId: string) => Promise<void>;
+    readonly reserveHoldout: (taskId: string, suiteId: string) => Promise<void>;
   };
   readonly freezeManifest: (manifest: SuiteManifest) => Promise<void>;
   readonly beforeTasks?: (manifest: SuiteManifest) => Promise<void>;
@@ -43,7 +43,7 @@ export async function executePlannedSuite<T>(input: {
   const nonTrigger = oneTask(input.binding, "non-trigger");
   const holdout = oneTask(input.binding, "holdout");
 
-  await input.holdoutGate.assertHoldoutUnexposed(holdout.task_id);
+  await input.holdoutGate.reserveHoldout(holdout.task_id, input.suiteId);
   const order = input.triggerFirst
     ? [trigger, nonTrigger, holdout]
     : [nonTrigger, trigger, holdout];

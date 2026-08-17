@@ -24,8 +24,8 @@ test("Suite freezes all Campaign ids and task order before executing without ada
       return `campaign-${task.task_id}`;
     },
     holdoutGate: {
-      assertHoldoutUnexposed: async (taskId) => {
-        events.push(`gate:${taskId}`);
+      reserveHoldout: async (taskId, suiteId) => {
+        events.push(`gate:${taskId}:${suiteId}`);
       },
     },
     freezeManifest: async (manifest) => {
@@ -52,7 +52,7 @@ test("Suite freezes all Campaign ids and task order before executing without ada
     "ledger-concurrency-v1",
   ]);
   assert.deepEqual(events, [
-    "gate:ledger-concurrency-v1",
+    "gate:ledger-concurrency-v1:suite-fixed",
     "plan:ledger-audit-v1",
     "plan:ledger-full-v1",
     "plan:ledger-concurrency-v1",
@@ -88,7 +88,7 @@ test("holdout rejection occurs before planning or model execution", async () => 
         return "campaign-never";
       },
       holdoutGate: {
-        assertHoldoutUnexposed: async () => {
+        reserveHoldout: async () => {
           throw new Error("holdout was exposed");
         },
       },
