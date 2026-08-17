@@ -5,7 +5,7 @@ import test from "node:test";
 import { createWorkspaceToolGuard, type GuardedToolExecution } from "../../src/bridge/guard.js";
 import applyDshEvalBridge from "../../src/bridge/index.js";
 import { createWorkspaceTestDefinition } from "../../src/bridge/workspace-test.js";
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 test("bridge guard allows workspace reads and src writes but rejects escapes before bodies run", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
@@ -112,7 +112,10 @@ test("default bridge runner executes public tests inside workspace/tmp", async (
           },
         },
       },
-      { workspaceRoot: workspace },
+      {
+        workspaceRoot: workspace,
+        env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+      },
     );
     assert.ok(definition);
     const result = (await definition.execute({})) as { exitCode: number | null; stderr: string };

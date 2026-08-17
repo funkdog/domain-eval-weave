@@ -50,7 +50,7 @@ export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, str
     [
       "package.json",
       frozenJson({
-        name: "dsh-profile-eval-runner",
+        name: "dsh-profile-eval-clowder-runner",
         private: true,
         dependencies: {
           "dsh-codex-connect": PINNED_CODEX_CONNECT_VERSION,

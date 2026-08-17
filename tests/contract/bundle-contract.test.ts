@@ -110,7 +110,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
         },
       },
       {
-        env: { DSH_HOME: DEDICATED_DSH_HOME },
+        env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
         executor: { execute: async () => 0 },
       },
     );
@@ -121,7 +121,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
   }
 });
 
-test("app plugin enforces DSH_HOME before consuming immutable app arguments", async () => {
+test("app plugin enforces DSH_HOME and instance id before consuming immutable arguments", async () => {
   const app = await import("../../src/app/index.js");
   let argsRead = false;
   let provided: unknown;
@@ -145,8 +145,18 @@ test("app plugin enforces DSH_HOME before consuming immutable app arguments", as
   );
   assert.equal(argsRead, false);
 
+  assert.throws(
+    () =>
+      app.default(context, {
+        env: { DSH_HOME: DEDICATED_DSH_HOME },
+        executor: { execute: async () => 0 },
+      }),
+    /DSH_EVAL_INSTANCE_ID/,
+  );
+  assert.equal(argsRead, false);
+
   await app.default(context, {
-    env: { DSH_HOME: DEDICATED_DSH_HOME },
+    env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
     executor: { execute: async () => 0 },
   });
   assert.equal(argsRead, true);
@@ -168,7 +178,7 @@ test("app plugin turns invalid immutable arguments into exit 2 before execution"
       },
     },
     {
-      env: { DSH_HOME: DEDICATED_DSH_HOME },
+      env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
       executor: {
         execute: async () => {
           executed = true;

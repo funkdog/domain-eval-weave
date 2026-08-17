@@ -4,7 +4,7 @@
   disabled: false
 - id: session-persistence-jsonl
   config:
-    root: /Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home/sessions
+    root: /Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home/sessions/clowder-ai
     compression: none
     packChunks: false
 - id: tool-bash

@@ -13,9 +13,11 @@ import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 test("runner profile files freeze the exact package and opposite app/bridge roles", async () => {
   const files = runnerProfileFiles("file:/tmp/dsh-eval-lab.tgz");
   const manifest = JSON.parse(files.get("package.json") ?? "null") as {
+    name: string;
     dependencies: Record<string, string>;
     dsh: { profile: { bundles: string[] } };
   };
+  assert.equal(manifest.name, "dsh-profile-eval-clowder-runner");
   assert.equal(manifest.dependencies["dsh-codex-connect"], "0.1.0-alpha.4.7");
   assert.equal(manifest.dependencies["dsh-eval-lab"], "file:/tmp/dsh-eval-lab.tgz");
   assert.deepEqual(manifest.dsh.profile.bundles, [

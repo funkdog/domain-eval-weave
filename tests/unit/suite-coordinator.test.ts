@@ -32,6 +32,10 @@ test("Suite freezes all Campaign ids and task order before executing without ada
       events.push("freeze");
       frozenManifest = canonicalJson(manifest);
     },
+    beforeTasks: async (manifest) => {
+      events.push("prepare");
+      assert.equal(canonicalJson(manifest), frozenManifest);
+    },
     runTask: async (plan, manifest) => {
       events.push(`run:${plan.task.task_id}`);
       assert.equal(canonicalJson(manifest), frozenManifest);
@@ -53,6 +57,7 @@ test("Suite freezes all Campaign ids and task order before executing without ada
     "plan:ledger-full-v1",
     "plan:ledger-concurrency-v1",
     "freeze",
+    "prepare",
     "run:ledger-audit-v1",
     "run:ledger-full-v1",
     "run:ledger-concurrency-v1",

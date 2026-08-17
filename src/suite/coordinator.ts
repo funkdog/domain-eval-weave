@@ -33,6 +33,7 @@ export async function executePlannedSuite<T>(input: {
     readonly assertHoldoutUnexposed: (taskId: string) => Promise<void>;
   };
   readonly freezeManifest: (manifest: SuiteManifest) => Promise<void>;
+  readonly beforeTasks?: (manifest: SuiteManifest) => Promise<void>;
   readonly runTask: (plan: PlannedSuiteTask, manifest: SuiteManifest) => Promise<T>;
 }): Promise<{
   readonly manifest: SuiteManifest;
@@ -74,6 +75,7 @@ export async function executePlannedSuite<T>(input: {
     }),
   );
   await input.freezeManifest(manifest);
+  await input.beforeTasks?.(manifest);
 
   const results: { plan: PlannedSuiteTask; result: T }[] = [];
   for (const plan of plans) {

@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
@@ -26,8 +26,9 @@ import {
   readJsonArtifact,
   resolveArtifactRef,
 } from "../contracts/artifacts.js";
-import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import { parseCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
+import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
 import { runDoctor } from "../doctor/index.js";
 import {
   findPackageRoot,
@@ -39,9 +40,11 @@ import {
   type ComposedRow,
   VariantCompositionError,
 } from "../fingerprint/variants.js";
+import { ensurePhase2InstanceLayout, PHASE2_INSTANCE, resolvePhase2Instance } from "../instance.js";
 import { calibrateLedgerPack } from "../oracle/calibration.js";
 import { LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
+import { loadStaticEvalBinding } from "../registry/loader.js";
 import {
   assertProfileRoles,
   materializeFrozenFiles,
@@ -56,7 +59,10 @@ import {
   DEDICATED_RUNTIME_ROOT,
   OAUTH_REFERENCE_ROOT,
 } from "../runtime-root.js";
-import { digestTaskPack, loadTaskPack } from "../task-pack/loader.js";
+import { phase2TaskPackIdentity } from "../suite/identity.js";
+import { runRealPhase2Suite } from "../suite/real.js";
+import { rebuildSuiteReport, writeSuiteMeasurementInvalidEnvelope } from "../suite/recovery.js";
+import { loadTaskPack } from "../task-pack/loader.js";
 import { type AppInvocation, EXIT_CODE, type ExitCode } from "./args.js";
 import type { DshEvalCommandExecutor } from "./startup.js";
 
@@ -155,7 +161,7 @@ function assertRunnerRows(rows: readonly ComposedRow[]): void {
   assertProfileRoles(rows, "runner");
   const persistence = objectValue(composedRow(rows, "session-persistence-jsonl").config);
   if (
-    persistence.root !== `${DEDICATED_DSH_HOME}/sessions` ||
+    persistence.root !== PHASE2_INSTANCE.sessionsRoot ||
     persistence.compression !== "none" ||
     persistence.packChunks !== false
   ) {
@@ -228,7 +234,7 @@ function packageRoot(): string {
 }
 
 function runnerProfileRoot(): string {
-  return `${DEDICATED_DSH_HOME}/profiles/eval-runner`;
+  return `${DEDICATED_DSH_HOME}/profiles/${PHASE2_INSTANCE.runnerProfile}`;
 }
 
 function childEnvironment(): NodeJS.ProcessEnv {
@@ -237,12 +243,16 @@ function childEnvironment(): NodeJS.ProcessEnv {
     LANG: "C",
     LC_ALL: "C",
     DSH_HOME: DEDICATED_DSH_HOME,
+    DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
   };
 }
 
 async function managementPackageSpec(): Promise<string> {
   const manifest = JSON.parse(
-    await readFile(`${DEDICATED_DSH_HOME}/profiles/eval/package.json`, "utf8"),
+    await readFile(
+      `${DEDICATED_DSH_HOME}/profiles/${PHASE2_INSTANCE.managementProfile}/package.json`,
+      "utf8",
+    ),
   ) as { dependencies?: Record<string, unknown> };
   const spec = manifest.dependencies?.["dsh-eval-lab"];
   if (typeof spec !== "string" || spec.length === 0) {
@@ -298,12 +308,14 @@ async function confirmCampaign(summary: string): Promise<boolean> {
 }
 
 async function initializeRuntime(): Promise<void> {
+  resolvePhase2Instance(process.env);
   await assertRuntimeLayoutInvariant({
     sourceRoot: SOURCE_ROOT,
     runtimeRoot: DEDICATED_RUNTIME_ROOT,
     dshHome: DEDICATED_DSH_HOME,
     oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
   });
+  await ensurePhase2InstanceLayout();
   const files = runnerProfileFiles(await managementPackageSpec());
   await materializeFrozenFiles(runnerProfileRoot(), files);
   await materializeFrozenFiles(
@@ -339,16 +351,26 @@ async function initializeRuntime(): Promise<void> {
   );
 }
 
-async function calibrationPath(): Promise<string> {
-  const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
-  await loadTaskPack(packRoot);
-  return `${DEDICATED_RUNTIME_ROOT}/calibration/${await digestTaskPack(packRoot)}.json`;
+async function phase2CalibrationTargets() {
+  const binding = await loadStaticEvalBinding(packageRoot());
+  const pack = await loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-ledger-v1`);
+  return {
+    binding,
+    pack,
+    targets: binding.tasks.map((task) => {
+      const identity = phase2TaskPackIdentity(task, pack);
+      return { task, identity, taskPackDigest: canonicalJsonDigest(identity) };
+    }),
+  };
 }
 
-async function runCalibration(): Promise<{ readonly ready: boolean; readonly path: string }> {
+async function runCalibration(): Promise<{
+  readonly ready: boolean;
+  readonly paths: readonly string[];
+}> {
   const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
   const pack = await loadTaskPack(packRoot);
-  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/calibration/tmp`;
+  const scratchParent = `${PHASE2_INSTANCE.instanceRoot}/calibration/tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const scratch = await mkdtemp(`${scratchParent}/run-`);
   try {
@@ -362,23 +384,29 @@ async function runCalibration(): Promise<{ readonly ready: boolean; readonly pat
       scratchRoot: scratch,
       seed: 1729,
     });
-    const taskPackDigest = await digestTaskPack(packRoot);
     const evalPackageSha256 = await fingerprintPackageContent(packageRoot());
-    const path = `${DEDICATED_RUNTIME_ROOT}/calibration/${taskPackDigest}.json`;
-    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    const bytes = `${canonicalJson({
-      ...result,
-      task_pack_digest: taskPackDigest,
-      calibration_digest: pack.calibration_digest,
-      eval_package_sha256: evalPackageSha256,
-    })}\n`;
-    try {
-      await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if ((await readFile(path, "utf8")) !== bytes) throw new Error("calibration artifact drift");
+    const { targets } = await phase2CalibrationTargets();
+    const paths: string[] = [];
+    for (const target of targets) {
+      const path = `${PHASE2_INSTANCE.instanceRoot}/calibration/${target.taskPackDigest}.json`;
+      await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+      const bytes = `${canonicalJson({
+        ...result,
+        task_pack_digest: target.taskPackDigest,
+        calibration_digest: pack.calibration_digest,
+        eval_package_sha256: evalPackageSha256,
+      })}\n`;
+      try {
+        await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        if ((await readFile(path, "utf8")) !== bytes) {
+          throw new Error(`calibration artifact drift: ${target.task.task_id}`);
+        }
+      }
+      paths.push(path);
     }
-    return { ready: result.ready, path };
+    return { ready: result.ready, paths };
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -405,6 +433,24 @@ async function campaignPointers(campaignRoot: string): Promise<CampaignPointers>
   };
 }
 
+async function campaignRootForRead(campaignId: string): Promise<string> {
+  const current = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
+  try {
+    await lstat(current);
+    return current;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const legacy = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  try {
+    await lstat(legacy);
+    return legacy;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  return current;
+}
+
 async function runProductDoctor() {
   const packageSpec = await managementPackageSpec();
   const launch = dshLaunch();
@@ -415,12 +461,19 @@ async function runProductDoctor() {
   let runnerRows: Promise<readonly ComposedRow[]> | undefined;
   let controlRows: Promise<readonly ComposedRow[]> | undefined;
   let treatmentRows: Promise<readonly ComposedRow[]> | undefined;
-  const management = () => (managementRows ??= dumpProfileRows(launch, "eval", []));
-  const runner = () => (runnerRows ??= dumpProfileRows(launch, "eval-runner", []));
+  const management = () =>
+    (managementRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.managementProfile, []));
+  const runner = () => (runnerRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, []));
   const control = () =>
-    (controlRows ??= dumpProfileRows(launch, "eval-runner", [commonPatch, controlPatch]));
+    (controlRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, [
+      commonPatch,
+      controlPatch,
+    ]));
   const treatment = () =>
-    (treatmentRows ??= dumpProfileRows(launch, "eval-runner", [commonPatch, treatmentPatch]));
+    (treatmentRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, [
+      commonPatch,
+      treatmentPatch,
+    ]));
   return runDoctor([
     { id: "toolchain-versions", run: assertToolchainVersions },
     {
@@ -457,7 +510,7 @@ async function runProductDoctor() {
     {
       id: "patch-dump-config",
       run: async () => {
-        await dumpProfileRows(launch, "eval-runner", [commonPatch]);
+        await dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, [commonPatch]);
         await control();
         await treatment();
       },
@@ -481,18 +534,24 @@ async function runProductDoctor() {
         void (await loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-ledger-v1`)),
     },
     {
+      id: "phase2-binding",
+      run: async () => void (await loadStaticEvalBinding(packageRoot())),
+    },
+    {
       id: "calibration",
       run: async () => {
-        const path = await calibrationPath();
-        const value = parseCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
-        const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
-        const pack = await loadTaskPack(packRoot);
-        if (
-          value.task_pack_digest !== (await digestTaskPack(packRoot)) ||
-          value.calibration_digest !== pack.calibration_digest ||
-          value.eval_package_sha256 !== (await fingerprintPackageContent(packageRoot()))
-        ) {
-          throw new Error("calibration artifact is stale or not ready");
+        const { pack, targets } = await phase2CalibrationTargets();
+        const evalPackageDigest = await fingerprintPackageContent(packageRoot());
+        for (const target of targets) {
+          const path = `${PHASE2_INSTANCE.instanceRoot}/calibration/${target.taskPackDigest}.json`;
+          const value = parseCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
+          if (
+            value.task_pack_digest !== target.taskPackDigest ||
+            value.calibration_digest !== pack.calibration_digest ||
+            value.eval_package_sha256 !== evalPackageDigest
+          ) {
+            throw new Error(`calibration artifact is stale: ${target.task.task_id}`);
+          }
         }
       },
     },
@@ -518,7 +577,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | run | report <campaign-id>\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id>\n",
           );
           return EXIT_CODE.OK;
         case "version":
@@ -549,6 +608,23 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
           this.#stdout(`${JSON.stringify(result)}\n`);
           return result.ready ? EXIT_CODE.OK : EXIT_CODE.CALIBRATION_NOT_READY;
         }
+        case "binding-show": {
+          const binding = await loadStaticEvalBinding(packageRoot());
+          this.#stdout(
+            `${canonicalJson({
+              schema_version: 1,
+              instance_id: PHASE2_INSTANCE.id,
+              management_profile: PHASE2_INSTANCE.managementProfile,
+              runner_profile: PHASE2_INSTANCE.runnerProfile,
+              harness: binding.harness,
+              registry: binding.registry,
+              eval_pack: binding.evalPack,
+              tasks: binding.tasks,
+              digests: binding.digests,
+            })}\n`,
+          );
+          return EXIT_CODE.OK;
+        }
         case "run": {
           const doctor = await runProductDoctor();
           if (!doctor.ready) {
@@ -566,7 +642,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
           return EXIT_CODE.OK;
         }
         case "report": {
-          const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${invocation.campaignId}`;
+          const campaignRoot = await campaignRootForRead(invocation.campaignId);
           try {
             const pointers = await campaignPointers(campaignRoot);
             const rebuilt = await rebuildCampaignReport({
@@ -588,11 +664,53 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             throw error;
           }
         }
+        case "suite-run": {
+          const doctor = await runProductDoctor();
+          if (!doctor.ready) {
+            this.#stderr("Runtime doctor is not ready; run `doctor` for the check matrix.\n");
+            return EXIT_CODE.RUNTIME_NOT_READY;
+          }
+          const completed = await runRealPhase2Suite({
+            packageRoot: packageRoot(),
+            timeoutMs: invocation.timeoutMs,
+            confirm: confirmCampaign,
+          });
+          this.#stdout(
+            `Suite ${completed.suiteId} completed. Run suite report ${completed.suiteId}.\n`,
+          );
+          return EXIT_CODE.OK;
+        }
+        case "suite-report": {
+          const suiteRoot = `${PHASE2_INSTANCE.instanceRoot}/suites/${invocation.suiteId}`;
+          try {
+            const rebuilt = await rebuildSuiteReport({
+              instanceRoot: PHASE2_INSTANCE.instanceRoot,
+              suiteRoot,
+            });
+            this.#stdout(
+              (await readSuiteArtifactBytes(suiteRoot, rebuilt.markdownPointer)).toString(),
+            );
+            return EXIT_CODE.OK;
+          } catch (error) {
+            const invalid = await writeSuiteMeasurementInvalidEnvelope({
+              suiteRoot,
+              suiteId: invocation.suiteId,
+            });
+            this.#stdout(
+              (await readSuiteArtifactBytes(suiteRoot, invalid.markdownPointer)).toString(),
+            );
+            throw error;
+          }
+        }
       }
     } catch (error) {
       let exitCode: ExitCode = EXIT_CODE.CAMPAIGN_INFRASTRUCTURE_INVALID;
       let code = "CAMPAIGN_INFRASTRUCTURE_INVALID";
-      if (error instanceof ArtifactIntegrityError || invocation.kind === "report") {
+      if (
+        error instanceof ArtifactIntegrityError ||
+        invocation.kind === "report" ||
+        invocation.kind === "suite-report"
+      ) {
         exitCode = EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
         code = "ARTIFACT_INTEGRITY_FAILURE";
       } else if (error instanceof CarrierQualificationError) {
@@ -608,7 +726,8 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         invocation.kind === "init" ||
         invocation.kind === "doctor" ||
         invocation.kind === "auth-status" ||
-        invocation.kind === "auth-login"
+        invocation.kind === "auth-login" ||
+        invocation.kind === "binding-show"
       ) {
         exitCode = EXIT_CODE.RUNTIME_NOT_READY;
         code = "RUNTIME_NOT_READY";

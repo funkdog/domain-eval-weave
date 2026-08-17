@@ -72,6 +72,7 @@ export async function runPhase2Suite(input: {
   readonly triggerFirst: boolean;
   readonly campaignIdForTask: (task: TaskEntry) => string;
   readonly exposureLedger: ExposureLedger;
+  readonly beforeTasks?: (manifest: SuiteManifest) => Promise<void>;
   readonly runCampaign: (
     plan: PlannedSuiteTask,
     manifest: SuiteManifest,
@@ -130,6 +131,7 @@ export async function runPhase2Suite(input: {
           registrySnapshot: snapshotPointer,
         };
       },
+      ...(input.beforeTasks === undefined ? {} : { beforeTasks: input.beforeTasks }),
       runTask: async (plan, manifest) => {
         const result = await input.runCampaign(plan, manifest);
         if (result.report.campaign_id !== plan.campaignId) {

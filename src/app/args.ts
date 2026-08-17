@@ -24,7 +24,10 @@ export type AppInvocation =
       readonly timeoutMs: number;
       readonly keepWorkspaces: true;
     }
-  | { readonly kind: "report"; readonly campaignId: string };
+  | { readonly kind: "report"; readonly campaignId: string }
+  | { readonly kind: "binding-show" }
+  | { readonly kind: "suite-run"; readonly timeoutMs: number }
+  | { readonly kind: "suite-report"; readonly suiteId: string };
 
 const CAMPAIGN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const DEFAULT_TIMEOUT_MS = 2_700_000;
@@ -77,6 +80,22 @@ function parseRunArguments(args: readonly string[]): AppInvocation {
   return { kind: "run", timeoutMs, keepWorkspaces: true };
 }
 
+function parseSuiteRunArguments(args: readonly string[]): AppInvocation {
+  if (args.length === 0) return { kind: "suite-run", timeoutMs: DEFAULT_TIMEOUT_MS };
+  if (args.length !== 2 || args[0] !== "--timeout-ms") {
+    throw new AppUsageError("suite run accepts only --timeout-ms <positive integer>");
+  }
+  const value = args[1];
+  if (value === undefined || !/^[1-9]\d*$/.test(value)) {
+    throw new AppUsageError("--timeout-ms requires a positive integer");
+  }
+  const timeoutMs = Number(value);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs > MAX_TIMEOUT_MS) {
+    throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
+  }
+  return { kind: "suite-run", timeoutMs };
+}
+
 export function parseAppArguments(args: readonly string[]): AppInvocation {
   const [command, ...rest] = args;
   if (command === undefined || command === "--help" || command === "-h" || command === "help") {
@@ -101,6 +120,24 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
       throw new AppUsageError("auth requires status or login");
     case "run":
       return parseRunArguments(rest);
+    case "binding":
+      if (rest.length !== 1 || rest[0] !== "show") {
+        throw new AppUsageError("binding requires exactly the show subcommand");
+      }
+      return { kind: "binding-show" };
+    case "suite": {
+      const [subcommand, ...suiteRest] = rest;
+      if (subcommand === "run") return parseSuiteRunArguments(suiteRest);
+      if (
+        subcommand === "report" &&
+        suiteRest.length === 1 &&
+        suiteRest[0] !== undefined &&
+        CAMPAIGN_ID_PATTERN.test(suiteRest[0])
+      ) {
+        return { kind: "suite-report", suiteId: suiteRest[0] };
+      }
+      throw new AppUsageError("suite requires run or report <suite-id>");
+    }
     case "report": {
       if (rest.length !== 1 || rest[0] === undefined || !CAMPAIGN_ID_PATTERN.test(rest[0])) {
         throw new AppUsageError("report requires one valid campaign id");

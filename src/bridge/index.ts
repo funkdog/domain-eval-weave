@@ -1,3 +1,4 @@
+import { resolvePhase2Instance } from "../instance.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { createWorkspaceToolGuard, type GuardedToolExecution } from "./guard.js";
 import { createWorkspaceTestDefinition, type WorkspaceTestRunner } from "./workspace-test.js";
@@ -15,6 +16,7 @@ export interface DshEvalBridgeContext {
 export interface DshEvalBridgeConfig {
   readonly workspaceRoot?: string;
   readonly runner?: WorkspaceTestRunner;
+  readonly env?: Readonly<Record<string, string | undefined>>;
 }
 
 function strictWorkspaceTestRunner(workspaceRoot: string): WorkspaceTestRunner {
@@ -34,6 +36,7 @@ function strictWorkspaceTestRunner(workspaceRoot: string): WorkspaceTestRunner {
 }
 
 function applyDshEvalBridge(context: DshEvalBridgeContext, config: DshEvalBridgeConfig = {}): void {
+  resolvePhase2Instance(config.env ?? process.env);
   const workspaceRoot = config.workspaceRoot ?? process.cwd();
   context.tools.guard(createWorkspaceToolGuard({ workspaceRoot }));
   context.tools.register(

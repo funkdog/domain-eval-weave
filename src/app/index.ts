@@ -1,4 +1,4 @@
-import { assertDedicatedDshHomePreBoot } from "../runtime-root.js";
+import { resolvePhase2Instance } from "../instance.js";
 import { type AppInvocation, AppUsageError, EXIT_CODE, parseAppArguments } from "./args.js";
 import { createDefaultAppExecutor } from "./default-executor.js";
 import type { DshEvalCommandExecutor } from "./startup.js";
@@ -21,7 +21,7 @@ export default function applyDshEvalApp(
   context: DshEvalAppContext,
   config: DshEvalAppConfig = {},
 ): Promise<void> {
-  assertDedicatedDshHomePreBoot(config.env ?? process.env);
+  resolvePhase2Instance(config.env ?? process.env);
   let invocation: AppInvocation;
   try {
     invocation = parseAppArguments(context.cmdlineArgs.get());

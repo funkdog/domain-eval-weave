@@ -1,3 +1,6 @@
+import { lstat, mkdir, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+
 import {
   assertDedicatedDshHomePreBoot,
   DEDICATED_DSH_HOME,
@@ -42,4 +45,57 @@ export function resolvePhase2Instance(
     );
   }
   return PHASE2_INSTANCE;
+}
+
+async function ensureContainedDirectory(root: string, target: string): Promise<void> {
+  const absoluteRoot = resolve(root);
+  const relation = relative(absoluteRoot, resolve(target));
+  if (relation === "" || relation.startsWith("..") || isAbsolute(relation)) {
+    throw new Phase2InstanceError(
+      "PHASE2_PATH_INVALID",
+      "Phase 2 directory must be a strict child of its frozen root",
+    );
+  }
+  let current = absoluteRoot;
+  for (const segment of relation.split("/")) {
+    current = resolve(current, segment);
+    try {
+      await mkdir(current, { mode: 0o700 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    }
+    const stat = await lstat(current);
+    if (
+      stat.isSymbolicLink() ||
+      !stat.isDirectory() ||
+      (stat.mode & 0o777) !== 0o700 ||
+      (await realpath(current)) !== current
+    ) {
+      throw new Phase2InstanceError(
+        "PHASE2_PATH_INVALID",
+        `Phase 2 directory must be a physical 0700 directory: ${current}`,
+      );
+    }
+  }
+}
+
+export async function ensurePhase2InstanceLayout(): Promise<void> {
+  await Promise.all([
+    ensureContainedDirectory(DEDICATED_RUNTIME_ROOT, PHASE2_INSTANCE.instanceRoot),
+    ensureContainedDirectory(DEDICATED_DSH_HOME, PHASE2_INSTANCE.sessionsRoot),
+  ]);
+  for (const name of [
+    "calibration",
+    "campaigns",
+    "exposures",
+    "oracle-tmp",
+    "qualification",
+    "suites",
+    "workspaces",
+  ]) {
+    await ensureContainedDirectory(
+      PHASE2_INSTANCE.instanceRoot,
+      `${PHASE2_INSTANCE.instanceRoot}/${name}`,
+    );
+  }
 }
