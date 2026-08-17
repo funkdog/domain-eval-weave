@@ -8,6 +8,7 @@ import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 import { rebuildCampaignReport, runPairedCampaign } from "../../src/campaign/coordinator.js";
 import { CampaignStateStore } from "../../src/campaign/state.js";
 import { parseExperimentSpec } from "../../src/contracts/parsers.js";
+import { PHASE2_INSTANCE } from "../../src/instance.js";
 import type { BehaviorVector } from "../../src/oracle/ledger.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import { parseTaskPackIdentity } from "../../src/task-pack/loader.js";
@@ -148,7 +149,7 @@ test("an interrupted arm persists interrupted state and never reports", async ()
 
 test("invalid top-level report still produces an independent measurement-invalid report", async () => {
   const campaignId = `campaign-invalid-report-${randomUUID()}`;
-  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
   const experiment = parseExperimentSpec({ ...validExperiment, campaign_id: campaignId });
   try {
@@ -186,7 +187,7 @@ test("invalid top-level report still produces an independent measurement-invalid
 
 test("missing top-level report still produces the standalone invalid envelope", async () => {
   const campaignId = `campaign-missing-report-${randomUUID()}`;
-  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
   let stdout = "";
   const executor = new DefaultAppExecutor({ stdout: (text) => (stdout += text) });
@@ -199,6 +200,35 @@ test("missing top-level report still produces the standalone invalid envelope", 
     const invalid = JSON.parse(await readFile(`${campaignRoot}/measurement-invalid.json`, "utf8"));
     assert.equal(invalid.campaign_id, campaignId);
     assert.equal(invalid.measurement_validity.overall, "invalid");
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
+test("legacy fixed-root report failure remains read-only", async () => {
+  const campaignId = `campaign-legacy-read-only-${randomUUID()}`;
+  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
+  const experiment = parseExperimentSpec({ ...validExperiment, campaign_id: campaignId });
+  try {
+    await runPairedCampaign({
+      campaignRoot,
+      experiment,
+      variants,
+      taskPackIdentity,
+      publicTask: SYNTHETIC_PUBLIC_TASK,
+      executeArm: async (arm) => execution(arm),
+      evaluateArm: async (arm) => evaluated(arm),
+    });
+    await writeFile(`${campaignRoot}/report.json`, "{broken", { mode: 0o600 });
+    const executor = new DefaultAppExecutor();
+
+    assert.equal(
+      await executor.execute({ kind: "report", campaignId }),
+      EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+    );
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.json`));
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.md`));
   } finally {
     await rm(campaignRoot, { recursive: true, force: true });
   }

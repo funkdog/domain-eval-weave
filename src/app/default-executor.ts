@@ -28,6 +28,7 @@ import {
 } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import { parseCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
+import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
 import { runDoctor } from "../doctor/index.js";
 import {
@@ -45,6 +46,7 @@ import { calibrateLedgerPack } from "../oracle/calibration.js";
 import { LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { loadStaticEvalBinding } from "../registry/loader.js";
+import { renderPairedReportMarkdown } from "../report/reporter.js";
 import {
   assertProfileRoles,
   materializeFrozenFiles,
@@ -433,22 +435,24 @@ async function campaignPointers(campaignRoot: string): Promise<CampaignPointers>
   };
 }
 
-async function campaignRootForRead(campaignId: string): Promise<string> {
+async function campaignRootForRead(
+  campaignId: string,
+): Promise<{ readonly campaignRoot: string; readonly legacy: boolean }> {
   const current = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
   try {
     await lstat(current);
-    return current;
+    return { campaignRoot: current, legacy: false };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   const legacy = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
   try {
     await lstat(legacy);
-    return legacy;
+    return { campaignRoot: legacy, legacy: true };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  return current;
+  return { campaignRoot: current, legacy: false };
 }
 
 async function runProductDoctor() {
@@ -642,7 +646,13 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
           return EXIT_CODE.OK;
         }
         case "report": {
-          const campaignRoot = await campaignRootForRead(invocation.campaignId);
+          const { campaignRoot, legacy } = await campaignRootForRead(invocation.campaignId);
+          if (legacy) {
+            const reportPointer = await pointerFor(campaignRoot, "artifact://campaign/report.json");
+            const replayed = await replayPairedImpactReport(campaignRoot, reportPointer);
+            this.#stdout(renderPairedReportMarkdown(replayed.report));
+            return EXIT_CODE.OK;
+          }
           try {
             const pointers = await campaignPointers(campaignRoot);
             const rebuilt = await rebuildCampaignReport({
