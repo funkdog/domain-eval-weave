@@ -228,7 +228,6 @@ function foldGoalEvidence(events: readonly SessionEventRecord[]): GoalFoldResult
       ]) ||
       !validGoalSnapshot(data.goal) ||
       !nonnegativeSafeInteger(data.roundsStarted) ||
-      data.roundsStarted > (data.goal.maxGoalRounds as number) ||
       !nonnegativeSafeInteger(data.createdAt) ||
       !nonnegativeSafeInteger(data.updatedAt) ||
       data.updatedAt < data.createdAt

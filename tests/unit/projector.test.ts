@@ -463,6 +463,40 @@ test("projector accepts the official rc.6 edit and phase-transition sequence", (
   assert.equal(projection.mechanism.goal_terminal_phase, "complete");
 });
 
+test("projector accepts an rc.6 edit that lowers max rounds below admitted rounds", () => {
+  const projection = project(
+    withGoalEvidence([
+      goalSnapshot("create", 1, "active"),
+      {
+        type: "user/message",
+        data: {
+          id: "goal-round-1",
+          role: "user",
+          content: [{ type: "text", text: "Continue the public task." }],
+          source: { kind: "goal", goalId: "goal-1", revision: 1, round: 1 },
+        },
+      },
+      {
+        type: "user/message",
+        data: {
+          id: "goal-round-2",
+          role: "user",
+          content: [{ type: "text", text: "Continue the public task." }],
+          source: { kind: "goal", goalId: "goal-1", revision: 1, round: 2 },
+        },
+      },
+      goalSnapshot("edit", 2, "active", {
+        objective: "finish with a smaller future budget",
+        maxGoalRounds: 1,
+        roundsStarted: 2,
+      }),
+    ]),
+  );
+
+  assert.equal(projection.measurement_validity.dimensions.mechanism, "valid");
+  assert.equal(projection.mechanism.goal_rounds_started, 2);
+});
+
 test("projector rejects resume after the Goal round budget is exhausted", () => {
   const oneRound = { maxGoalRounds: 1 } as const;
   const projection = project(
