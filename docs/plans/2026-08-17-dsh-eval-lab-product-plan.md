@@ -14,13 +14,15 @@ description: "面向个人开发者、固定开放式编码交付领域的 DSH H
 > 本文只负责 DSH 的产品与一期交付边界。若产品便利与方法论不变量冲突，以认识论为准；
 > 不允许为了更快出报告而改变被测 Agent、污染 holdout 或把无效测量包装成效果。
 >
-> **文档状态**：Phase 1 候选产品方案 v2；尚未开始实现或产生效果证据。
+> **文档状态**：Phase 1 候选产品方案 v3；已按“产品作为 DSH 插件运行”的终态修订，
+> 尚未开始该架构的实现或产生效果证据。
 >
 > 实施真相源：[DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)。
 
 ## 1. 产品定义
 
-DSH Eval Lab 是一个面向个人开发者的本地受控实验环境。Phase 1 固定在“开放式编码交付”领域：
+DSH Eval Lab 是一个安装并运行在 DSH 专用 profile 中、面向个人开发者的本地受控实验插件。Phase 1 固定在
+“开放式编码交付”领域：
 
 > 在同一个任务、模型、权限、环境和 evaluator 下，只增加、移除或修改一个 Harness 组件，
 > 运行自然 DSH Agent Episode，并清楚展示该组件对任务结果、行为机制和成本的具体影响。
@@ -38,6 +40,11 @@ Phase 1 只有一个产品主体：使用者本人。提供任务真相、运行
 不同活动，不预设 Domain Owner、Experiment Operator、Decision Owner、审批流或 RBAC。多人治理是未来在
 真实共享需求出现后再生长的能力，不进入个人 Harness 框架的一期模型。
 
+“作为 DSH 插件运行”指用户通过 `dsh plugin --profile eval add <package>` 安装产品，并通过
+`dsh --profile eval <command>` 使用它。Eval Lab 的管理插件运行在专用 `eval` profile；被测 control/treatment
+Episode 由它启动为隔离的 child DSH process，不能在管理插件自己的 Session 中自测。插件产品形态不取消
+Evaluator 与 Candidate 的进程边界。
+
 ## 2. 产品承诺
 
 用户选择一个 Task Pack、一个 baseline 和一个 treatment 后，产品必须回答：
@@ -50,13 +57,16 @@ Phase 1 只有一个产品主体：使用者本人。提供任务真相、运行
 6. 测量是否有效，哪些证据仍不足？
 7. 当前只允许 diagnostic、directional，还是足以进入后续 holdout？
 
-产品不替用户自动安装、推广或退役 Harness。它展示证据强度和允许的动作，用户自己选择 Keep、Iterate、
-Revert 或 Run More；单 Task、单 pair 的 Phase 1 结果只允许本地诊断，不包装成领域级效果结论。
+产品不替用户自动安装、推广或退役被测 Harness。用户显式安装 Eval Lab 自身、`init` 安装同版本 runner bridge
+与 pinned first-party runtime dependency，属于产品部署，不是 Harness lifecycle 决策。产品展示证据强度和允许的
+动作，用户自己选择 Keep、Iterate、Revert 或 Run More；单 Task、单 pair 的 Phase 1 结果只允许本地诊断，
+不包装成领域级效果结论。
 
 ## 3. 用户旅程
 
 ```text
-连接 Codex OAuth
+安装 DSH Eval Lab 到专用 eval profile
+→ 连接 Codex OAuth
 → 选择内置开放编码任务
 → 选择 Baseline DSH Profile
 → 开启或关闭一个 Harness 能力
@@ -83,8 +93,9 @@ Harness inventory
       └─ lifecycle recommendation
 ```
 
-Phase 1 先交付本地 CLI + JSON/Markdown artifact，不做上述完整 UI。CLI 的最后一步必须给出四个明确动作的含义，
-不能把用户留在只有分数、没有下一步的仪表盘。
+Phase 1 先交付 DSH 插件的命令行 app surface + JSON/Markdown artifact，不做上述完整 UI。命令行 app 的最后一步
+必须给出四个明确动作的含义，不能把用户留在只有分数、没有下一步的仪表盘。Phase 1 没有独立的
+`dsh-eval` 用户命令；所有用户入口均从 `dsh --profile eval` 进入。
 
 ## 4. 产品对象
 
@@ -185,21 +196,25 @@ next evidence。没有万能总分。
 ## 5. 系统边界
 
 ```text
-                    DSH Eval Lab control plane
+             DSH Eval Lab management plugin (`eval` profile)
 ┌──────────────────────────────────────────────────────────────┐
-│ ExperimentSpec / Task Pack / Variant fingerprint             │
+│ DSH app commands / ExperimentSpec / Variant fingerprint      │
 │ Pair runner / evidence resolver / measurement validator      │
 │ External Oracle / report generator                           │
 └───────────────┬───────────────────────────────┬──────────────┘
-                │ run                           │ measure after freeze
+                │ child DSH process             │ measure after freeze
                 ▼                               ▼
 ┌──────────────────────────────┐    ┌──────────────────────────┐
-│ DSH execution plane          │    │ isolated adjudication    │
-│ profile + Agent Session      │    │ hidden behavior Oracle   │
+│ isolated runner profile      │    │ isolated adjudication    │
+│ fresh process + Agent Session│    │ hidden behavior Oracle   │
 │ tools / goal / compaction    │    │ deterministic checks     │
 │ SessionEvent + workspace     │    │ no candidate write path  │
 └──────────────────────────────┘    └──────────────────────────┘
 ```
+
+管理插件与 runner 使用同一发布物版本，但 runner profile 显式禁用 management app row，只保留安全 bridge；
+control/treatment 的 bridge bytes、配置与 tool schema 完全相同。管理插件不进入 Candidate prompt、tool surface、
+Session lineage；runner fingerprint 显式记录 package digest 与 app-disabled 常量。
 
 ### 5.1 DSH 原生提供
 
@@ -302,8 +317,9 @@ DSH base composition 中 `goal`、`goal-round-driver` 与 `command-goal` 是独�
 - fresh Session 与 fresh workspace；
 - 无 Judge、无 repair、无结果回灌。
 
-Phase 1 的目标 carrier 是 DSH 原生 `dsh run --profile <name>` one-shot headless 路径，因为它天然创建 fresh
-Session、等待 quiescence、flush log 并退出，适合本地 CLI 配对执行。但当前真实 OAuth 只在 Web carrier 上完成过
+Phase 1 的目标 carrier 是 DSH 原生 `dsh --profile eval-runner <task>` one-shot headless 路径，因为它天然创建
+fresh Session、等待 quiescence、flush log 并退出，适合由 management plugin 启动配对 child process。
+但当前真实 OAuth 只在 Web carrier 上完成过
 验收，因此实现的 Gate 0 必须先证明 headless 能解析同一个 OAuth provider/model，并留下满足本方案的 SessionEvent
 证据。Gate 0 失败就停止，不允许静默退回另一条 carrier 后继续生成可比较报告；改走 Web 时必须先新增独立
 conformance 证据并形成新的 carrier fingerprint。
@@ -334,6 +350,7 @@ Candidate policy 由 Implementation Spec 冻结。它不是历史 Clowder Task�
 
 ```text
 /Users/slipshod/AIBuild/dsh-eval-lab/          # 独立 Git 源码仓库
+├── cordis.patch.yml                            # DSH bundle patch
 ├── contracts/
 │   ├── experiment.schema.json
 │   ├── episode.schema.json
@@ -344,11 +361,16 @@ Candidate policy 由 Implementation Spec 冻结。它不是历史 Clowder Task�
 │   ├── goal-off.json
 │   └── goal-on.json
 ├── src/
+│   ├── app/                                    # eval profile command surface
+│   └── bridge/                                 # runner-only safety bridge
 ├── tests/
-└── bin/dsh-eval
+└── package.json                                # dsh.bundle.patch declaration
 
 /Users/slipshod/AIBuild/dsh-eval-lab-runtime/  # 非 Git，权限收紧
 ├── dsh-home/                                    # OAuth credential / profiles / sessions
+│   ├── profiles/eval/                           # management plugin profile
+│   ├── profiles/eval-runner/                    # isolated child carrier profile
+│   └── sessions/
 ├── workspaces/<campaign-id>/<arm>/
 └── campaigns/<campaign-id>/
     ├── manifest.json
@@ -362,14 +384,16 @@ Candidate policy 由 Implementation Spec 冻结。它不是历史 Clowder Task�
 Eval Lab 源码、Task fixture 或 Campaign。Eval Lab 不写 Clowder AI workspace、不读取 `~/.dsh`，也不复制
 或提交 OAuth secret。
 
-逻辑组件只有四个：
+逻辑组件只有五个：
 
-1. **Contracts**：版本化 schema、canonical content digest、Claim 强度。
-2. **Runner**：创建 fresh workspace/session，运行 control/treatment，冻结 Candidate。
-3. **Projector + Oracle**：读取 SessionEvent、验证证据边界、在隔离副本执行隐藏行为检查。
-4. **Reporter**：生成机器 JSON 与人读 Markdown Paired Impact Report。
+1. **DSH App Plugin**：解析 `dsh --profile eval <command>`，提供产品入口，不参与被测 Episode。
+2. **Contracts**：版本化 schema、canonical content digest、Claim 强度。
+3. **Runner**：创建 fresh workspace/session，启动隔离 child DSH process，运行 control/treatment，冻结 Candidate。
+4. **Projector + Oracle**：读取 SessionEvent、验证证据边界、在隔离副本执行隐藏行为检查。
+5. **Reporter**：生成机器 JSON 与人读 Markdown Paired Impact Report。
 
-MVP 可以是一个本地包/CLI，不为逻辑目录拆多个 npm package。
+MVP 是一个可由 DSH plugin manager 安装的本地 bundle package，不为逻辑目录拆多个 npm package。app 与 bridge
+是同一发布物的不同 entrypoint；用户不直接执行 package 内部脚本。
 
 ### 7.6 最小结果向量
 
@@ -427,6 +451,9 @@ Report 按 control/treatment 并排展示原始值和 delta，不计算综合质
       不安装未知第三方插件，不产生外部发布或不可逆动作。
 - [ ] AC-13: 源码 Git root、Eval runtime root 与已验收 OAuth 参考实验室三者分离；secret、Session、Candidate 和
       Campaign artifact 均不进入源码仓库。
+- [ ] AC-14: 产品能通过 `dsh plugin --profile eval add <package>` 安装，并只通过
+      `dsh --profile eval <command>` 暴露用户入口；runner config 将 management app 固定为 disabled，app 不进入
+      模型可见 request/tool surface，两个 arms 只执行 byte-identical 的 runner bridge。
 
 ### 7.8 Phase 1 通过的定义
 
@@ -504,6 +531,7 @@ Phase 1 的成功不是 treatment 获胜，而是：
 | 风险 | Phase 1 控制 |
 |---|---|
 | Observer 改变模型行为 | 不新增 model-facing Observer；离线读 SessionEvent |
+| 管理插件污染被测 Agent | management profile 与 runner profile/process 分离；runner 显式禁用 app row，只执行两臂相同的 bridge |
 | 两臂 profile 漂移 | package/profile/config/tool digest + exact allowed intervention |
 | Goal 没被激活 | 作为 mechanism outcome，如实报告，不改 prompt 强迫调用 |
 | Oracle 泄漏 | capability/path separation，Candidate 看不到 oracle-only artifact |
@@ -529,12 +557,17 @@ Phase 1 的成功不是 treatment 获胜，而是：
 9. **固定一个 Domain**：Phase 1 不建设 Domain registry 或通用 Pack authoring；只交付开放式编码领域。
 10. **单一使用者，不预建角色系统**：认识论责任保留在契约和步骤中，不投射成产品 persona 或权限层。
 11. **源码与运行态分家**：新建独立 `dsh-eval-lab` 源码仓库；现有 OAuth lab 仅作验收证据，不在其上继续堆产品。
+12. **产品入口原生属于 DSH**：Eval Lab 作为外部 DSH bundle 安装到专用 `eval` profile；Phase 1 不发布独立
+    `dsh-eval` 用户命令。
+13. **插件形态不越过实验边界**：management app 只做 control plane，Candidate 始终运行在隔离 child DSH process；
+    同一 Session 内“边运行边评自己”不是合法 carrier。
 
 ## 12. Source Map
 
 - [Agent Eval Epistemology](../../../clowder-ai/docs/study/agent-eval-epistemology.md)
 - [DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
 - [DeepSeek Harness 设计分析](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/codex-synthesis.md)
+- [DSH CLI / profile / plugin reference](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/apps/cli/reference/README.md)
 - [DSH OAuth 插件扫描](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/oauth-plugin-scan-synthesis.md)
 - [CS329A 调研](../../../clowder-ai/project-research/2026-08-17-stanford-cs329a/ragdoll-synthesis.md)
 - [F192 Harness Eval](../../../clowder-ai/docs/features/F192-socio-technical-harness-eval.md)
