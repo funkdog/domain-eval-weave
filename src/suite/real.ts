@@ -15,7 +15,7 @@ import {
   type QualificationEvidence,
 } from "../contracts/parsers.js";
 import { ExposureLedger } from "../exposure/ledger.js";
-import { PHASE2_INSTANCE } from "../instance.js";
+import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
 import { loadStaticEvalBinding, materializeRegistryTask } from "../registry/loader.js";
 import type { TaskPackIdentity } from "../task-pack/loader.js";
 import { phase2TaskPackIdentity } from "./identity.js";
@@ -50,10 +50,7 @@ export async function runRealPhase2Suite(input: {
     const taskPackDigest = canonicalJsonDigest(identity);
     const calibration = parseCalibrationEvidence(
       JSON.parse(
-        await readFile(
-          `${PHASE2_INSTANCE.instanceRoot}/calibration/${taskPackDigest}.json`,
-          "utf8",
-        ),
+        await readFile(phase2CalibrationPath(taskPackDigest, deployment.evalPackageDigest), "utf8"),
       ),
     );
     if (

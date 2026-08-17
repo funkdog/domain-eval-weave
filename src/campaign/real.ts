@@ -37,7 +37,7 @@ import {
   fingerprintComposedRows,
 } from "../fingerprint/variants.js";
 import { computeCandidateTree, freezeCandidate } from "../freeze/candidate.js";
-import { PHASE2_INSTANCE } from "../instance.js";
+import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
 import { type BehaviorVector, LEDGER_BEHAVIORS, LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { decodeOfficialSessionJsonl } from "../projector/jsonl.js";
@@ -653,7 +653,7 @@ export async function runRealCampaign(input: {
   );
   const calibration = parseCalibrationEvidence(
     JSON.parse(
-      await readFile(`${PHASE2_INSTANCE.instanceRoot}/calibration/${taskPackDigest}.json`, "utf8"),
+      await readFile(phase2CalibrationPath(taskPackDigest, deployment.evalPackageDigest), "utf8"),
     ),
   );
   const confirmed = await input.confirm(

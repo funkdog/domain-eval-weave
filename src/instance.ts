@@ -17,6 +17,8 @@ export const PHASE2_INSTANCE = {
 
 export type Phase2Instance = typeof PHASE2_INSTANCE;
 
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
+
 export class Phase2InstanceError extends Error {
   readonly code: string;
 
@@ -45,6 +47,16 @@ export function resolvePhase2Instance(
     );
   }
   return PHASE2_INSTANCE;
+}
+
+export function phase2CalibrationPath(taskPackDigest: string, evalPackageDigest: string): string {
+  if (!SHA256_PATTERN.test(taskPackDigest) || !SHA256_PATTERN.test(evalPackageDigest)) {
+    throw new Phase2InstanceError(
+      "PHASE2_CALIBRATION_KEY_INVALID",
+      "Phase 2 calibration keys must be lowercase SHA-256 digests",
+    );
+  }
+  return `${PHASE2_INSTANCE.instanceRoot}/calibration/${taskPackDigest}--${evalPackageDigest}.json`;
 }
 
 async function validateContainedDirectory(

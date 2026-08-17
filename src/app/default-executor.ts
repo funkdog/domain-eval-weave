@@ -41,7 +41,12 @@ import {
   type ComposedRow,
   VariantCompositionError,
 } from "../fingerprint/variants.js";
-import { ensurePhase2InstanceLayout, PHASE2_INSTANCE, resolvePhase2Instance } from "../instance.js";
+import {
+  ensurePhase2InstanceLayout,
+  PHASE2_INSTANCE,
+  phase2CalibrationPath,
+  resolvePhase2Instance,
+} from "../instance.js";
 import { calibrateLedgerPack } from "../oracle/calibration.js";
 import { LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
@@ -390,7 +395,7 @@ async function runCalibration(): Promise<{
     const { targets } = await phase2CalibrationTargets();
     const paths: string[] = [];
     for (const target of targets) {
-      const path = `${PHASE2_INSTANCE.instanceRoot}/calibration/${target.taskPackDigest}.json`;
+      const path = phase2CalibrationPath(target.taskPackDigest, evalPackageSha256);
       await mkdir(dirname(path), { recursive: true, mode: 0o700 });
       const bytes = `${canonicalJson({
         ...result,
@@ -547,7 +552,7 @@ async function runProductDoctor() {
         const { pack, targets } = await phase2CalibrationTargets();
         const evalPackageDigest = await fingerprintPackageContent(packageRoot());
         for (const target of targets) {
-          const path = `${PHASE2_INSTANCE.instanceRoot}/calibration/${target.taskPackDigest}.json`;
+          const path = phase2CalibrationPath(target.taskPackDigest, evalPackageDigest);
           const value = parseCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
           if (
             value.task_pack_digest !== target.taskPackDigest ||

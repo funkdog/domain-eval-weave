@@ -6,6 +6,7 @@ import {
   assertContainedPhase2Directory,
   PHASE2_INSTANCE,
   Phase2InstanceError,
+  phase2CalibrationPath,
   resolvePhase2Instance,
 } from "../../src/instance.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
@@ -38,6 +39,18 @@ test("Phase 2 instance rejects missing, unknown, and alternate-home inputs", () 
       (error: unknown) => error instanceof Phase2InstanceError,
     );
   }
+});
+
+test("calibration paths bind both Task Pack and eval package revisions", () => {
+  const taskPackDigest = "a".repeat(64);
+  const first = phase2CalibrationPath(taskPackDigest, "b".repeat(64));
+  const second = phase2CalibrationPath(taskPackDigest, "c".repeat(64));
+  assert.notEqual(first, second);
+  assert.equal(
+    first,
+    `${PHASE2_INSTANCE.instanceRoot}/calibration/${taskPackDigest}--${"b".repeat(64)}.json`,
+  );
+  assert.throws(() => phase2CalibrationPath("not-a-digest", "b".repeat(64)));
 });
 
 test("Phase 2 layout revalidation rejects a post-init symlink swap", async () => {
