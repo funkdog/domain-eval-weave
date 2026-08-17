@@ -216,12 +216,20 @@ export async function replayPairedImpactReport(
     eval_package: controlVariant.eval_package_sha256,
     common_patch: controlVariant.common_patch_sha256,
   });
+  const qualification = experiment.deployment.qualification;
+  const projection = experiment.deployment.qualification_projection;
+  const directQualification =
+    projection === undefined && qualification.deployment_digest === expectedDeploymentDigest;
+  const projectedQualification =
+    projection !== undefined &&
+    projection.source_deployment_digest === qualification.deployment_digest &&
+    projection.projected_deployment_digest === expectedDeploymentDigest &&
+    projection.source_qualification_sha256 === canonicalJsonDigest(qualification);
   if (
     experiment.deployment.digest !== expectedDeploymentDigest ||
     experiment.deployment.eval_package_sha256 !== controlVariant.eval_package_sha256 ||
-    experiment.deployment.qualification.deployment_digest !== expectedDeploymentDigest ||
-    experiment.deployment.qualification.common_tool_schema_sha256 !==
-      controlVariant.tool_schema_sha256 ||
+    (!directQualification && !projectedQualification) ||
+    qualification.common_tool_schema_sha256 !== controlVariant.tool_schema_sha256 ||
     experiment.deployment.calibration.task_pack_digest !== experiment.task_pack_digest ||
     experiment.deployment.calibration.calibration_digest !== taskPack.pack.calibration_digest ||
     experiment.deployment.calibration.eval_package_sha256 !== controlVariant.eval_package_sha256

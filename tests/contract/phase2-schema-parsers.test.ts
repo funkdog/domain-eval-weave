@@ -5,7 +5,7 @@ import test from "node:test";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { FormatsPlugin } from "ajv-formats";
 import * as addFormatsModule from "ajv-formats";
-
+import { parseQualificationEvidence } from "../../src/contracts/parsers.js";
 import {
   parseActivationArtifact,
   parseCampaignPointerArtifact,
@@ -20,6 +20,7 @@ import {
   parseSuiteReport,
   parseTaskEntry,
 } from "../../src/contracts/phase2.js";
+import { validQualificationEvidence } from "../helpers/fixtures.js";
 import {
   validActivationArtifact,
   validCampaignPointerArtifact,
@@ -67,6 +68,7 @@ test("Phase 2 persisted faces have JSON Schema and Zod parser parity", async () 
     ["suite-manifest.schema.json", validSuiteManifest, parseSuiteManifest],
     ["registry-snapshot.schema.json", validRegistrySnapshot, parseRegistrySnapshot],
     ["campaign-pointer.schema.json", validCampaignPointerArtifact, parseCampaignPointerArtifact],
+    ["qualification.schema.json", validQualificationEvidence, parseQualificationEvidence],
     ["suite-evaluation.schema.json", validSuiteEvaluation, parseSuiteEvaluationArtifact],
     ["suite-report.schema.json", validSuiteReport, parseSuiteReport],
     ["suite-invalid.schema.json", validSuiteInvalidEnvelope, parseSuiteInvalidEnvelope],

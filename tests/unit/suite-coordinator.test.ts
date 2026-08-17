@@ -52,12 +52,12 @@ test("Suite freezes all Campaign ids and task order before executing without ada
     "ledger-concurrency-v1",
   ]);
   assert.deepEqual(events, [
-    "gate:ledger-concurrency-v1:suite-fixed",
     "plan:ledger-audit-v1",
     "plan:ledger-full-v1",
     "plan:ledger-concurrency-v1",
     "freeze",
     "prepare",
+    "gate:ledger-concurrency-v1:suite-fixed",
     "run:ledger-audit-v1",
     "run:ledger-full-v1",
     "run:ledger-concurrency-v1",
@@ -72,9 +72,9 @@ test("Suite freezes all Campaign ids and task order before executing without ada
   );
 });
 
-test("holdout rejection occurs before planning or model execution", async () => {
+test("holdout is reserved after confirmation and qualification but before model execution", async () => {
   const binding = await loadStaticEvalBinding(packageRoot);
-  let calls = 0;
+  const events: string[] = [];
   await assert.rejects(
     executePlannedSuite({
       binding,
@@ -83,24 +83,35 @@ test("holdout rejection occurs before planning or model execution", async () => 
       deploymentDigest: "b".repeat(64),
       timeoutMsPerArm: 2_700_000,
       triggerFirst: true,
-      campaignIdForTask: () => {
-        calls += 1;
-        return "campaign-never";
+      campaignIdForTask: (task) => {
+        events.push(`plan:${task.task_id}`);
+        return `campaign-${task.task_id}`;
       },
       holdoutGate: {
         reserveHoldout: async () => {
+          events.push("gate");
           throw new Error("holdout was exposed");
         },
       },
       freezeManifest: async () => {
-        calls += 1;
+        events.push("freeze");
+      },
+      beforeTasks: async () => {
+        events.push("prepare");
       },
       runTask: async () => {
-        calls += 1;
+        events.push("run");
         return undefined;
       },
     }),
     /holdout was exposed/,
   );
-  assert.equal(calls, 0);
+  assert.deepEqual(events, [
+    "plan:ledger-full-v1",
+    "plan:ledger-audit-v1",
+    "plan:ledger-concurrency-v1",
+    "freeze",
+    "prepare",
+    "gate",
+  ]);
 });

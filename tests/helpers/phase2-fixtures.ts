@@ -311,6 +311,7 @@ export const validSuiteReport = {
     manifest: { ref: "artifact://suite/manifest.json", sha256: digest("4") },
     binding: { ref: "artifact://suite/binding.json", sha256: digest("5") },
     registry_snapshot: { ref: "artifact://suite/registry.json", sha256: digest("6") },
+    qualification: { ref: "artifact://suite/qualification.json", sha256: digest("8") },
     evaluation: { ref: "artifact://suite/evaluation.json", sha256: digest("7") },
   },
   recommendation: { action: "keep", rationale_codes: ["SUITE_VALID"] },

@@ -1,4 +1,8 @@
-import { assertPhase2InstanceLayout, resolvePhase2Instance } from "../instance.js";
+import {
+  assertCurrentPhase2Profile,
+  assertPhase2InstanceLayout,
+  resolvePhase2Instance,
+} from "../instance.js";
 import { type AppInvocation, AppUsageError, EXIT_CODE, parseAppArguments } from "./args.js";
 import { createDefaultAppExecutor } from "./default-executor.js";
 import type { DshEvalCommandExecutor } from "./startup.js";
@@ -7,6 +11,7 @@ export const name = "dsh-eval-app";
 export const inject = ["cmdlineArgs", "appExit"] as const;
 
 export interface DshEvalAppContext {
+  readonly root: { readonly baseUrl?: string };
   readonly cmdlineArgs: { get(): readonly string[] };
   readonly appExit: (code: number) => void;
   provide(name: "dshEvalApp", invocation: AppInvocation): void;
@@ -22,6 +27,7 @@ export default function applyDshEvalApp(
   config: DshEvalAppConfig = {},
 ): Promise<void> {
   resolvePhase2Instance(config.env ?? process.env);
+  assertCurrentPhase2Profile(context.root.baseUrl, "management");
   let invocation: AppInvocation;
   try {
     invocation = parseAppArguments(context.cmdlineArgs.get());

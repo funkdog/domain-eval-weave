@@ -571,6 +571,7 @@ export const suiteReportSchema = z
       manifest: suiteArtifactPointerSchema,
       binding: suiteArtifactPointerSchema,
       registry_snapshot: suiteArtifactPointerSchema,
+      qualification: suiteArtifactPointerSchema,
       evaluation: suiteArtifactPointerSchema,
     }),
     recommendation: z.strictObject({

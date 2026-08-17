@@ -117,6 +117,7 @@ export async function runRealPhase2Suite(input: {
       } catch {
         throw new CarrierQualificationError();
       }
+      return qualification;
     },
     runCampaign: async (plan, manifest) => {
       const taskPackIdentity = identities.get(plan.task.task_id);

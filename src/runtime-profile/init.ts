@@ -1,6 +1,8 @@
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
+import { parse } from "yaml";
+
 export const PINNED_DSH_VERSION = "0.1.0-rc.6";
 export const PINNED_CODEX_CONNECT_VERSION = "0.1.0-alpha.4.7";
 
@@ -169,6 +171,42 @@ async function assertPhysicalFile(path: string): Promise<void> {
     throw new ProfileContractError(
       "PROFILE_ENTRY_INVALID",
       "profile entry is not a readable regular file",
+    );
+  }
+}
+
+function mapping(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
+  return value as Record<string, unknown>;
+}
+
+/**
+ * Validate only the shared transport route this Lab depends on. The settings
+ * file is owned by the shared DSH control plane, so unrelated keys and bytes
+ * must remain untouched for another evaluation implementation to coexist.
+ */
+export async function verifySharedModelSettings(dshHome: string): Promise<void> {
+  await assertPhysicalDirectory(dshHome);
+  const path = resolveFrozenPath(dshHome, "settings.yaml");
+  await assertPhysicalFile(path);
+  let parsed: unknown;
+  try {
+    parsed = parse(await readFile(path, "utf8"));
+  } catch {
+    throw new ProfileContractError(
+      "MODEL_ROUTE_INVALID",
+      "shared settings.yaml must be readable YAML",
+    );
+  }
+  const route = mapping(mapping(parsed)?.["agent-default-model"]);
+  if (
+    route?.provider !== "openai-codex" ||
+    route.model !== "gpt-5.6-sol" ||
+    route.reasoningEffort !== "xhigh"
+  ) {
+    throw new ProfileContractError(
+      "MODEL_ROUTE_INVALID",
+      "shared settings.yaml does not provide the required Phase 2 model route",
     );
   }
 }

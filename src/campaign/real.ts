@@ -14,7 +14,7 @@ import {
   readStableSessionTranscript,
   scanRawSessionInventory,
 } from "../carrier/session-inventory.js";
-import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import {
   type CalibrationEvidence,
   type ExperimentSpec,
@@ -480,10 +480,15 @@ export async function executePreparedRealCampaign<T>(input: {
   ) {
     throw new Error("calibration evidence is not bound to the current deployment");
   }
-  const qualification = parseQualificationEvidence({
-    ...input.qualification,
-    deployment_digest: deploymentDigest,
-  });
+  const qualification = parseQualificationEvidence(input.qualification);
+  const qualificationProjection =
+    qualification.deployment_digest === deploymentDigest
+      ? undefined
+      : {
+          source_deployment_digest: qualification.deployment_digest,
+          projected_deployment_digest: deploymentDigest,
+          source_qualification_sha256: canonicalJsonDigest(qualification),
+        };
   const variants = variantsForQualification(input.deployment, qualification);
   const controlDigest = sha256Hex(canonicalJson(variants.control));
   const treatmentDigest = sha256Hex(canonicalJson(variants.treatment));
@@ -502,6 +507,9 @@ export async function executePreparedRealCampaign<T>(input: {
       digest: deploymentDigest,
       eval_package_sha256: input.deployment.evalPackageDigest,
       qualification,
+      ...(qualificationProjection === undefined
+        ? {}
+        : { qualification_projection: qualificationProjection }),
       calibration: input.calibration,
     },
     intervention: {

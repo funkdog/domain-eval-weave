@@ -61,7 +61,11 @@ async function dedicatedRuntimeRoot(): Promise<string> {
   return realpath(root);
 }
 
-async function ensurePrivateDirectory(target: string, finalCode: string): Promise<string> {
+async function ensurePrivateDirectory(
+  target: string,
+  finalCode: string,
+  createMissing = true,
+): Promise<string> {
   const realRuntime = await dedicatedRuntimeRoot();
   const runtime = resolve(DEDICATED_RUNTIME_ROOT);
   const normalizedTarget = resolve(target);
@@ -83,6 +87,9 @@ async function ensurePrivateDirectory(target: string, finalCode: string): Promis
       missing = true;
     }
     if (missing) {
+      if (!createMissing) {
+        throw new ExposureLedgerError(finalCode, "required exposure directory is missing");
+      }
       try {
         await mkdir(current, { mode: 0o700 });
       } catch (error) {
@@ -194,6 +201,15 @@ export class ExposureLedger {
     );
   }
 
+  async #readRoot(): Promise<string> {
+    await ensurePrivateDirectory(this.#instanceRoot, "INSTANCE_ROOT_INVALID", false);
+    return ensurePrivateDirectory(
+      resolve(this.#instanceRoot, "exposures"),
+      "EXPOSURE_ROOT_INVALID",
+      false,
+    );
+  }
+
   async #reservationRoot(): Promise<string> {
     await ensurePrivateDirectory(this.#instanceRoot, "INSTANCE_ROOT_INVALID");
     return ensurePrivateDirectory(
@@ -258,6 +274,25 @@ export class ExposureLedger {
       await rm(temporary, { force: true });
     }
     return { path, sha256: sha256Hex(bytes) };
+  }
+
+  async read(exposureId: string): Promise<ExposureWrite & { readonly record: ExposureRecord }> {
+    if (!ID_PATTERN.test(exposureId)) {
+      throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "exposure id must be normalized");
+    }
+    const root = await this.#readRoot();
+    const path = resolve(root, `${exposureId}.json`);
+    if (!isPathInside(root, path)) {
+      throw new ExposureLedgerError("EXPOSURE_PATH_ESCAPE", "exposure path escapes its root");
+    }
+    let record: ExposureRecord;
+    try {
+      record = await readRecord(path, exposureId);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      throw new ExposureLedgerError("EXPOSURE_ENTRY_MISSING", "exposure entry is missing");
+    }
+    return { path, sha256: sha256Hex(canonicalJson(record)), record };
   }
 
   async list(): Promise<readonly ExposureRecord[]> {

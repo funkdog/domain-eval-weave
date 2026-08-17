@@ -39,11 +39,12 @@
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["manifest", "binding", "registry_snapshot", "evaluation"],
+      "required": ["manifest", "binding", "registry_snapshot", "qualification", "evaluation"],
       "properties": {
         "manifest": { "$ref": "#/$defs/suitePointer" },
         "binding": { "$ref": "#/$defs/suitePointer" },
         "registry_snapshot": { "$ref": "#/$defs/suitePointer" },
+        "qualification": { "$ref": "#/$defs/suitePointer" },
         "evaluation": { "$ref": "#/$defs/suitePointer" }
       }
     },

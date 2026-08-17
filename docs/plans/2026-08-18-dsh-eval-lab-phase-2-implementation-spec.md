@@ -57,6 +57,11 @@ DSH_EVAL_INSTANCE_ID=clowder-ai
 ```
 
 任何缺失、未知 instance 或 profile/name/path 不一致都 fail closed。不得回退到 `eval`、`eval-runner` 或 ambient home。
+app/bridge 必须分别从 DSH root context 的 profile base URL 验证当前 profile 为 `eval-clowder` /
+`eval-clowder-runner`，且验证发生在提供 app service、安装 guard、注册 tool 或写入运行态之前。
+
+共享 `<DSH_HOME>/settings.yaml` 属于 transport control plane，不由任一 Eval Lab 实现创建或 byte-freeze。`init` 只读验证
+`agent-default-model` 的 provider/model/reasoningEffort 必需字段，并允许其他 implementation 或 transport 的无关配置共存。
 
 ## 3. Harness manifest 与 evalBinding
 
@@ -163,8 +168,9 @@ started/ended timestamp 与前置 registry/binding digest。`exposure-id` 由 su
 
 Exposure 在 Session 与 Candidate freeze 后、Oracle 前写入。失败不能伪造完整 exposure；此时 Suite measurement invalid。
 
-Holdout 在 Suite 开始前必须没有任何既存 model exposure。Suite artifact replay 不产生新 exposure；新的模型运行若重复
-使用已暴露 holdout，必须在调用模型前拒绝。Trigger/non-trigger 可重复运行，但报告列出 exposure count。
+Holdout 在 Suite 开始前必须没有任何既存 model exposure。永久 reservation 只能在 operator 确认与 qualification 成功后、
+首个 Candidate Episode 前原子写入；拒绝或 qualification 失败不得消耗 holdout。Suite artifact replay 不产生新 exposure；
+新的模型运行若重复使用已暴露 holdout，必须在调用模型前拒绝。Trigger/non-trigger 可重复运行，但报告列出 exposure count。
 
 ## 7. Multi-task Suite
 
@@ -172,7 +178,8 @@ Holdout 在 Suite 开始前必须没有任何既存 model exposure。Suite artif
 
 1. doctor、binding/registry validation、全部 Task calibration；
 2. freeze Suite manifest 与 registry/binding pointers；
-3. 确认一次最多 `2 × task_count` 个 Candidate Episodes，加一个按 deployment digest 缓存的 qualification；
+3. 确认一次最多 `2 × task_count` 个 Candidate Episodes，加一个按 Suite deployment digest 缓存的 qualification；冻结原始
+   qualification 后，才原子 reserve holdout；
 4. 随机化 trigger/non-trigger task 顺序；holdout 固定最后；
 5. 每个 task 独立随机 arm order，fresh Session、fresh workspace、同一 task 两臂共享 Oracle seed；
 6. 每臂 freeze Session/Candidate/activation/exposure，再运行 Oracle；
@@ -200,6 +207,7 @@ Cross-task recommendation 仅允许：`keep`、`iterate_binding`、`keep_baselin
 suites/<suite-id>/manifest.json
 suites/<suite-id>/registry.json
 suites/<suite-id>/binding.json
+suites/<suite-id>/qualification.json
 suites/<suite-id>/tasks/<task-id>/campaign-pointer.json
 suites/<suite-id>/evaluation.json
 suites/<suite-id>/report.json
@@ -208,8 +216,10 @@ campaigns/<campaign-id>/arms/<arm>/activation.json
 campaigns/<campaign-id>/arms/<arm>/exposure.json
 ```
 
-Suite manifest 必须绑定 task order、bucket、Campaign ids、registry/binding/deployment digest。Suite replay 只读 frozen bytes，
-逐层验证 ref+digest、Campaign semantic replay、typed activation、exposure bytes、bucket expectation、aggregate derivation 与 Markdown。
+Suite manifest 必须绑定 task order、bucket、Campaign ids、registry/binding/deployment digest。每个 task Campaign 保留原始
+Suite qualification，并用 source digest + projected task deployment digest 显式记录 qualification projection。Suite replay 只读
+frozen bytes，逐层验证 ref+digest、Campaign semantic replay、从 Session JSONL 重投影的 typed activation、Campaign exposure
+副本与 instance 0600 immutable exposure ledger、Registry/TaskPack identity、bucket expectation、aggregate derivation 与 Markdown。
 任一缺失、digest mismatch、unknown extra task、重复 Campaign、交叉 Suite ref 或派生值不一致均 fail closed。
 
 `suite report <suite-id>` 只能从 artifact 重建；不得读取 live Session、workspace、Profile 或 Registry 当前版本。
@@ -296,4 +306,3 @@ dsh --profile eval-clowder suite report <suite-id>
 - 用 aggregate score、LLM Judge 或单 Suite 生成 effect claim；
 - 自动删除 persisted Campaign/Suite/exposure；
 - Phase 2 顺手引入 UI、远端执行、多人角色或第三方 plugin sandbox。
-

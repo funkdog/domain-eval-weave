@@ -251,6 +251,79 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
     );
     assert.equal(canonicalJsonDigest(replay.report), reportPointer.sha256);
 
+    const sourceQualification = {
+      ...validExperiment.deployment.qualification,
+      deployment_digest: "e".repeat(64),
+    };
+    const projectedExperiment = parseExperimentSpec({
+      ...structuredClone(validExperiment),
+      deployment: {
+        ...structuredClone(validExperiment.deployment),
+        qualification: sourceQualification,
+        qualification_projection: {
+          source_deployment_digest: sourceQualification.deployment_digest,
+          projected_deployment_digest: validExperiment.deployment.digest,
+          source_qualification_sha256: canonicalJsonDigest(sourceQualification),
+        },
+      },
+    });
+    const projectedExperimentPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/manifest-projected.json",
+      projectedExperiment,
+    );
+    const projectedReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-projected.json",
+      {
+        ...report,
+        experiment_digest: projectedExperimentPointer.sha256,
+        evidence: { ...report.evidence, experiment: projectedExperimentPointer },
+        known_blind_spots: report.known_blind_spots.map((blindSpot) => ({
+          ...blindSpot,
+          evidence_refs: [projectedExperimentPointer.ref],
+        })),
+      },
+    );
+    assert.deepEqual(
+      (await replayPairedImpactReport(campaignRoot, projectedReportPointer)).experiment,
+      projectedExperiment,
+    );
+
+    const invalidProjectionPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/manifest-invalid-projection.json",
+      {
+        ...projectedExperiment,
+        deployment: {
+          ...projectedExperiment.deployment,
+          qualification_projection: {
+            ...projectedExperiment.deployment.qualification_projection,
+            source_qualification_sha256: "f".repeat(64),
+          },
+        },
+      },
+    );
+    const invalidProjectionReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-invalid-projection.json",
+      {
+        ...report,
+        experiment_digest: invalidProjectionPointer.sha256,
+        evidence: { ...report.evidence, experiment: invalidProjectionPointer },
+        known_blind_spots: report.known_blind_spots.map((blindSpot) => ({
+          ...blindSpot,
+          evidence_refs: [invalidProjectionPointer.ref],
+        })),
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, invalidProjectionReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
     const wrongCostReportPointer = await writeCanonicalJsonArtifact(
       campaignRoot,
       "artifact://campaign/report-wrong-cost.json",

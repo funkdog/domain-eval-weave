@@ -7,6 +7,7 @@ import {
   materializeFrozenFiles,
   ProfileContractError,
   runnerProfileFiles,
+  verifySharedModelSettings,
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
@@ -87,5 +88,39 @@ test("profile materialization rejects a root symlink before writing frozen files
   } finally {
     await rm(scratch, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("shared model settings are validated read-only while unrelated configuration remains free", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/shared-settings-`);
+  const settings = `${root}/settings.yaml`;
+
+  try {
+    const source = [
+      "telemetry:",
+      "  enabled: false",
+      "agent-default-model:",
+      "  provider: openai-codex",
+      "  model: gpt-5.6-sol",
+      "  reasoningEffort: xhigh",
+      "  transportOption: preserved",
+      "another-implementation:",
+      "  profile: eval-dsh",
+      "",
+    ].join("\n");
+    await writeFile(settings, source, { mode: 0o600 });
+    await verifySharedModelSettings(root);
+    assert.equal(await readFile(settings, "utf8"), source);
+
+    await writeFile(settings, source.replace("gpt-5.6-sol", "wrong-model"), "utf8");
+    await assert.rejects(
+      verifySharedModelSettings(root),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "MODEL_ROUTE_INVALID",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

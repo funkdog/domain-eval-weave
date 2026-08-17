@@ -1,5 +1,6 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   assertDedicatedDshHomePreBoot,
@@ -47,6 +48,21 @@ export function resolvePhase2Instance(
     );
   }
   return PHASE2_INSTANCE;
+}
+
+export function assertCurrentPhase2Profile(
+  rootBaseUrl: string | undefined,
+  role: "management" | "runner",
+): void {
+  const profile =
+    role === "management" ? PHASE2_INSTANCE.managementProfile : PHASE2_INSTANCE.runnerProfile;
+  const expected = pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/${profile}/`).href;
+  if (rootBaseUrl !== expected) {
+    throw new Phase2InstanceError(
+      "PHASE2_PROFILE_INVALID",
+      `current DSH profile must be ${profile}`,
+    );
+  }
 }
 
 export function phase2CalibrationPath(taskPackDigest: string, evalPackageDigest: string): string {

@@ -33,6 +33,11 @@ test("exposure records are canonical, immutable, permissioned, and concurrency-s
     assert.equal(await readFile(exposurePath, "utf8"), canonicalJson(record));
     assert.equal((await lstat(`${instanceRoot}/exposures`)).mode & 0o777, 0o700);
     assert.equal((await lstat(exposurePath)).mode & 0o777, 0o600);
+    assert.deepEqual(await ledger.read(record.exposure_id), {
+      path: exposurePath,
+      sha256: sha256Hex(canonicalJson(record)),
+      record,
+    });
 
     await assert.rejects(
       ledger.write({ ...record, ended_at: "2026-08-18T00:02:00.000Z" }),
@@ -40,6 +45,23 @@ test("exposure records are canonical, immutable, permissioned, and concurrency-s
         error instanceof ExposureLedgerError && error.code === "EXPOSURE_ALREADY_EXISTS",
     );
     assert.deepEqual(await ledger.list(), [record]);
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("read-only exposure replay never creates a missing ledger root", async () => {
+  const scratch = await scratchRoot("phase2-exposure-read-only");
+  const instanceRoot = `${scratch}/instance`;
+  await mkdir(instanceRoot, { mode: 0o700 });
+  const ledger = new ExposureLedger(instanceRoot);
+  try {
+    await assert.rejects(
+      ledger.read("suite-1--ledger-full-v1--control"),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "EXPOSURE_ROOT_INVALID",
+    );
+    await assert.rejects(lstat(`${instanceRoot}/exposures`), { code: "ENOENT" });
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

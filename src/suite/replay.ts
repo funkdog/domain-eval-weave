@@ -1,9 +1,13 @@
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
-import { readJsonArtifact } from "../contracts/artifacts.js";
+import { readArtifactBytes, readJsonArtifact } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
-import type { EvaluationResult } from "../contracts/parsers.js";
+import {
+  type EvaluationResult,
+  parseQualificationEvidence,
+  type QualificationEvidence,
+} from "../contracts/parsers.js";
 import {
   type ActivationArtifact,
   parseActivationArtifact,
@@ -28,6 +32,11 @@ import {
   SuiteArtifactIntegrityError,
   type SuiteArtifactPointer,
 } from "../contracts/suite-artifacts.js";
+import { ExposureLedger } from "../exposure/ledger.js";
+import { LEDGER_BEHAVIORS } from "../oracle/ledger.js";
+import { decodeOfficialSessionJsonl } from "../projector/jsonl.js";
+import { projectGoalActivation } from "../projector/projector.js";
+import type { TaskPackIdentity } from "../task-pack/loader.js";
 import { buildSuiteEvaluation, buildSuiteReport, renderSuiteReportMarkdown } from "./reporter.js";
 
 export interface ReconstructedSuiteReport {
@@ -36,6 +45,7 @@ export interface ReconstructedSuiteReport {
   readonly markdown: string;
   readonly manifest: SuiteManifest;
   readonly registry_snapshot: RegistrySnapshot;
+  readonly qualification: QualificationEvidence;
 }
 
 export interface ReplayedSuiteReport extends ReconstructedSuiteReport {
@@ -49,6 +59,21 @@ function crossReferenceFailure(message: string): never {
 
 function same(left: unknown, right: unknown): boolean {
   return canonicalJson(left) === canonicalJson(right);
+}
+
+export function assertTaskPackMatchesRegistry(
+  task: RegistrySnapshot["tasks"][number],
+  taskPack: TaskPackIdentity,
+): void {
+  if (
+    taskPack.public_task_sha256 !== task.public_task_sha256 ||
+    taskPack.pack.base_tree_sha256 !== task.effective_base_sha256 ||
+    taskPack.oracle_runner_sha256 !== task.oracle.runner_sha256 ||
+    taskPack.pack.oracle_version !== task.oracle.version ||
+    !same([...task.oracle.behavior_keys].sort(), [...LEDGER_BEHAVIORS].sort())
+  ) {
+    crossReferenceFailure("Campaign Task Pack does not match the frozen Registry Task");
+  }
 }
 
 async function readCanonicalByRef<T>(
@@ -89,16 +114,37 @@ async function readCanonicalByRef<T>(
 function verifyActivation(
   arm: "control" | "treatment",
   activation: ActivationArtifact,
-  sessionId: string | undefined,
+  projected: ActivationArtifact,
   result: EvaluationResult,
 ): void {
   if (
-    activation.session_id !== sessionId ||
+    !same(activation, projected) ||
     activation.summary.activated !== result.mechanism.goal_created ||
     activation.summary.continuation_rounds !== result.mechanism.goal_rounds_started ||
     activation.summary.terminal_phase !== result.mechanism.goal_terminal_phase
   ) {
     crossReferenceFailure(`${arm} activation does not match reconstructed Session evidence`);
+  }
+}
+
+async function reconstructActivation(
+  campaignRoot: string,
+  episode: Awaited<ReturnType<typeof replayPairedImpactReport>>["control_episode"],
+): Promise<ActivationArtifact> {
+  const bytes = await readArtifactBytes(campaignRoot, {
+    ref: episode.evidence.session_log_ref,
+    sha256: episode.evidence.session_log_sha256,
+  });
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    crossReferenceFailure("Session JSONL is not valid UTF-8");
+  }
+  try {
+    return projectGoalActivation(decodeOfficialSessionJsonl(text));
+  } catch {
+    crossReferenceFailure("Session JSONL cannot reconstruct Goal activation");
   }
 }
 
@@ -168,24 +214,33 @@ export async function reconstructSuiteReport(
   suiteRoot: string,
 ): Promise<ReconstructedSuiteReport> {
   const physicalInstance = await physicalInstanceRoot(instanceRoot);
-  const [manifestArtifact, bindingArtifact, registryArtifact] = await Promise.all([
-    readCanonicalByRef(suiteRoot, "artifact://suite/manifest.json", parseSuiteManifest),
-    readCanonicalByRef(suiteRoot, "artifact://suite/binding.json", parseHarnessManifest),
-    readCanonicalByRef(suiteRoot, "artifact://suite/registry.json", parseRegistrySnapshot),
-  ]);
+  const [manifestArtifact, bindingArtifact, registryArtifact, qualificationArtifact] =
+    await Promise.all([
+      readCanonicalByRef(suiteRoot, "artifact://suite/manifest.json", parseSuiteManifest),
+      readCanonicalByRef(suiteRoot, "artifact://suite/binding.json", parseHarnessManifest),
+      readCanonicalByRef(suiteRoot, "artifact://suite/registry.json", parseRegistrySnapshot),
+      readCanonicalByRef(
+        suiteRoot,
+        "artifact://suite/qualification.json",
+        parseQualificationEvidence,
+      ),
+    ]);
   const manifest = manifestArtifact.value;
   const binding = bindingArtifact.value;
   const registrySnapshot = registryArtifact.value;
+  const qualification = qualificationArtifact.value;
   if (
     bindingArtifact.pointer.sha256 !== manifest.harness_binding_digest ||
     binding.eval_binding.registry_sha256 !== manifest.registry_digest ||
     registrySnapshot.digests.registry !== manifest.registry_digest ||
-    registrySnapshot.digests.eval_pack !== manifest.eval_pack_digest
+    registrySnapshot.digests.eval_pack !== manifest.eval_pack_digest ||
+    qualification.deployment_digest !== manifest.deployment_digest
   ) {
     crossReferenceFailure("Suite top-level evidence bindings disagree");
   }
   await verifyTaskArtifactSet(suiteRoot, manifest);
   const campaignEvidence = [];
+  const exposureLedger = new ExposureLedger(physicalInstance);
   for (const planned of manifest.tasks) {
     const task = registrySnapshot.tasks.find((candidate) => candidate.task_id === planned.task_id);
     if (!task || task.bucket !== planned.bucket) {
@@ -212,6 +267,18 @@ export async function reconstructSuiteReport(
     if (replay.report.campaign_id !== planned.campaign_id) {
       crossReferenceFailure(`Campaign ${planned.campaign_id} has the wrong report identity`);
     }
+    assertTaskPackMatchesRegistry(task, replay.task_pack);
+    const projection = replay.experiment.deployment.qualification_projection;
+    if (
+      !same(replay.experiment.deployment.qualification, qualification) ||
+      projection?.source_deployment_digest !== manifest.deployment_digest ||
+      projection.source_qualification_sha256 !== qualificationArtifact.pointer.sha256 ||
+      projection.projected_deployment_digest !== replay.experiment.deployment.digest
+    ) {
+      crossReferenceFailure(
+        `Campaign ${planned.campaign_id} does not project the frozen Suite qualification`,
+      );
+    }
     const [controlActivation, treatmentActivation, controlExposure, treatmentExposure] =
       await Promise.all([
         readJsonArtifact(campaignRoot, campaignPointer.activation.control, parseActivationArtifact),
@@ -223,11 +290,24 @@ export async function reconstructSuiteReport(
         readJsonArtifact(campaignRoot, campaignPointer.exposure.control, parseExposureRecord),
         readJsonArtifact(campaignRoot, campaignPointer.exposure.treatment, parseExposureRecord),
       ]);
-    for (const [arm, exposure, episode] of [
-      ["control", controlExposure, replay.control_episode],
-      ["treatment", treatmentExposure, replay.treatment_episode],
+    for (const [arm, exposure, episode, pointer] of [
+      ["control", controlExposure, replay.control_episode, campaignPointer.exposure.control],
+      [
+        "treatment",
+        treatmentExposure,
+        replay.treatment_episode,
+        campaignPointer.exposure.treatment,
+      ],
     ] as const) {
+      let ledgerExposure: Awaited<ReturnType<ExposureLedger["read"]>>;
+      try {
+        ledgerExposure = await exposureLedger.read(exposure.exposure_id);
+      } catch {
+        crossReferenceFailure(`${arm} immutable exposure ledger entry is missing or invalid`);
+      }
       if (
+        ledgerExposure.sha256 !== pointer.sha256 ||
+        !same(ledgerExposure.record, exposure) ||
         exposure.suite_id !== manifest.suite_id ||
         exposure.campaign_id !== planned.campaign_id ||
         exposure.task_id !== task.task_id ||
@@ -247,16 +327,20 @@ export async function reconstructSuiteReport(
         crossReferenceFailure(`${arm} exposure for ${planned.task_id} disagrees`);
       }
     }
+    const [projectedControlActivation, projectedTreatmentActivation] = await Promise.all([
+      reconstructActivation(campaignRoot, replay.control_episode),
+      reconstructActivation(campaignRoot, replay.treatment_episode),
+    ]);
     verifyActivation(
       "control",
       controlActivation,
-      replay.control_episode.session_id,
+      projectedControlActivation,
       replay.report.arms.control,
     );
     verifyActivation(
       "treatment",
       treatmentActivation,
-      replay.treatment_episode.session_id,
+      projectedTreatmentActivation,
       replay.report.arms.treatment,
     );
     campaignEvidence.push({
@@ -277,6 +361,7 @@ export async function reconstructSuiteReport(
     manifest: manifestArtifact.pointer,
     binding: bindingArtifact.pointer,
     registry_snapshot: registryArtifact.pointer,
+    qualification: qualificationArtifact.pointer,
     evaluation: evaluationPointer,
   });
   return {
@@ -285,6 +370,7 @@ export async function reconstructSuiteReport(
     markdown: renderSuiteReportMarkdown(report),
     manifest,
     registry_snapshot: registrySnapshot,
+    qualification,
   };
 }
 

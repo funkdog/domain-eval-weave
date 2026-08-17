@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from "node:path";
 
 import { readJsonArtifact } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
+import { parseQualificationEvidence, type QualificationEvidence } from "../contracts/parsers.js";
 import {
   parseActivationArtifact,
   parseCampaignPointerArtifact,
@@ -72,7 +73,7 @@ export async function runPhase2Suite(input: {
   readonly triggerFirst: boolean;
   readonly campaignIdForTask: (task: TaskEntry) => string;
   readonly exposureLedger: ExposureLedger;
-  readonly beforeTasks?: (manifest: SuiteManifest) => Promise<void>;
+  readonly beforeTasks: (manifest: SuiteManifest) => Promise<QualificationEvidence>;
   readonly runCampaign: (
     plan: PlannedSuiteTask,
     manifest: SuiteManifest,
@@ -84,6 +85,7 @@ export async function runPhase2Suite(input: {
     readonly manifest: SuiteArtifactPointer;
     readonly binding: SuiteArtifactPointer;
     readonly registrySnapshot: SuiteArtifactPointer;
+    readonly qualification: SuiteArtifactPointer;
     readonly evaluation: SuiteArtifactPointer;
     readonly report: SuiteArtifactPointer;
     readonly markdown: SuiteArtifactPointer;
@@ -99,6 +101,7 @@ export async function runPhase2Suite(input: {
           registrySnapshot: SuiteArtifactPointer;
         }
       | undefined;
+    let qualificationPointer: SuiteArtifactPointer | undefined;
     const execution = await executePlannedSuite({
       binding: input.binding,
       suiteId: input.suiteId,
@@ -131,7 +134,17 @@ export async function runPhase2Suite(input: {
           registrySnapshot: snapshotPointer,
         };
       },
-      ...(input.beforeTasks === undefined ? {} : { beforeTasks: input.beforeTasks }),
+      beforeTasks: async (manifest) => {
+        const qualification = parseQualificationEvidence(await input.beforeTasks(manifest));
+        if (qualification.deployment_digest !== manifest.deployment_digest) {
+          throw new Error("Suite qualification is not bound to the Suite deployment");
+        }
+        qualificationPointer = await writeCanonicalSuiteArtifact(
+          suiteRoot,
+          "artifact://suite/qualification.json",
+          qualification,
+        );
+      },
       runTask: async (plan, manifest) => {
         const result = await input.runCampaign(plan, manifest);
         if (result.report.campaign_id !== plan.campaignId) {
@@ -155,7 +168,9 @@ export async function runPhase2Suite(input: {
         return { campaign: result, pointer };
       },
     });
-    if (!primaryPointers) throw new Error("Suite primary evidence was not frozen");
+    if (!primaryPointers || !qualificationPointer) {
+      throw new Error("Suite primary evidence was not frozen");
+    }
 
     const campaignEvidence = await Promise.all(
       execution.results.map(async ({ plan, result }) => {
@@ -191,6 +206,7 @@ export async function runPhase2Suite(input: {
       manifest: primaryPointers.manifest,
       binding: primaryPointers.binding,
       registry_snapshot: primaryPointers.registrySnapshot,
+      qualification: qualificationPointer,
       evaluation: evaluationPointer,
     });
     const markdown = renderSuiteReportMarkdown(report);
@@ -213,6 +229,7 @@ export async function runPhase2Suite(input: {
         manifest: primaryPointers.manifest,
         binding: primaryPointers.binding,
         registrySnapshot: primaryPointers.registrySnapshot,
+        qualification: qualificationPointer,
         evaluation: persistedEvaluation,
         report: reportPointer,
         markdown: markdownPointer,

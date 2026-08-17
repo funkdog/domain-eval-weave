@@ -92,6 +92,10 @@ test("Suite reporter evaluates trigger, non-trigger, and holdout without effect 
       ref: parseSuiteArtifactRef("artifact://suite/registry.json"),
       sha256: digest("d"),
     },
+    qualification: {
+      ref: parseSuiteArtifactRef("artifact://suite/qualification.json"),
+      sha256: digest("f"),
+    },
     evaluation: {
       ref: parseSuiteArtifactRef("artifact://suite/evaluation.json"),
       sha256: digest("e"),
@@ -120,6 +124,10 @@ test("Suite reporter distinguishes missing trigger, over-activation, and invalid
       registry_snapshot: {
         ref: parseSuiteArtifactRef("artifact://suite/registry.json"),
         sha256: digest("d"),
+      },
+      qualification: {
+        ref: parseSuiteArtifactRef("artifact://suite/qualification.json"),
+        sha256: digest("f"),
       },
       evaluation: {
         ref: parseSuiteArtifactRef("artifact://suite/evaluation.json"),

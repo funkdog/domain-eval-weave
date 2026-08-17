@@ -1,4 +1,8 @@
-import { assertPhase2InstanceLayout, resolvePhase2Instance } from "../instance.js";
+import {
+  assertCurrentPhase2Profile,
+  assertPhase2InstanceLayout,
+  resolvePhase2Instance,
+} from "../instance.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { createWorkspaceToolGuard, type GuardedToolExecution } from "./guard.js";
 import { createWorkspaceTestDefinition, type WorkspaceTestRunner } from "./workspace-test.js";
@@ -7,6 +11,7 @@ export const name = "dsh-eval-bridge";
 export const inject = ["tools"] as const;
 
 export interface DshEvalBridgeContext {
+  readonly root: { readonly baseUrl?: string };
   readonly tools: {
     guard(guard: (execution: GuardedToolExecution) => string | undefined): unknown;
     register(definition: ReturnType<typeof createWorkspaceTestDefinition>): unknown;
@@ -40,6 +45,7 @@ async function applyDshEvalBridge(
   config: DshEvalBridgeConfig = {},
 ): Promise<void> {
   resolvePhase2Instance(config.env ?? process.env);
+  assertCurrentPhase2Profile(context.root.baseUrl, "runner");
   await assertPhase2InstanceLayout();
   const workspaceRoot = config.workspaceRoot ?? process.cwd();
   context.tools.guard(createWorkspaceToolGuard({ workspaceRoot }));

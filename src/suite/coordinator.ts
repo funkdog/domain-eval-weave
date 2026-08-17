@@ -43,7 +43,6 @@ export async function executePlannedSuite<T>(input: {
   const nonTrigger = oneTask(input.binding, "non-trigger");
   const holdout = oneTask(input.binding, "holdout");
 
-  await input.holdoutGate.reserveHoldout(holdout.task_id, input.suiteId);
   const order = input.triggerFirst
     ? [trigger, nonTrigger, holdout]
     : [nonTrigger, trigger, holdout];
@@ -76,6 +75,7 @@ export async function executePlannedSuite<T>(input: {
   );
   await input.freezeManifest(manifest);
   await input.beforeTasks?.(manifest);
+  await input.holdoutGate.reserveHoldout(holdout.task_id, input.suiteId);
 
   const results: { plan: PlannedSuiteTask; result: T }[] = [];
   for (const plan of plans) {

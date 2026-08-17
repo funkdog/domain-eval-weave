@@ -37,6 +37,7 @@
         "digest": { "$ref": "#/$defs/sha256" },
         "eval_package_sha256": { "$ref": "#/$defs/sha256" },
         "qualification": { "$ref": "#/$defs/qualificationEvidence" },
+        "qualification_projection": { "$ref": "#/$defs/qualificationProjection" },
         "calibration": { "$ref": "#/$defs/calibrationEvidence" }
       }
     },
@@ -99,6 +100,20 @@
         "deployment_digest": { "$ref": "#/$defs/sha256" },
         "session_id": { "$ref": "#/$defs/id" },
         "common_tool_schema_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "qualificationProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_deployment_digest",
+        "projected_deployment_digest",
+        "source_qualification_sha256"
+      ],
+      "properties": {
+        "source_deployment_digest": { "$ref": "#/$defs/sha256" },
+        "projected_deployment_digest": { "$ref": "#/$defs/sha256" },
+        "source_qualification_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
     "calibrationEvidence": {

@@ -57,6 +57,7 @@ import {
   materializeFrozenFiles,
   runnerProfileFiles,
   verifyFrozenFiles,
+  verifySharedModelSettings,
 } from "../runtime-profile/init.js";
 import {
   assertCredentialMetadata,
@@ -325,21 +326,7 @@ async function initializeRuntime(): Promise<void> {
   await ensurePhase2InstanceLayout();
   const files = runnerProfileFiles(await managementPackageSpec());
   await materializeFrozenFiles(runnerProfileRoot(), files);
-  await materializeFrozenFiles(
-    DEDICATED_DSH_HOME,
-    new Map([
-      [
-        "settings.yaml",
-        [
-          "agent-default-model:",
-          "  provider: openai-codex",
-          "  model: gpt-5.6-sol",
-          "  reasoningEffort: xhigh",
-          "",
-        ].join("\n"),
-      ],
-    ]),
-  );
+  await verifySharedModelSettings(DEDICATED_DSH_HOME);
   await execFileAsync(
     "pnpm",
     ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],

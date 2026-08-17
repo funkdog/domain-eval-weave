@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 
-import { canonicalJsonDigest, sha256Hex } from "../../src/contracts/canonical-json.js";
+import {
+  canonicalJson,
+  canonicalJsonDigest,
+  sha256Hex,
+} from "../../src/contracts/canonical-json.js";
 import { parseExperimentSpec, type VariantSpec } from "../../src/contracts/parsers.js";
 import {
   SuiteArtifactIntegrityError,
@@ -57,6 +61,7 @@ test("fake six-Episode Suite semantically replays from frozen primary evidence",
       triggerFirst: true,
       campaignIdForTask: (task) => `campaign-${task.task_id}`,
       exposureLedger: ledger,
+      beforeTasks: async () => validExperiment.deployment.qualification,
       runCampaign: async (plan) => {
         const campaignRoot = `${instanceRoot}/campaigns/${plan.campaignId}`;
         await mkdir(campaignRoot, { mode: 0o700 });
@@ -101,7 +106,13 @@ test("fake six-Episode Suite semantically replays from frozen primary evidence",
             digest: deploymentDigest,
             qualification: {
               ...structuredClone(validExperiment.deployment.qualification),
-              deployment_digest: deploymentDigest,
+            },
+            qualification_projection: {
+              source_deployment_digest: validExperiment.deployment.qualification.deployment_digest,
+              projected_deployment_digest: deploymentDigest,
+              source_qualification_sha256: canonicalJsonDigest(
+                validExperiment.deployment.qualification,
+              ),
             },
             calibration: {
               ...structuredClone(validExperiment.deployment.calibration),
@@ -167,6 +178,51 @@ test("fake six-Episode Suite semantically replays from frozen primary evidence",
       markdownPointer: result.pointers.markdown,
     });
     assert.deepEqual(replay.reconstructed_report, result.report);
+
+    const externalExposure = `${instanceRoot}/exposures/suite-fake-six--ledger-full-v1--control.json`;
+    const externalExposureBytes = await readFile(externalExposure);
+    await rm(externalExposure);
+    await assert.rejects(
+      reconstructSuiteReport(instanceRoot, result.suiteRoot),
+      (error: unknown) =>
+        error instanceof SuiteArtifactIntegrityError &&
+        error.code === "SUITE_ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+    await assert.rejects(readFile(externalExposure), { code: "ENOENT" });
+    await writeFile(externalExposure, externalExposureBytes, { flag: "wx", mode: 0o600 });
+
+    const triggerCampaignRoot = `${instanceRoot}/campaigns/campaign-ledger-full-v1`;
+    const activationPath = `${triggerCampaignRoot}/arms/treatment/activation.json`;
+    const campaignPointerPath = `${result.suiteRoot}/tasks/ledger-full-v1/campaign-pointer.json`;
+    const [activationBytes, campaignPointerBytes] = await Promise.all([
+      readFile(activationPath),
+      readFile(campaignPointerPath),
+    ]);
+    const alteredActivation = JSON.parse(activationBytes.toString("utf8")) as {
+      events: { timestamp: string }[];
+    };
+    assert.ok(alteredActivation.events[0]);
+    alteredActivation.events[0].timestamp = "2026-08-18T01:00:01.000Z";
+    const alteredActivationBytes = canonicalJson(alteredActivation);
+    const alteredCampaignPointer = JSON.parse(campaignPointerBytes.toString("utf8")) as {
+      activation: { treatment: { sha256: string } };
+    };
+    alteredCampaignPointer.activation.treatment.sha256 = sha256Hex(alteredActivationBytes);
+    await Promise.all([
+      writeFile(activationPath, alteredActivationBytes),
+      writeFile(campaignPointerPath, canonicalJson(alteredCampaignPointer)),
+    ]);
+    await assert.rejects(
+      reconstructSuiteReport(instanceRoot, result.suiteRoot),
+      (error: unknown) =>
+        error instanceof SuiteArtifactIntegrityError &&
+        error.code === "SUITE_ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+    await Promise.all([
+      writeFile(activationPath, activationBytes),
+      writeFile(campaignPointerPath, campaignPointerBytes),
+    ]);
+    await reconstructSuiteReport(instanceRoot, result.suiteRoot);
 
     const tamperedEvaluation = {
       ...replay.evaluation,
@@ -249,6 +305,7 @@ test("Suite stops after infrastructure failure and leaves an independent invalid
         triggerFirst: true,
         campaignIdForTask: (task) => `campaign-failed-${task.task_id}`,
         exposureLedger: ledger,
+        beforeTasks: async () => validExperiment.deployment.qualification,
         runCampaign: async () => {
           attempts += 1;
           throw new Error("synthetic infrastructure failure");
@@ -286,6 +343,7 @@ test("Suite id cannot escape the instance namespace", async () => {
         triggerFirst: true,
         campaignIdForTask: () => "unused",
         exposureLedger: new ExposureLedger(instanceRoot),
+        beforeTasks: async () => validExperiment.deployment.qualification,
         runCampaign: async () => {
           throw new Error("must not run");
         },

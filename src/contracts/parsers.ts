@@ -83,6 +83,12 @@ export const qualificationEvidenceSchema = z.strictObject({
   common_tool_schema_sha256: sha256Schema,
 });
 
+const qualificationProjectionSchema = z.strictObject({
+  source_deployment_digest: sha256Schema,
+  projected_deployment_digest: sha256Schema,
+  source_qualification_sha256: sha256Schema,
+});
+
 export const calibrationEvidenceSchema = z.strictObject({
   schema_version: z.literal(1),
   ready: z.literal(true),
@@ -113,6 +119,7 @@ export const experimentSpecSchema = z.strictObject({
     digest: sha256Schema,
     eval_package_sha256: sha256Schema,
     qualification: qualificationEvidenceSchema,
+    qualification_projection: qualificationProjectionSchema.optional(),
     calibration: calibrationEvidenceSchema,
   }),
   intervention: z.strictObject({

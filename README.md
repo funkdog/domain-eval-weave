@@ -30,6 +30,11 @@ The Clowder implementation owns `eval-clowder` / `eval-clowder-runner`, instance
 id `clowder-ai`, and no `eval` or `eval-dsh` state. Every supported DSH process
 receives both isolation variables before boot:
 
+`<DSH_HOME>/settings.yaml` is shared transport-control-plane input. It must
+already select `openai-codex` / `gpt-5.6-sol` / `xhigh`; Eval Lab validates
+those fields read-only and preserves all unrelated settings so `eval-dsh` can
+coexist in the same DSH home.
+
 ```sh
 umask 077
 install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime
@@ -75,7 +80,8 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 Phase 1 Milestones 0–4 and Phase 2 Milestones 0–4 are implemented. Phase 2 adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
 immutable exposure records, holdout first-exposure enforcement, blind six-Episode
-Suite execution, and artifact-only semantic Suite replay. The report preserves
+Suite execution, Suite-scoped qualification provenance, and artifact-only
+semantic Suite replay against frozen Sessions plus the immutable exposure ledger. The report preserves
 per-task Outcome, Mechanism, Cost, and validity; it has no aggregate score,
 effect claim, or automatic lifecycle action.
 
