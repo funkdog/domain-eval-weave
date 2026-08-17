@@ -9,7 +9,8 @@ description: "面向个人开发者、固定开放式编码交付领域的 DSH H
 
 # DSH Eval Lab 产品方案与 Phase 1 目标
 
-> 方法论真相源：[Agent Eval Epistemology](../../../clowder-ai/docs/study/agent-eval-epistemology.md)。
+> 方法论 provenance：Clowder AI `Agent Eval Epistemology`。该原文不随隔离 assignment 分发；本文已经冻结
+> Phase 1 所需的不变量，实现 Agent 不得为追索 provenance 访问 snapshot 外路径。
 >
 > 本文只负责 DSH 的产品与一期交付边界。若产品便利与方法论不变量冲突，以认识论为准；
 > 不允许为了更快出报告而改变被测 Agent、污染 holdout 或把无效测量包装成效果。
@@ -40,10 +41,13 @@ Phase 1 只有一个产品主体：使用者本人。提供任务真相、运行
 不同活动，不预设 Domain Owner、Experiment Operator、Decision Owner、审批流或 RBAC。多人治理是未来在
 真实共享需求出现后再生长的能力，不进入个人 Harness 框架的一期模型。
 
-“作为 DSH 插件运行”指用户通过 `dsh plugin --profile eval add <package>` 安装产品，并通过
-`dsh --profile eval <command>` 使用它。Eval Lab 的管理插件运行在专用 `eval` profile；被测 control/treatment
-Episode 由它启动为隔离的 child DSH process，不能在管理插件自己的 Session 中自测。插件产品形态不取消
-Evaluator 与 Candidate 的进程边界。
+“作为 DSH 插件运行”指用户在 process 启动前把 `DSH_HOME` 固定为
+`/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home`，再通过
+`DSH_HOME=<dedicated-home> dsh plugin --profile eval add <package>` 安装产品，并通过
+`DSH_HOME=<dedicated-home> dsh --profile eval <command>` 使用它。DSH 在 app plugin mount 前解析 home/profile，
+所以未携带 dedicated `DSH_HOME` 的调用不是受支持入口，`init` 也不能事后迁移已经 boot 的 management profile。
+Eval Lab 管理插件运行在专用 `eval` profile；被测 control/treatment Episode 由它启动为隔离的 child DSH process，
+不能在管理插件自己的 Session 中自测。插件产品形态不取消 Evaluator 与 Candidate 的进程边界。
 
 ## 2. 产品承诺
 
@@ -65,7 +69,8 @@ Evaluator 与 Candidate 的进程边界。
 ## 3. 用户旅程
 
 ```text
-安装 DSH Eval Lab 到专用 eval profile
+创建 0700 dedicated runtime root / DSH_HOME
+→ 用 dedicated DSH_HOME 安装 DSH Eval Lab 到专用 eval profile
 → 连接 Codex OAuth
 → 选择内置开放编码任务
 → 选择 Baseline DSH Profile
@@ -95,7 +100,7 @@ Harness inventory
 
 Phase 1 先交付 DSH 插件的命令行 app surface + JSON/Markdown artifact，不做上述完整 UI。命令行 app 的最后一步
 必须给出四个明确动作的含义，不能把用户留在只有分数、没有下一步的仪表盘。Phase 1 没有独立的
-`dsh-eval` 用户命令；所有用户入口均从 `dsh --profile eval` 进入。
+`dsh-eval` 用户命令；所有用户入口均从 dedicated `DSH_HOME` 下的 `dsh --profile eval` 进入。
 
 ## 4. 产品对象
 
@@ -448,12 +453,13 @@ Report 按 control/treatment 并排展示原始值和 delta，不计算综合质
 - [ ] AC-10: 重读 artifact 时所有 ref/digest 可解析；内容性结果与 volatile host/path/time metadata 分离。
 - [ ] AC-11: red baseline / gold-or-equivalent 对 Oracle 的方向校准通过；校准运行不进入 Candidate effect 比较。
 - [ ] AC-12: 全程只使用隔离本地 fixture 和实验数据，不连接生产用户数据存储，不修改用户当前 DSH runtime config，
-      不安装未知第三方插件，不产生外部发布或不可逆动作。
+      不读取或写入 ambient `~/.dsh`，不安装未知第三方插件，不产生外部发布或不可逆动作。
 - [ ] AC-13: 源码 Git root、Eval runtime root 与已验收 OAuth 参考实验室三者分离；secret、Session、Candidate 和
-      Campaign artifact 均不进入源码仓库。
-- [ ] AC-14: 产品能通过 `dsh plugin --profile eval add <package>` 安装，并只通过
-      `dsh --profile eval <command>` 暴露用户入口；runner config 将 management app 固定为 disabled，app 不进入
-      模型可见 request/tool surface，两个 arms 只执行 byte-identical 的 runner bridge。
+      Campaign artifact 均不进入源码仓库；所有 supported DSH invocations 在 process 启动前继承 exact dedicated
+      `DSH_HOME`，ambient home sentinel 证明零读写。
+- [ ] AC-14: 产品能通过 `DSH_HOME=<dedicated-home> dsh plugin --profile eval add <package>` 安装，并只通过
+      同一 home 下的 `dsh --profile eval <command>` 暴露用户入口；runner config 将 management app 固定为 disabled，
+      app 不进入模型可见 request/tool surface，两个 arms 只执行 byte-identical 的 runner bridge。
 
 ### 7.8 Phase 1 通过的定义
 
@@ -564,15 +570,12 @@ Phase 1 的成功不是 treatment 获胜，而是：
 
 ## 12. Source Map
 
-- [Agent Eval Epistemology](../../../clowder-ai/docs/study/agent-eval-epistemology.md)
 - [DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
-- [DeepSeek Harness 设计分析](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/codex-synthesis.md)
-- [DSH CLI / profile / plugin reference](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/apps/cli/reference/README.md)
-- [DSH OAuth 插件扫描](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/oauth-plugin-scan-synthesis.md)
-- [CS329A 调研](../../../clowder-ai/project-research/2026-08-17-stanford-cs329a/ragdoll-synthesis.md)
-- [F192 Harness Eval](../../../clowder-ai/docs/features/F192-socio-technical-harness-eval.md)
-- [F267 Measurement Validity](../../../clowder-ai/docs/features/F267-eval-measurement-validity.md)
-- [F266 Verdict Closure](../../../clowder-ai/docs/features/F266-eval-verdict-closure-control-plane.md)
+- [In-snapshot DSH primary evidence bundle](../evidence/dsh/README.md)
+
+外部 provenance（不属于 assignment 实现依赖，隔离 Agent 不得访问）：Clowder AI Agent Eval Epistemology、
+DeepSeek Harness 设计分析、DSH OAuth 插件扫描、CS329A 调研、F192 Harness Eval、F267 Measurement Validity、
+F266 Verdict Closure。本文与 Implementation Spec 已冻结它们对 Phase 1 的适用结论。
 
 Phase 1 实施前需要再冻结实际 DSH lab 的 package tree、profile、route 与 Task Pack artifact；本文只锁定产品与
 验收契约，不把当前进程状态或 OAuth token 写入文档。

@@ -11,7 +11,8 @@ description: "DSH Eval Lab Phase 1 的决策完备实现规格：独立工作区
 
 > 产品边界：[DSH Eval Lab 产品方案与 Phase 1 目标](./2026-08-17-dsh-eval-lab-product-plan.md)。
 >
-> 方法论边界：[Agent Eval Epistemology](../../../clowder-ai/docs/study/agent-eval-epistemology.md)。
+> 方法论 provenance：Clowder AI `Agent Eval Epistemology`。原文不随隔离 assignment 分发；本 spec 已冻结
+> Phase 1 所需结论，实现 Agent 不得访问 snapshot 外路径追索 provenance。
 >
 > **状态**：实现候选 spec v2；已按 DSH plugin-first 产品终态重写，尚未实现该架构或产生 Campaign 结果。
 
@@ -33,6 +34,8 @@ Phase 1 不建设通用 Eval 平台，而是交付一个个人可用的本地闭
 1. 源码新建为独立 Git 仓库 `/Users/slipshod/AIBuild/dsh-eval-lab`。
 2. secret、DSH home、Session、Candidate 与 Campaign 写入非 Git 目录
    `/Users/slipshod/AIBuild/dsh-eval-lab-runtime`。
+   每次 DSH process 启动前都必须继承
+   `DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home`；无此前缀的调用不受支持。
 3. 现有 `/Users/slipshod/AIBuild/dsh-codex-oauth-lab` 仅作为已验收参考，不被迁移、改写或复用为产品目录。
 4. Phase 1 是一个由 DSH plugin manager 安装的 bundle package；只有 `dsh --profile eval` 命令行 app surface，
    没有独立 `dsh-eval` 用户命令、Web UI、角色系统、审批流、Pack authoring 或 registry。
@@ -49,10 +52,10 @@ Phase 1 不建设通用 Eval 平台，而是交付一个个人可用的本地闭
 用户完成一次显式 OAuth 登录后，可以运行：
 
 ```sh
-dsh --profile eval doctor
-dsh --profile eval calibrate
-dsh --profile eval run
-dsh --profile eval report <campaign-id>
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home dsh --profile eval doctor
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home dsh --profile eval calibrate
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home dsh --profile eval run
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home dsh --profile eval report <campaign-id>
 ```
 
 并得到一份可重放证据包，回答：
@@ -188,6 +191,7 @@ composition 的 executable。
 ### 2.3 禁止边界
 
 - 不读取 `~/.codex/auth.json`、`~/.dsh` 或 Clowder AI runtime data。
+- 不支持在 DSH boot 后通过 app argument 改写 runtime root；profile 在 app mount 前已经由 inherited `DSH_HOME` 解析。
 - 不把 Oracle、gold、arm label 或 Campaign path 放进 Agent prompt。
 - 不从 Eval Lab 连接 Clowder Redis、SQLite、API 或当前 Web 端口。
 - 不在 Candidate workspace 放 symlink、submodule 或指向源码/Oracle 的路径。
@@ -271,9 +275,18 @@ interface DomainOracle {
 用户显式安装本地 checkout、tarball 或 package spec：
 
 ```sh
-dsh plugin --profile eval add <dsh-eval-lab-package-spec>
-dsh --profile eval --help
+umask 077
+install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime
+install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh plugin --profile eval add <dsh-eval-lab-package-spec>
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval --help
 ```
+
+这是 Phase 1 唯一支持的 invocation contract。DSH 的 home precedence 是 explicit configured path → inherited
+`DSH_HOME` → `~/.dsh`，且 profile 在 app plugin mount 前解析；因此 app 的 `init` 或 `--runtime-root` 参数无法
+安全补救一个已经使用 ambient home boot 的 process。所有文档、测试与用户提示都必须展示此前缀。
 
 DSH plugin manager 负责在缺失时创建 `eval` profile、由 pnpm 安装 package，并根据 package manifest 的
 `dsh.bundle.patch` 把本 bundle 加入 profile composition。`cordis.patch.yml` 至少声明：
@@ -294,8 +307,10 @@ App plugin 读取 DSH 传入的 immutable `ctx.cmdlineArgs`，拥有 `init`、`a
 
 ### 5.1 `dsh --profile eval init`
 
-在缺失时创建专用 runtime root、`settings.yaml` 与 `profiles/eval-runner`，安装 frozen runner dependencies，
-并输出下一步。management `eval` profile 已由 plugin manager 创建，`init` 不改写其用户层。已有文件不覆盖；
+首先验证 inherited `DSH_HOME` 与 fixed dedicated path 完全一致，且预先创建的 DSH home 与 parent runtime root
+均为真实 `0700` 目录并通过物理分离检查；然后在缺失时创建 `settings.yaml` 与 `profiles/eval-runner`，安装 frozen
+runner dependencies，并输出下一步。
+Management `eval` profile 已由 plugin manager 在同一 home 下创建，`init` 不改写其用户层。已有文件不覆盖；
 任何 manifest/digest 不匹配都 fail loud，要求用户选择新的 runtime root 或人工检查。
 
 Runner profile 安装与 management profile exact 相同版本的 `dsh-eval-lab` package 和 bridge bytes；它的 patch
@@ -338,7 +353,7 @@ Eval Lab 不记录 URL、device code、account id、token 或 expiry。登录后
 
 1. Node/pnpm/Git 版本；
 2. 源码与 runtime roots 没有包含/相等关系；
-3. runtime root 与 credential metadata 权限；
+3. inherited `DSH_HOME` 是 exact dedicated path，runtime root 与 credential metadata 权限正确；
 4. exact package versions 与 lockfile；
 5. management profile 启用 app/禁用 bridge，runner profile 禁用 app/启用 bridge；
 6. OAuth secret-free status；
@@ -363,10 +378,9 @@ Doctor 不调用模型，不产生 Session，不修改已有 runtime config。
 
 ### 5.6 `dsh --profile eval run`
 
-Phase 1 没有可配置 Task/Variant 参数，避免用户误以为已经是通用平台。可接受的运行参数只有：
+Phase 1 没有可配置 Task/Variant/runtime-root 参数，避免用户误以为已经是通用平台。可接受的运行参数只有：
 
 ```text
---runtime-root <abs>   # 默认固定路径
 --timeout-ms <n>       # 默认 45 分钟/arm，上限 90 分钟
 --keep-workspaces      # 默认保留；仅为将来显式策略占位，Phase 1 总是 true
 ```
@@ -773,10 +787,13 @@ fresh workspaces 与新的 Oracle seed。已冻结双臂的 `report` 重建除�
 Runner 以 workspace 为 cwd，显式传入：
 
 ```text
-DSH_HOME=<dedicated-runtime-home>
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home
 DSH_TOOLS_MODE=native
 DSH_PERMISSION_MODE=workspace-write
 ```
+
+Management app 启动 child process 时必须从自身已验证的 exact `DSH_HOME` 构造 fresh allowlisted env，不能从 cwd、
+home-level file 或 ambient `~/.dsh` 重新解析。Child process 收到其他 DSH home 或缺失该变量即为 infrastructure invalid。
 
 并用 argv 调用：
 
@@ -915,6 +932,7 @@ Outcome/Mechanism/Cost 与后续改进实验分开。
 ### 13.1 Hard invalidators
 
 - composed config 有未声明 arm diff；
+- 任一 install/management/runner process 未在 boot 前继承 exact dedicated `DSH_HOME`，或 ambient `~/.dsh` 有读写证据；
 - runner 中 management app 未禁用、bridge 未启用，或被测 Agent 运行在 management process；
 - management / runner 的 Eval Lab package version 或 content digest 不同；
 - package/model/effort/tool schema/permission 不同；
@@ -998,6 +1016,8 @@ message 禁止包含 credential、OAuth URL/code、account id、完整 user home
 
 - 所有实验仅用新建 fixture 数据；
 - runtime root `0700`，credential `0600`；
+- install、management、runner 的 supported invocation 均在 process boot 前设置 exact dedicated `DSH_HOME`；
+- acceptance 使用不可读/不可写 ambient-home sentinel，证明 supported path 不访问 `~/.dsh`；
 - management profile 不创建被计分 Agent；runner model-facing request/tool evidence 不含 app command surface；
 - auth status/doctor 用插件官方 secret-free JSON；
 - Agent 无 Bash、PowerShell、terminal、web、subagent、skill 或任意 command tool；
@@ -1012,6 +1032,7 @@ message 禁止包含 credential、OAuth URL/code、account id、完整 user home
 ### 17.1 Unit
 
 - DSH app-argument grammar、help 与稳定退出码；
+- dedicated `DSH_HOME` pre-boot contract 与 `--runtime-root` rejection；
 - schema parsers、canonical JSON、digest；
 - path containment 与 symlink escape；
 - arm-order randomization record；
@@ -1024,6 +1045,7 @@ message 禁止包含 credential、OAuth URL/code、account id、完整 user home
 
 - package manifest `dsh.bundle.patch`、app/bridge exports 与 bundle patch；
 - management/runner profile composition，证明 app/bridge 角色互斥；
+- install/app/child process env capture，证明每次 boot 都收到 exact dedicated `DSH_HOME` 且不探测 ambient home；
 - DSH dump config parser；
 - exact four-row variant diff；
 - bridge tool allowlist/guard；
@@ -1060,8 +1082,9 @@ Fake carrier emits canonical Session logs for：
 
 按顺序执行，不能并行：
 
-1. 将 built tarball 安装到 fresh `eval` profile，证明 `dsh --profile eval --help` 只由 app plugin 提供；
-2. `dsh --profile eval init` 创建 runner profile，dump-config 证明 app/bridge 角色互斥；
+1. 在 ambient-home sentinel 下，先以 `0700` 创建 dedicated runtime/DSH home，再用 exact `DSH_HOME` 将 built tarball 安装到 fresh `eval` profile，
+   证明 `dsh --profile eval --help` 只由 app plugin 提供且 ambient home 零读写；
+2. 在同一 dedicated home 下执行 `dsh --profile eval init` 创建 runner profile，dump-config 证明 app/bridge 角色互斥；
 3. explicit user OAuth login；
 4. Gate 0 carrier qualification；
 5. `dsh --profile eval calibrate`；
@@ -1141,9 +1164,9 @@ secret/source/oracle paths 不可由工具读取，两个 arms 只差四个 Goal
 | AC-9 | report schema/snapshots + hard claim fields |
 | AC-10 | artifact resolver + canonical rebuild digest |
 | AC-11 | red/gold/three-mutant calibration |
-| AC-12 | runtime doctor + forbidden integration tests + no external effects |
-| AC-13 | source/runtime/reference-lab root invariants + secret scanner |
-| AC-14 | built package install test、app command E2E、management/runner role gate、runner request/tool surface absence proof |
+| AC-12 | runtime doctor + ambient-home sentinel + forbidden integration tests + no external effects |
+| AC-13 | source/runtime/reference-lab root invariants + exact pre-boot `DSH_HOME` env capture + secret scanner |
+| AC-14 | dedicated-home built package install test、app command E2E、management/runner role gate、runner request/tool surface absence proof |
 
 ## 20. 明确延后
 
@@ -1165,12 +1188,8 @@ secret/source/oracle paths 不可由工具读取，两个 arms 只差四个 Goal
 ## 21. Source Map
 
 - [DSH Eval Lab 产品方案](./2026-08-17-dsh-eval-lab-product-plan.md)
-- [Agent Eval Epistemology](../../../clowder-ai/docs/study/agent-eval-epistemology.md)
-- [DeepSeek Harness 设计分析](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/codex-synthesis.md)
-- [DSH OAuth 插件扫描](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/oauth-plugin-scan-synthesis.md)
-- [DSH CLI reference](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/apps/cli/reference/README.md)
-- [DSH Session persistence](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/docs/subsystems/persistence.md)
-- [DSH Goal domain](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/packages/goal/goal/src/domain.ts)
-- [DSH tool pipeline](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/packages/core/tools/README.md)
-- [DSH sandbox boundary](../../../clowder-ai/project-research/2026-08-14-deepseek-harness/source/docs/subsystems/sandbox.md)
-- [F267 Measurement Validity](../../../clowder-ai/docs/features/F267-eval-measurement-validity.md)
+- [In-snapshot DSH primary evidence bundle](../evidence/dsh/README.md)
+
+外部 provenance（不属于 assignment 实现依赖，隔离 Agent 不得访问）：Clowder AI Agent Eval Epistemology、
+DeepSeek Harness 设计分析、DSH OAuth 插件扫描、F267 Measurement Validity。产品方案与本 spec 已冻结它们对
+Phase 1 的适用结论。
