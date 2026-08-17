@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { promisify } from "node:util";
 
@@ -67,6 +67,37 @@ test("candidate freeze records unauthorized paths instead of hiding them", async
     const frozen = await freezeCandidate({ workspace, artifactRoot: `${root}/artifacts` });
     assert.equal(frozen.authorized, false);
     assert.deepEqual(frozen.unauthorizedPaths, ["README.md"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("candidate freeze accepts src renames and copies without misparsing raw diff records", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/freeze-rename-`);
+  const workspace = `${root}/workspace`;
+  await mkdir(`${workspace}/src`, { recursive: true, mode: 0o700 });
+  await writeFile(`${workspace}/src/a.ts`, "export const value = 1;\n", "utf8");
+  await execFileAsync("git", ["init", "-q"], { cwd: workspace });
+  await execFileAsync("git", ["config", "user.email", "fixture@example.invalid"], {
+    cwd: workspace,
+  });
+  await execFileAsync("git", ["config", "user.name", "Fixture"], { cwd: workspace });
+  await execFileAsync("git", ["add", "."], { cwd: workspace });
+  await execFileAsync("git", ["commit", "-qm", "base"], { cwd: workspace });
+  await rename(`${workspace}/src/a.ts`, `${workspace}/src/b.ts`);
+  await copyFile(`${workspace}/src/b.ts`, `${workspace}/src/c.ts`);
+  try {
+    const frozen = await freezeCandidate({
+      workspace,
+      artifactRoot: `${root}/artifacts`,
+    });
+    assert.equal(frozen.authorized, true);
+    assert.deepEqual(frozen.changedPaths, ["src/a.ts", "src/b.ts", "src/c.ts"]);
+    assert.match(await readFile(frozen.patchPath, "utf8"), /src\/a\.ts/);
+    assert.match(await readFile(frozen.patchPath, "utf8"), /src\/b\.ts/);
+    assert.match(await readFile(frozen.patchPath, "utf8"), /src\/c\.ts/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

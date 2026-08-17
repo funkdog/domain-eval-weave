@@ -267,6 +267,46 @@ test("known rc.6 lifecycle events are tolerated while unknown required events in
   assert.equal(project(unknown).measurement_validity.overall, "invalid");
 });
 
+test("projector rejects unknown Goal operations and malformed clear payloads", () => {
+  const futureOperation = events.map((event) =>
+    event.type === "goal/change" && event.data.operation === "create"
+      ? { ...event, data: { ...event.data, operation: "future-operation" } }
+      : event,
+  );
+  const futureProjection = project(futureOperation);
+  assert.equal(futureProjection.measurement_validity.overall, "invalid");
+  assert.equal(futureProjection.measurement_validity.dimensions.mechanism, "invalid");
+  assert.equal(futureProjection.mechanism.goal_terminal_phase, "none");
+
+  const malformedClear = events.map((event) =>
+    event.type === "goal/change" && event.data.operation === "complete"
+      ? { ...event, data: { ...event.data, operation: "clear" } }
+      : event,
+  );
+  assert.equal(project(malformedClear).measurement_validity.dimensions.mechanism, "invalid");
+});
+
+test("projector accepts the exact rc.6 clear tombstone shape", () => {
+  const cleared = events.map((event) =>
+    event.type === "goal/change" && event.data.operation === "complete"
+      ? {
+          ...event,
+          data: {
+            kind: "goal/change",
+            version: 1,
+            operation: "clear",
+            cleared: { id: "goal-1", revision: 1 },
+            clearedAt: 2,
+          },
+        }
+      : event,
+  );
+  const projection = project(cleared);
+  assert.equal(projection.measurement_validity.dimensions.mechanism, "valid");
+  assert.equal(projection.mechanism.goal_created, true);
+  assert.equal(projection.mechanism.goal_terminal_phase, "none");
+});
+
 test("open lifecycle boundaries and model-facing tool errors invalidate or count correctly", () => {
   const openStep = events.filter((event) => event.type !== "step/end");
   assert.equal(project(openStep).measurement_validity.overall, "invalid");

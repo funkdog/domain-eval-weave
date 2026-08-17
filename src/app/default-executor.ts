@@ -567,8 +567,8 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         }
         case "report": {
           const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${invocation.campaignId}`;
-          const pointers = await campaignPointers(campaignRoot);
           try {
+            const pointers = await campaignPointers(campaignRoot);
             const rebuilt = await rebuildCampaignReport({
               campaignRoot,
               pointers,
@@ -578,10 +578,9 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             );
             return EXIT_CODE.OK;
           } catch (error) {
-            if (!(error instanceof ArtifactIntegrityError)) throw error;
             const invalid = await writeMeasurementInvalidReport({
               campaignRoot,
-              frozenReportPointer: pointers.report,
+              campaignId: invocation.campaignId,
             });
             this.#stdout(
               await readFile(resolveArtifactRef(campaignRoot, invalid.markdownPointer.ref), "utf8"),

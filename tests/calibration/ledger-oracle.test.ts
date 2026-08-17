@@ -170,3 +170,62 @@ test("Oracle self-failure is classified as measurement error, not candidate fail
     await rm(scratch, { recursive: true, force: true });
   }
 });
+
+test("Oracle self-hang is an infrastructure error rather than a Candidate behavior failure", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/oracle-self-hang-`);
+  const brokenOracle = `${scratch}/hung-oracle.mjs`;
+  await writeFile(brokenOracle, "await new Promise(() => {});\n");
+  const oracle = new LedgerOracle({
+    runner: new StrictProcessRunner(),
+    oracleRunnerPath: brokenOracle,
+    timeoutMsPerBehavior: 100,
+  });
+  try {
+    const result = await oracle.evaluateDirectory(
+      `${packRoot}/calibration/gold-equivalent`,
+      42,
+      `${scratch}/checks`,
+    );
+    assert.equal(
+      Object.values(result).every((status) => status === "error"),
+      true,
+    );
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("one hung Candidate behavior times out locally without poisoning the other seven", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/oracle-one-hang-`);
+  const candidate = `${scratch}/candidate`;
+  await cp(`${packRoot}/calibration/gold-equivalent`, candidate, { recursive: true });
+  const ledgerPath = `${candidate}/src/ledger.ts`;
+  await writeFile(
+    ledgerPath,
+    (await readFile(ledgerPath, "utf8")).replace(
+      "static async open(file, capacity) {",
+      "static async open(file, capacity) { if (capacity === 0) await new Promise(() => {});",
+    ),
+  );
+  const oracle = new LedgerOracle({
+    runner: new StrictProcessRunner(),
+    oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
+    timeoutMsPerBehavior: 500,
+  });
+  try {
+    const result = await oracle.evaluateDirectory(candidate, 42, `${scratch}/checks`);
+    assert.equal(result.basic_reservation, "fail");
+    assert.equal(
+      Object.entries(result)
+        .filter(([name]) => name !== "basic_reservation")
+        .every(([, status]) => status === "pass"),
+      true,
+    );
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});

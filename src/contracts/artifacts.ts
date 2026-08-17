@@ -237,6 +237,22 @@ export async function readArtifactBytes(
   return bytes;
 }
 
+export async function readArtifactBytesByRef(
+  campaignRoot: string,
+  inputRef: unknown,
+): Promise<{ readonly pointer: ArtifactPointer; readonly bytes: Buffer }> {
+  const ref = parseArtifactRef(inputRef);
+  let artifactPath: string;
+  try {
+    artifactPath = await assertReadableRegularArtifact(campaignRoot, ref);
+  } catch (error) {
+    if (error instanceof ArtifactIntegrityError) throw error;
+    throw new ArtifactIntegrityError("ARTIFACT_UNREADABLE", "artifact could not be read");
+  }
+  const bytes = await readFile(artifactPath);
+  return { pointer: { ref, sha256: sha256Hex(bytes) }, bytes };
+}
+
 export async function readJsonArtifact<T>(
   campaignRoot: string,
   inputPointer: { readonly ref: unknown; readonly sha256: unknown },

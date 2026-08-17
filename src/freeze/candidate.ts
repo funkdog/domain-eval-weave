@@ -114,12 +114,25 @@ export async function freezeCandidate(input: {
     if (!/^[0-9a-f]{40}$/.test(tree)) {
       throw new CandidateFreezeError("GIT_TREE_INVALID", "Git returned an invalid candidate tree");
     }
-    const raw = await git(workspace, indexFile, ["diff", "--raw", "-z", "HEAD", tree]);
+    const raw = await git(workspace, indexFile, [
+      "diff",
+      "--no-renames",
+      "--raw",
+      "-z",
+      "HEAD",
+      tree,
+    ]);
     const { changedPaths, forbiddenEntries } = parseRawDiff(raw);
     const unauthorizedPaths = changedPaths.filter(
       (path) => path !== "src" && !path.startsWith("src/"),
     );
-    const patch = await git(workspace, indexFile, ["diff", "--binary", "HEAD", tree]);
+    const patch = await git(workspace, indexFile, [
+      "diff",
+      "--no-renames",
+      "--binary",
+      "HEAD",
+      tree,
+    ]);
     await writeFile(patchPath, patch, { flag: "wx", mode: 0o600 });
     await execFileAsync("git", ["archive", "--format=tar", "--output", archivePath, tree], {
       cwd: workspace,

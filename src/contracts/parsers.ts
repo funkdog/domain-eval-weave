@@ -174,6 +174,33 @@ const evidenceSchema = z.strictObject({
   stderr_sha256: sha256Schema,
 });
 
+const candidatePathSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      value.split("/").every((segment) => segment !== "" && segment !== "." && segment !== ".."),
+    "candidate paths must be normalized repository-relative paths",
+  );
+
+const candidatePathsSchema = z
+  .array(candidatePathSchema)
+  .refine(
+    (values) => new Set(values).size === values.length,
+    "candidate path evidence must be unique",
+  );
+
+const episodeMeasurementSchema = z.strictObject({
+  candidate_changed_paths: candidatePathsSchema,
+  candidate_unauthorized_paths: candidatePathsSchema,
+  candidate_forbidden_entries: candidatePathsSchema,
+  candidate_frozen_before_oracle: z.literal(true),
+  candidate_tree_after_oracle: z.string().regex(GIT_TREE_PATTERN),
+  elapsed_ms: finiteCountSchema,
+});
+
 export const episodeRecordSchema = z.strictObject({
   schema_version: z.literal(1),
   episode_id: idSchema,
@@ -195,6 +222,7 @@ export const episodeRecordSchema = z.strictObject({
       "process ended_at must not precede started_at",
     ),
   evidence: evidenceSchema,
+  measurement: episodeMeasurementSchema,
   infrastructure_errors: z.array(diagnosticSchema),
 });
 

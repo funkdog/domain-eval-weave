@@ -18,8 +18,9 @@ export type RecommendationInput = {
 export function recommendAction(
   input: RecommendationInput,
 ): PairedImpactReport["recommendation"]["action"] {
-  if (input.validity !== "valid") return "run_more";
+  if (input.validity === "invalid") return "run_more";
   if (!input.treatmentGoalActivated) return "iterate";
+  if (input.validity === "insufficient") return "run_more";
   if (input.controlPassed && !input.treatmentPassed) return "revert";
   if (!input.controlPassed && input.treatmentPassed) return "run_more";
   if (!input.controlPassed && !input.treatmentPassed) return "iterate";

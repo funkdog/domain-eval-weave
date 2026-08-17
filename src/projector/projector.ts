@@ -73,6 +73,168 @@ function validUsage(usage: Record<string, unknown>): boolean {
   );
 }
 
+const GOAL_SNAPSHOT_OPERATIONS = new Set([
+  "create",
+  "edit",
+  "pause",
+  "resume",
+  "complete",
+  "block",
+]);
+
+function exactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): boolean {
+  const allowed = new Set([...required, ...optional]);
+  return (
+    required.every((key) => key in value) && Object.keys(value).every((key) => allowed.has(key))
+  );
+}
+
+function positiveSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) > 0;
+}
+
+function nonnegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function validGoalRef(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    exactKeys(value, ["id", "revision"]) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    positiveSafeInteger(value.revision)
+  );
+}
+
+function validGoalSnapshot(value: unknown): value is Record<string, unknown> {
+  if (
+    !isRecord(value) ||
+    !exactKeys(
+      value,
+      ["id", "revision", "objective", "phase", "maxGoalRounds"],
+      ["blockedReason"],
+    ) ||
+    !validGoalRef({ id: value.id, revision: value.revision }) ||
+    typeof value.objective !== "string" ||
+    value.objective.trim().length === 0 ||
+    !["active", "paused", "blocked", "complete"].includes(String(value.phase)) ||
+    !positiveSafeInteger(value.maxGoalRounds) ||
+    (value.maxGoalRounds as number) > 8
+  ) {
+    return false;
+  }
+  if (value.phase !== "blocked") return value.blockedReason === undefined;
+  const reason = value.blockedReason;
+  return (
+    isRecord(reason) &&
+    exactKeys(reason, ["code", "message"]) &&
+    typeof reason.code === "string" &&
+    /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(reason.code) &&
+    typeof reason.message === "string" &&
+    reason.message.trim().length > 0
+  );
+}
+
+function validGoalChangeSequence(events: readonly SessionEventRecord[]): boolean {
+  let current:
+    | {
+        readonly id: string;
+        readonly revision: number;
+        readonly phase: string;
+        readonly roundsStarted: number;
+        readonly createdAt: number;
+        readonly updatedAt: number;
+      }
+    | undefined;
+  const seenGoalIds = new Set<string>();
+  for (const event of events) {
+    const data = recordData(event);
+    if (data.kind !== "goal/change" || data.version !== 1) return false;
+    if (data.operation === "clear") {
+      if (
+        !exactKeys(data, ["kind", "version", "operation", "cleared", "clearedAt"]) ||
+        current === undefined ||
+        !validGoalRef(data.cleared) ||
+        data.cleared.id !== current.id ||
+        data.cleared.revision !== current.revision ||
+        !nonnegativeSafeInteger(data.clearedAt) ||
+        data.clearedAt < current.updatedAt
+      ) {
+        return false;
+      }
+      current = undefined;
+      continue;
+    }
+    if (
+      typeof data.operation !== "string" ||
+      !GOAL_SNAPSHOT_OPERATIONS.has(data.operation) ||
+      !exactKeys(data, [
+        "kind",
+        "version",
+        "operation",
+        "goal",
+        "roundsStarted",
+        "createdAt",
+        "updatedAt",
+      ]) ||
+      !validGoalSnapshot(data.goal) ||
+      !nonnegativeSafeInteger(data.roundsStarted) ||
+      data.roundsStarted > (data.goal.maxGoalRounds as number) ||
+      !nonnegativeSafeInteger(data.createdAt) ||
+      !nonnegativeSafeInteger(data.updatedAt) ||
+      data.updatedAt < data.createdAt
+    ) {
+      return false;
+    }
+    const expectedPhase: Partial<Record<string, string>> = {
+      create: "active",
+      pause: "paused",
+      resume: "active",
+      complete: "complete",
+      block: "blocked",
+    };
+    if (
+      expectedPhase[data.operation] !== undefined &&
+      data.goal.phase !== expectedPhase[data.operation]
+    ) {
+      return false;
+    }
+    if (data.operation === "create") {
+      if (
+        (current !== undefined && current.phase !== "complete") ||
+        data.goal.revision !== 1 ||
+        data.roundsStarted !== 0 ||
+        seenGoalIds.has(data.goal.id as string)
+      )
+        return false;
+      seenGoalIds.add(data.goal.id as string);
+    } else if (
+      current === undefined ||
+      data.goal.id !== current.id ||
+      data.goal.revision !== current.revision + 1 ||
+      data.createdAt !== current.createdAt ||
+      data.updatedAt < current.updatedAt ||
+      data.roundsStarted < current.roundsStarted
+    ) {
+      return false;
+    }
+    current = {
+      id: data.goal.id as string,
+      revision: data.goal.revision as number,
+      phase: data.goal.phase as string,
+      roundsStarted: data.roundsStarted as number,
+      createdAt: data.createdAt as number,
+      updatedAt: data.updatedAt as number,
+    };
+  }
+  return true;
+}
+
 function validLifecycle(events: readonly SessionEventRecord[]): boolean {
   let openTurn: number | undefined;
   let openStep: number | undefined;
@@ -243,23 +405,9 @@ export function projectSessionEvidence(input: {
   if (!validLifecycle(events)) invalid = true;
 
   const goalEvents = events.filter((event) => event.type === "goal/change");
-  for (const event of goalEvents) {
-    const data = recordData(event);
-    if (data.kind !== "goal/change" || data.version !== 1 || typeof data.operation !== "string") {
-      invalid = true;
-      continue;
-    }
-    if (data.operation === "clear") continue;
-    const goal = data.goal;
-    if (
-      !isRecord(goal) ||
-      !["complete", "blocked", "paused", "active"].includes(String(goal.phase)) ||
-      !Number.isSafeInteger(data.roundsStarted) ||
-      (data.roundsStarted as number) < 0
-    ) {
-      invalid = true;
-    }
-  }
+  const goalEvidenceValid = validGoalChangeSequence(goalEvents);
+  if (!goalEvidenceValid) invalid = true;
+  const validGoalEvents = goalEvidenceValid ? goalEvents : [];
 
   const toolCalls: Record<string, number> = {};
   const callNames = new Map<string, string>();
@@ -308,7 +456,7 @@ export function projectSessionEvidence(input: {
     return (usageRows as Record<string, unknown>[]).reduce((sum, usage) => sum + read(usage), 0);
   };
 
-  const lastGoalEvent = goalEvents.at(-1);
+  const lastGoalEvent = validGoalEvents.at(-1);
   const lastGoalData = lastGoalEvent === undefined ? {} : recordData(lastGoalEvent);
   const lastGoalSnapshot = isRecord(lastGoalData.goal) ? lastGoalData.goal : {};
   const allowedPhases = new Set(["complete", "blocked", "paused", "active"]);
@@ -367,8 +515,8 @@ export function projectSessionEvidence(input: {
     prompt_isolation_valid: promptIsolationValid,
     completion_claim: completionClaim,
     mechanism: {
-      goal_created: goalEvents.some((event) => recordData(event).operation === "create"),
-      goal_rounds_started: goalEvents.reduce((maximum, event) => {
+      goal_created: validGoalEvents.some((event) => recordData(event).operation === "create"),
+      goal_rounds_started: validGoalEvents.reduce((maximum, event) => {
         const value = recordData(event).roundsStarted;
         return typeof value === "number" && Number.isSafeInteger(value)
           ? Math.max(maximum, value)

@@ -144,6 +144,17 @@ test("EpisodeRecord schema and parser reject non-normalized artifact paths", asy
   }
 });
 
+test("EpisodeRecord schema and parser freeze normalized measurement facts", async () => {
+  for (const measurement of [
+    { ...validEpisode.measurement, candidate_frozen_before_oracle: false },
+    { ...validEpisode.measurement, candidate_changed_paths: ["src/../outside.ts"] },
+  ]) {
+    const invalid = { ...validEpisode, measurement };
+    assert.throws(() => parseEpisodeRecord(invalid));
+    await assertSchemaRejects("episode.schema.json", invalid);
+  }
+});
+
 test("EvaluationResult rejects non-finite observed numbers", async () => {
   const invalid = {
     ...validPairedEvaluation,

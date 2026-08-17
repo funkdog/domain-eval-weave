@@ -13,6 +13,7 @@
     "workspace_base_digest",
     "process",
     "evidence",
+    "measurement",
     "infrastructure_errors"
   ],
   "properties": {
@@ -72,6 +73,29 @@
         "stderr_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_changed_paths",
+        "candidate_unauthorized_paths",
+        "candidate_forbidden_entries",
+        "candidate_frozen_before_oracle",
+        "candidate_tree_after_oracle",
+        "elapsed_ms"
+      ],
+      "properties": {
+        "candidate_changed_paths": { "$ref": "#/$defs/candidatePaths" },
+        "candidate_unauthorized_paths": { "$ref": "#/$defs/candidatePaths" },
+        "candidate_forbidden_entries": { "$ref": "#/$defs/candidatePaths" },
+        "candidate_frozen_before_oracle": { "const": true },
+        "candidate_tree_after_oracle": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "elapsed_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
     "infrastructure_errors": {
       "type": "array",
       "items": { "$ref": "#/$defs/diagnostic" }
@@ -89,6 +113,16 @@
     "artifactRef": {
       "type": "string",
       "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "candidatePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*\\\\).+$"
+    },
+    "candidatePaths": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/candidatePath" },
+      "uniqueItems": true
     },
     "diagnostic": {
       "type": "object",

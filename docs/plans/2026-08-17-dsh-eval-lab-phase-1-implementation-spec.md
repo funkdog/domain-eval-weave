@@ -390,8 +390,10 @@ Phase 1 没有可配置 Task/Variant/runtime-root 参数，避免用户误以为
 
 ### 5.7 `dsh --profile eval report <campaign-id>`
 
-只从已冻结 artifact 重建 `evaluation.json`、`report.json` 与 `report.md`；不调用模型、不重跑 Oracle、不写 Candidate。
-所有 digest 必须与 manifest 对上，否则生成 `measurement_invalid` 报告，而不是覆盖旧 artifact。
+只从已冻结 public-task bytes、Session、Episode measurement facts、Candidate 与 Oracle vector 重新投影并重建
+`evaluation.json`、`report.json` 与 `report.md`；不调用模型、不重跑 Oracle、不写 Candidate，也不把旧
+`evaluation.json` 当作重建输入。所有 digest 与语义重算结果必须与冻结证据图对上，否则生成独立的
+`measurement_invalid` envelope，而不是读取或覆盖损坏的旧 report。
 
 ## 6. 核心数据契约
 
@@ -409,7 +411,7 @@ interface TaskPack {
   allowed_candidate_globs: readonly ['src/**']
   forbidden_entry_types: readonly ['symlink', 'submodule']
   public_test_command: readonly ['node', '--test', 'test/public/*.test.ts']
-  oracle_version: 'ledger-oracle-v1'
+  oracle_version: 'ledger-oracle-v2'
   calibration_digest: string
 }
 ```
@@ -489,11 +491,27 @@ interface EpisodeRecord {
     timed_out: boolean
   }
   evidence: {
-    session_log_ref?: string
-    session_log_sha256?: string
-    candidate_tree?: string
-    candidate_archive_ref?: string
-    candidate_archive_sha256?: string
+    session_log_ref: string
+    session_log_sha256: string
+    candidate_tree: string
+    candidate_tree_ref: string
+    candidate_tree_sha256: string
+    candidate_patch_ref: string
+    candidate_patch_sha256: string
+    candidate_archive_ref: string
+    candidate_archive_sha256: string
+    stdout_ref: string
+    stdout_sha256: string
+    stderr_ref: string
+    stderr_sha256: string
+  }
+  measurement: {
+    candidate_changed_paths: readonly string[]
+    candidate_unauthorized_paths: readonly string[]
+    candidate_forbidden_entries: readonly string[]
+    candidate_frozen_before_oracle: true
+    candidate_tree_after_oracle: string
+    elapsed_ms: number
   }
   infrastructure_errors: readonly Diagnostic[]
 }
@@ -727,7 +745,7 @@ SMOKE.txt
 
 ### 8.3 Hidden behavior vector
 
-Candidate freeze 后生成随机 seed 与 case 数据，Oracle v1 评估八个独立行为：
+Candidate freeze 后生成随机 seed 与 case 数据，`ledger-oracle-v2` 以八个独立、各自有超时边界的进程评估行为：
 
 ```text
 basic_reservation

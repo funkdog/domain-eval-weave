@@ -35,6 +35,11 @@ test("recommendations are deterministic across the frozen result combinations", 
   };
   assert.equal(recommendAction({ ...base, validity: "invalid" }), "run_more");
   assert.equal(recommendAction({ ...base, treatmentGoalActivated: false }), "iterate");
+  assert.equal(
+    recommendAction({ ...base, validity: "insufficient", treatmentGoalActivated: false }),
+    "iterate",
+  );
+  assert.equal(recommendAction({ ...base, validity: "insufficient" }), "run_more");
   assert.equal(recommendAction({ ...base, treatmentPassed: false }), "revert");
   assert.equal(
     recommendAction({ ...base, controlPassed: false, treatmentPassed: true }),

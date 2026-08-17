@@ -27,6 +27,7 @@ import {
   validTreatmentEvaluation,
   validTreatmentVariant,
 } from "../helpers/fixtures.js";
+import { SYNTHETIC_PUBLIC_TASK, syntheticSessionLog } from "../helpers/session.js";
 
 test("artifact refs are portable campaign refs, not cwd-relative or host-absolute paths", () => {
   const ref = parseArtifactRef("artifact://campaign/arms/control/episode.json");
@@ -58,11 +59,16 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         "artifact://campaign/task-pack/identity.json",
         validTaskPackIdentity,
       ),
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/task-pack/public-task.md",
+        SYNTHETIC_PUBLIC_TASK,
+      ),
     ]);
     const controlSession = await writeArtifactBytes(
       campaignRoot,
       "artifact://campaign/arms/control/session.jsonl",
-      Buffer.from('{"type":"turn/end"}\n', "utf8"),
+      Buffer.from(syntheticSessionLog({ arm: "control" }), "utf8"),
     );
     const controlArchive = await writeArtifactBytes(
       campaignRoot,
@@ -72,7 +78,7 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
     const treatmentSession = await writeArtifactBytes(
       campaignRoot,
       "artifact://campaign/arms/treatment/session.jsonl",
-      Buffer.from('{"type":"goal/change"}\n', "utf8"),
+      Buffer.from(syntheticSessionLog({ arm: "treatment" }), "utf8"),
     );
     const treatmentArchive = await writeArtifactBytes(
       campaignRoot,

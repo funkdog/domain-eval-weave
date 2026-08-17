@@ -23,10 +23,16 @@ export type BehaviorVector = Readonly<Record<LedgerBehavior, BehaviorStatus>>;
 export class LedgerOracle {
   readonly #runner: StrictProcessRunner;
   readonly #oracleRunnerPath: string;
+  readonly #timeoutMsPerBehavior: number;
 
-  constructor(input: { readonly runner: StrictProcessRunner; readonly oracleRunnerPath: string }) {
+  constructor(input: {
+    readonly runner: StrictProcessRunner;
+    readonly oracleRunnerPath: string;
+    readonly timeoutMsPerBehavior?: number;
+  }) {
     this.#runner = input.runner;
     this.#oracleRunnerPath = resolve(input.oracleRunnerPath);
+    this.#timeoutMsPerBehavior = input.timeoutMsPerBehavior ?? 5_000;
   }
 
   async evaluateDirectory(
@@ -38,51 +44,54 @@ export class LedgerOracle {
       throw new Error("Oracle seed must be non-negative");
     await mkdir(scratchRoot, { recursive: true, mode: 0o700 });
     const oracleSource = await readFile(this.#oracleRunnerPath, "utf8");
-    const result = await this.#runner.run({
-      executable: process.execPath,
-      args: [
-        "--input-type=module",
-        "-",
-        "--candidate",
-        resolve(candidateRoot),
-        "--scratch",
-        resolve(scratchRoot),
-        "--seed",
-        String(seed),
-      ],
-      cwd: resolve(candidateRoot),
-      readableRoots: [resolve(candidateRoot)],
-      writableRoot: resolve(scratchRoot),
-      timeoutMs: 40_000,
-      maxOutputBytes: 65_536,
-      stdin: oracleSource,
-    });
-    const errors = () =>
-      Object.fromEntries(LEDGER_BEHAVIORS.map((behavior) => [behavior, "error"])) as BehaviorVector;
-    if (result.timedOut || result.outputLimitExceeded || result.exitCode !== 0) return errors();
-    try {
-      const parsed = JSON.parse(result.stdout) as { schema_version?: unknown; behavior?: unknown };
-      if (
-        parsed.schema_version !== 1 ||
-        typeof parsed.behavior !== "object" ||
-        parsed.behavior === null ||
-        Array.isArray(parsed.behavior)
-      ) {
-        return errors();
-      }
-      const behavior = parsed.behavior as Record<string, unknown>;
-      if (
-        Object.keys(behavior).length !== LEDGER_BEHAVIORS.length ||
-        LEDGER_BEHAVIORS.some((name) => behavior[name] !== "pass" && behavior[name] !== "fail")
-      ) {
-        return errors();
-      }
-      return Object.fromEntries(
-        LEDGER_BEHAVIORS.map((name) => [name, behavior[name]]),
-      ) as BehaviorVector;
-    } catch {
-      return errors();
-    }
+    const entries = await Promise.all(
+      LEDGER_BEHAVIORS.map(
+        async (behavior, index): Promise<readonly [LedgerBehavior, BehaviorStatus]> => {
+          const behaviorScratch = resolve(scratchRoot, `case-${index}`);
+          await mkdir(behaviorScratch, { recursive: true, mode: 0o700 });
+          const result = await this.#runner.run({
+            executable: process.execPath,
+            args: [
+              "--input-type=module",
+              "-",
+              "--candidate",
+              resolve(candidateRoot),
+              "--scratch",
+              behaviorScratch,
+              "--seed",
+              String(seed),
+              "--behavior",
+              behavior,
+              "--timeout-ms",
+              String(this.#timeoutMsPerBehavior),
+            ],
+            cwd: resolve(candidateRoot),
+            readableRoots: [resolve(candidateRoot)],
+            writableRoot: behaviorScratch,
+            timeoutMs: this.#timeoutMsPerBehavior + 1_000,
+            maxOutputBytes: 4_096,
+            stdin: oracleSource,
+          });
+          if (result.timedOut) return [behavior, "error"];
+          if (result.outputLimitExceeded || result.exitCode !== 0) return [behavior, "error"];
+          try {
+            const parsed = JSON.parse(result.stdout) as Record<string, unknown>;
+            if (
+              Object.keys(parsed).sort().join(",") !== "behavior,schema_version,status" ||
+              parsed.schema_version !== 1 ||
+              parsed.behavior !== behavior ||
+              (parsed.status !== "pass" && parsed.status !== "fail")
+            ) {
+              return [behavior, "error"];
+            }
+            return [behavior, parsed.status];
+          } catch {
+            return [behavior, "error"];
+          }
+        },
+      ),
+    );
+    return Object.fromEntries(entries) as BehaviorVector;
   }
 
   async evaluateArchive(

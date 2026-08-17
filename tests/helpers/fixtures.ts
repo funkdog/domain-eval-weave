@@ -1,4 +1,5 @@
 import { canonicalJson, sha256Hex } from "../../src/contracts/canonical-json.js";
+import { SYNTHETIC_COMMON_TOOL_DIGEST, SYNTHETIC_PUBLIC_TASK } from "./session.js";
 
 export const DIGEST_A = "a".repeat(64);
 export const DIGEST_B = "b".repeat(64);
@@ -25,7 +26,7 @@ export const validControlVariant = {
     reasoning_effort: "xhigh",
   },
   resolved_config_sha256: DIGEST_A,
-  tool_schema_sha256: DIGEST_B,
+  tool_schema_sha256: SYNTHETIC_COMMON_TOOL_DIGEST,
   tools_mode: "native",
   permission_mode: "workspace-write",
 } as const;
@@ -61,7 +62,7 @@ export const validTaskPackIdentity = {
     oracle_version: "ledger-oracle-v2",
     calibration_digest: DIGEST_B,
   },
-  public_task_sha256: DIGEST_C,
+  public_task_sha256: sha256Hex(SYNTHETIC_PUBLIC_TASK),
   oracle_runner_sha256: DIGEST_D,
 } as const;
 export const TASK_PACK_DIGEST = sha256Hex(canonicalJson(validTaskPackIdentity));
@@ -164,6 +165,14 @@ export const validEpisode = {
     stderr_ref: "artifact://campaign/arms/control/stderr.txt",
     stderr_sha256: DIGEST_D,
   },
+  measurement: {
+    candidate_changed_paths: ["src/ledger.ts"],
+    candidate_unauthorized_paths: [],
+    candidate_forbidden_entries: [],
+    candidate_frozen_before_oracle: true,
+    candidate_tree_after_oracle: "d".repeat(40),
+    elapsed_ms: 60_000,
+  },
   infrastructure_errors: [],
 } as const;
 
@@ -181,6 +190,10 @@ export const validTreatmentEpisode = {
     candidate_archive_ref: "artifact://campaign/arms/treatment/candidate.tar",
     stdout_ref: "artifact://campaign/arms/treatment/stdout.txt",
     stderr_ref: "artifact://campaign/arms/treatment/stderr.txt",
+  },
+  measurement: {
+    ...validEpisode.measurement,
+    elapsed_ms: 65_000,
   },
 } as const;
 
@@ -214,15 +227,15 @@ export const validEvaluation = {
     goal_created: false,
     goal_rounds_started: 0,
     goal_terminal_phase: "none",
-    tool_calls: { read: 2, workspace_test: 1 },
+    tool_calls: { workspace_test: 1 },
     turns: 1,
-    steps: 3,
+    steps: 1,
   },
   cost: {
     elapsed_ms: 60_000,
-    input_tokens: 1_000,
-    cached_input_tokens: 100,
-    output_tokens: 200,
+    input_tokens: 100,
+    cached_input_tokens: 10,
+    output_tokens: 20,
     failed_tool_calls: 0,
   },
   hard_gates: {
@@ -247,9 +260,9 @@ export const validTreatmentEvaluation = {
   },
   cost: {
     elapsed_ms: 65_000,
-    input_tokens: 1_200,
-    cached_input_tokens: 100,
-    output_tokens: 240,
+    input_tokens: 110,
+    cached_input_tokens: 10,
+    output_tokens: 25,
     failed_tool_calls: 0,
   },
 } as const;
@@ -313,9 +326,9 @@ export const validReport = {
   },
   cost_delta: {
     elapsed_ms: 5_000,
-    input_tokens: 200,
+    input_tokens: 10,
     cached_input_tokens: 0,
-    output_tokens: 40,
+    output_tokens: 5,
     failed_tool_calls: 0,
   },
   evidence: {
@@ -345,8 +358,8 @@ export const validReport = {
     },
   ],
   recommendation: {
-    action: "run_more",
-    rationale_codes: ["SINGLE_PAIR"],
+    action: "keep_baseline",
+    rationale_codes: ["ACTION_KEEP_BASELINE"],
   },
   claim_strength: "diagnostic",
   effect_claim_eligible: false,

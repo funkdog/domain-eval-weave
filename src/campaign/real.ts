@@ -39,11 +39,10 @@ import { computeCandidateTree, freezeCandidate } from "../freeze/candidate.js";
 import { type BehaviorVector, LEDGER_BEHAVIORS, LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { decodeOfficialSessionJsonl } from "../projector/jsonl.js";
-import { projectSessionEvidence, type SessionProjection } from "../projector/projector.js";
+import { projectSessionEvidence } from "../projector/projector.js";
 import { assertProfileRoles } from "../runtime-profile/init.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
 import { digestTaskPack, loadTaskPack, loadTaskPackIdentity } from "../task-pack/loader.js";
-import { evaluationFromEvidence } from "../validity/evaluation.js";
 import {
   type ArmEvaluationOutput,
   type ArmExecutionOutput,
@@ -58,15 +57,10 @@ const DSH_JS_YAML_TAG = {
 };
 
 interface RealArmOracleInput {
-  readonly projection: SessionProjection;
   readonly archivePath: string;
   readonly candidateAuthorized: boolean;
-  readonly elapsedMs: number;
   readonly workspace: string;
   readonly frozenTree: string;
-  readonly deploymentFingerprintMatches: boolean;
-  readonly goalExpected: boolean;
-  readonly carrierProcessHealthy: boolean;
 }
 
 export class CarrierQualificationError extends Error {
@@ -470,6 +464,7 @@ export async function runRealCampaign(input: {
     experiment,
     variants,
     taskPackIdentity,
+    publicTask: task,
     executeArm: async (arm): Promise<ArmExecutionOutput> => {
       const workspace = workspaces[arm];
       const before = await scanRawSessionInventory(`${DEDICATED_DSH_HOME}/sessions`);
@@ -492,22 +487,6 @@ export async function runRealCampaign(input: {
       const discovered = discoverFreshSession({ before, after, workspace, startedAt, endedAt });
       const transcriptPath = locatedSession(after, discovered.id).transcriptPath;
       const transcript = await readStableSessionTranscript(transcriptPath);
-      const projection = projectSessionEvidence({
-        ...decodeOfficialSessionJsonl(transcript),
-        expectedPublicTask: task,
-      });
-      const expectedVariant = variants[arm];
-      const goalTools = new Set(["get_goal", "create_goal", "update_goal"]);
-      const presentGoalTools = projection.deployment.tool_names.filter((name) =>
-        goalTools.has(name),
-      );
-      const goalSurfaceMatches =
-        arm === "control"
-          ? presentGoalTools.length === 0
-          : presentGoalTools.length === goalTools.size;
-      const deploymentFingerprintMatches =
-        projection.deployment.common_tool_schema_sha256 === expectedVariant.tool_schema_sha256 &&
-        goalSurfaceMatches;
       const frozen = await freezeCandidate({
         workspace,
         artifactRoot: `${campaignRoot}/arms/${arm}`,
@@ -518,6 +497,9 @@ export async function runRealCampaign(input: {
         candidateTree: frozen.tree,
         candidatePatch: await readFile(frozen.patchPath),
         candidateArchive: await readFile(frozen.archivePath),
+        candidateChangedPaths: frozen.changedPaths,
+        candidateUnauthorizedPaths: frozen.unauthorizedPaths,
+        candidateForbiddenEntries: frozen.forbiddenEntries,
         workspaceBaseDigest: pack.base_tree_sha256,
         process: {
           started_at: startedAt,
@@ -526,18 +508,14 @@ export async function runRealCampaign(input: {
           signal: processResult.signal,
           timed_out: processResult.timedOut,
         },
+        elapsedMs,
         stdout: processResult.stdout,
         stderr: processResult.stderr,
         oracleInput: {
-          projection,
           archivePath: frozen.archivePath,
           candidateAuthorized: frozen.authorized,
-          elapsedMs,
           workspace,
           frozenTree: frozen.tree,
-          deploymentFingerprintMatches,
-          goalExpected: arm === "treatment",
-          carrierProcessHealthy: processResult.exitCode === 0 && processResult.signal === null,
         } satisfies RealArmOracleInput,
       };
     },
@@ -555,26 +533,13 @@ export async function runRealCampaign(input: {
       } finally {
         await rm(scratch, { recursive: true, force: true });
       }
-      const candidateUnchangedAfterOracle =
-        (await computeCandidateTree(
-          oracleInput.workspace,
-          `${DEDICATED_RUNTIME_ROOT}/oracle-tmp/tree-verification`,
-        )) === oracleInput.frozenTree;
-      const result = evaluationFromEvidence({
-        projection: oracleInput.projection,
-        behavior,
-        candidateAuthorized: oracleInput.candidateAuthorized,
-        oracleHidden: oracleInput.projection.prompt_isolation_valid,
-        candidateFrozenBeforeOracle: true,
-        candidateUnchangedAfterOracle,
-        deploymentFingerprintMatches: oracleInput.deploymentFingerprintMatches,
-        goalExpected: oracleInput.goalExpected,
-        carrierProcessHealthy: oracleInput.carrierProcessHealthy,
-        elapsedMs: oracleInput.elapsedMs,
-      });
+      const candidateTreeAfterOracle = await computeCandidateTree(
+        oracleInput.workspace,
+        `${DEDICATED_RUNTIME_ROOT}/oracle-tmp/tree-verification`,
+      );
       return {
-        result,
         behavior,
+        candidateTreeAfterOracle,
         oracleSeed: {
           schema_version: 1,
           seed: oracleSeed,

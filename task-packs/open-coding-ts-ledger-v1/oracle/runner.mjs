@@ -76,6 +76,7 @@ class CandidateDriver {
   #nextId = 0;
   #pending = new Map();
   #closed;
+  #closing;
 
   constructor(candidate) {
     this.#child = spawn(
@@ -122,22 +123,28 @@ class CandidateDriver {
   }
 
   async close() {
-    this.#child.stdin.end();
-    const timer = setTimeout(() => this.#child.kill("SIGKILL"), 500);
-    try {
-      await this.#closed;
-    } finally {
-      clearTimeout(timer);
-    }
+    this.#closing ??= (async () => {
+      this.#child.stdin.end();
+      const timer = setTimeout(() => this.#child.kill("SIGKILL"), 500);
+      try {
+        await this.#closed;
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+    return this.#closing;
   }
 }
 
+const activeDrivers = new Set();
 async function withDriver(candidate, operation) {
   const driver = new CandidateDriver(candidate);
+  activeDrivers.add(driver);
   try {
     return await operation(driver);
   } finally {
     await driver.close();
+    activeDrivers.delete(driver);
   }
 }
 
@@ -156,9 +163,12 @@ if ("_eval" in process) delete process._eval;
 const candidate = resolve(args.get("--candidate"));
 const scratch = resolve(args.get("--scratch"));
 const seed = Number(args.get("--seed"));
+const selectedBehavior = args.get("--behavior");
+const timeoutMs = Number(args.get("--timeout-ms"));
+if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) throw new Error("invalid timeout");
 const opaque = (label) =>
   `r-${createHash("sha256").update(`${seed}:${label}`).digest("hex").slice(0, 16)}`;
-let stateFile;
+let stateFile = resolve(scratch, "ledger-state.json");
 
 const checks = {
   async basic_reservation() {
@@ -301,18 +311,22 @@ const checks = {
   },
 };
 
-const behavior = {};
-let index = 0;
-for (const [name, operation] of Object.entries(checks)) {
-  const behaviorScratch = resolve(scratch, `case-${index}`);
-  index += 1;
-  await mkdir(behaviorScratch, { recursive: true });
-  stateFile = resolve(behaviorScratch, "ledger-state.json");
-  try {
-    await operation();
-    behavior[name] = "pass";
-  } catch {
-    behavior[name] = "fail";
-  }
+const operation = checks[selectedBehavior];
+if (operation === undefined) throw new Error("unknown behavior");
+await mkdir(scratch, { recursive: true });
+let status = "pass";
+let timeout;
+try {
+  await Promise.race([
+    operation(),
+    new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error("candidate behavior timeout")), timeoutMs);
+    }),
+  ]);
+} catch {
+  status = "fail";
+} finally {
+  clearTimeout(timeout);
+  await Promise.allSettled([...activeDrivers].map((driver) => driver.close()));
 }
-process.stdout.write(JSON.stringify({ schema_version: 1, behavior }));
+process.stdout.write(JSON.stringify({ schema_version: 1, behavior: selectedBehavior, status }));
