@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/harness.schema.json",
+  "title": "DSH Eval Lab Harness Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "harness_id",
+    "harness_version",
+    "intervention",
+    "activation",
+    "eval_binding"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "harness_id": { "const": "dsh-goal-stack" },
+    "harness_version": { "type": "string", "minLength": 1 },
+    "intervention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rows", "allowed_config_paths"],
+      "properties": {
+        "rows": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "goal" },
+            { "const": "goal-round-driver" },
+            { "const": "command-goal" },
+            { "const": "tool-goal" }
+          ],
+          "minItems": 4,
+          "maxItems": 4,
+          "items": false
+        },
+        "allowed_config_paths": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "goal.disabled" },
+            { "const": "goal-round-driver.disabled" },
+            { "const": "command-goal.disabled" },
+            { "const": "tool-goal.disabled" }
+          ],
+          "minItems": 4,
+          "maxItems": 4,
+          "items": false
+        }
+      }
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_event_type", "contract_version"],
+      "properties": {
+        "source_event_type": { "const": "goal/change" },
+        "contract_version": { "const": 1 }
+      }
+    },
+    "eval_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eval_pack_id",
+        "registry_ref",
+        "registry_sha256",
+        "expectations",
+        "holdout_policy"
+      ],
+      "properties": {
+        "eval_pack_id": { "const": "open-coding-goal-v1" },
+        "registry_ref": { "$ref": "#/$defs/packageRef" },
+        "registry_sha256": { "$ref": "#/$defs/sha256" },
+        "expectations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trigger", "non_trigger", "holdout"],
+          "properties": {
+            "trigger": { "const": "activation-required" },
+            "non_trigger": { "const": "activation-forbidden" },
+            "holdout": { "const": "task-defined" }
+          }
+        },
+        "holdout_policy": { "const": "first-model-exposure-only" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packageRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    }
+  }
+}

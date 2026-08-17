@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/activation.schema.json",
+  "title": "DSH Eval Lab Typed Activation Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "harness_id", "session_id", "events", "summary"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "harness_id": { "const": "dsh-goal-stack" },
+    "session_id": { "$ref": "#/$defs/id" },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activated", "event_count", "continuation_rounds", "terminal_phase"],
+      "properties": {
+        "activated": { "type": "boolean" },
+        "event_count": { "$ref": "#/$defs/count" },
+        "continuation_rounds": { "$ref": "#/$defs/count" },
+        "terminal_phase": { "$ref": "#/$defs/phase" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "phase": { "enum": ["active", "paused", "complete", "blocked", "none"] },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "source_event_type",
+        "operation",
+        "activation_type",
+        "goal_id",
+        "revision",
+        "phase",
+        "timestamp"
+      ],
+      "properties": {
+        "sequence": { "$ref": "#/$defs/count" },
+        "source_event_type": { "const": "goal/change" },
+        "operation": {
+          "enum": ["create", "edit", "pause", "resume", "complete", "block", "clear"]
+        },
+        "activation_type": { "enum": ["activated", "progressed", "terminal", "cleared"] },
+        "goal_id": { "$ref": "#/$defs/id" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "phase": { "$ref": "#/$defs/phase" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

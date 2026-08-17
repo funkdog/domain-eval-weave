@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/eval-pack.schema.json",
+  "title": "DSH Eval Lab Eval Pack",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "eval_pack_id",
+    "domain",
+    "harness_id",
+    "task_ids",
+    "buckets",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "eval_pack_id": { "const": "open-coding-goal-v1" },
+    "domain": { "const": "open-coding-delivery" },
+    "harness_id": { "const": "dsh-goal-stack" },
+    "task_ids": { "$ref": "#/$defs/ids" },
+    "buckets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger", "non_trigger", "holdout"],
+      "properties": {
+        "trigger": { "$ref": "#/$defs/ids" },
+        "non_trigger": { "$ref": "#/$defs/ids" },
+        "holdout": { "$ref": "#/$defs/ids" }
+      }
+    },
+    "claim_strength": { "const": "multi_task_diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    }
+  }
+}

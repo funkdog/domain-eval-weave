@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/registry.schema.json",
+  "title": "DSH Eval Lab Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry_id", "eval_packs", "tasks"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "registry_id": { "$ref": "#/$defs/id" },
+    "eval_packs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/pointer" } },
+    "tasks": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/pointer" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packageRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ref", "sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "ref": { "$ref": "#/$defs/packageRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/suite-manifest.schema.json",
+  "title": "DSH Eval Lab Suite Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "created_at",
+    "instance_id",
+    "harness_binding_digest",
+    "registry_digest",
+    "eval_pack_digest",
+    "deployment_digest",
+    "task_order",
+    "tasks",
+    "timeout_ms_per_arm",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "suite_id": { "$ref": "#/$defs/id" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "instance_id": { "const": "clowder-ai" },
+    "harness_binding_digest": { "$ref": "#/$defs/sha256" },
+    "registry_digest": { "$ref": "#/$defs/sha256" },
+    "eval_pack_digest": { "$ref": "#/$defs/sha256" },
+    "deployment_digest": { "$ref": "#/$defs/sha256" },
+    "task_order": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "tasks": { "type": "array", "minItems": 3, "items": { "$ref": "#/$defs/task" } },
+    "timeout_ms_per_arm": { "type": "integer", "minimum": 1, "maximum": 5400000 },
+    "claim_strength": { "const": "multi_task_diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_id", "bucket", "campaign_id"],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/id" },
+        "bucket": { "enum": ["trigger", "non-trigger", "holdout"] },
+        "campaign_id": { "$ref": "#/$defs/id" }
+      }
+    }
+  }
+}
