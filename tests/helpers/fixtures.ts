@@ -1,6 +1,7 @@
 export const DIGEST_A = "a".repeat(64);
 export const DIGEST_B = "b".repeat(64);
 export const DIGEST_C = "c".repeat(64);
+export const DIGEST_D = "d".repeat(64);
 
 export const validExperiment = {
   schema_version: 1,
@@ -79,7 +80,13 @@ export const validEvaluation = {
     externally_verified_completion: true,
     behavior_vector: {
       basic_reservation: "pass",
+      idempotent_replay: "pass",
+      conflicting_replay_rejected: "pass",
+      no_oversubscription_concurrent: "pass",
+      terminal_transition_idempotency: "pass",
       restart_recovery: "pass",
+      corrupt_state_fail_closed: "pass",
+      deterministic_snapshot: "pass",
     },
     completion_claim: "complete",
     false_completion_claim: false,
@@ -108,22 +115,67 @@ export const validEvaluation = {
   effect_claim_eligible: false,
 } as const;
 
+export const validTreatmentEvaluation = {
+  ...validEvaluation,
+  mechanism: {
+    ...validEvaluation.mechanism,
+    goal_created: true,
+    goal_rounds_started: 2,
+    goal_terminal_phase: "complete",
+  },
+  cost: {
+    elapsed_ms: 65_000,
+    input_tokens: 1_200,
+    cached_input_tokens: 100,
+    output_tokens: 240,
+    failed_tool_calls: 0,
+  },
+} as const;
+
+export const validPairedEvaluation = {
+  schema_version: 1,
+  campaign_id: "campaign-m0",
+  measurement_validity: validEvaluation.measurement_validity,
+  arms: {
+    control: {
+      episode: {
+        ref: "artifact://campaign/arms/control/episode.json",
+        sha256: DIGEST_B,
+      },
+      candidate: {
+        tree: validEpisode.evidence.candidate_tree,
+        archive: {
+          ref: validEpisode.evidence.candidate_archive_ref,
+          sha256: validEpisode.evidence.candidate_archive_sha256,
+        },
+      },
+      result: validEvaluation,
+    },
+    treatment: {
+      episode: {
+        ref: "artifact://campaign/arms/treatment/episode.json",
+        sha256: DIGEST_C,
+      },
+      candidate: {
+        tree: validTreatmentEpisode.evidence.candidate_tree,
+        archive: {
+          ref: validTreatmentEpisode.evidence.candidate_archive_ref,
+          sha256: validTreatmentEpisode.evidence.candidate_archive_sha256,
+        },
+      },
+      result: validTreatmentEvaluation,
+    },
+  },
+} as const;
+
 export const validReport = {
   schema_version: 1,
   campaign_id: "campaign-m0",
   experiment_digest: DIGEST_A,
-  measurement_validity: validEvaluation.measurement_validity,
+  measurement_validity: validPairedEvaluation.measurement_validity,
   arms: {
-    control: validEvaluation,
-    treatment: {
-      ...validEvaluation,
-      mechanism: {
-        ...validEvaluation.mechanism,
-        goal_created: true,
-        goal_rounds_started: 2,
-        goal_terminal_phase: "complete",
-      },
-    },
+    control: validPairedEvaluation.arms.control.result,
+    treatment: validPairedEvaluation.arms.treatment.result,
   },
   cost_delta: {
     elapsed_ms: 5_000,
@@ -144,6 +196,10 @@ export const validReport = {
     treatment_episode: {
       ref: "artifact://campaign/arms/treatment/episode.json",
       sha256: DIGEST_C,
+    },
+    evaluation: {
+      ref: "artifact://campaign/evaluation.json",
+      sha256: DIGEST_D,
     },
   },
   known_blind_spots: [

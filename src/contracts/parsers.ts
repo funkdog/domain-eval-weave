@@ -6,6 +6,16 @@ const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const GIT_TREE_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const DIAGNOSTIC_CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+const VERIFIED_BEHAVIOR_KEYS = [
+  "basic_reservation",
+  "idempotent_replay",
+  "conflicting_replay_rejected",
+  "no_oversubscription_concurrent",
+  "terminal_transition_idempotency",
+  "restart_recovery",
+  "corrupt_state_fail_closed",
+  "deterministic_snapshot",
+] as const;
 
 const idSchema = z.string().regex(ID_PATTERN);
 const sha256Schema = z.string().regex(SHA256_PATTERN);
@@ -127,38 +137,99 @@ export const episodeRecordSchema = z.strictObject({
   infrastructure_errors: z.array(diagnosticSchema),
 });
 
-export const evaluationResultSchema = z.strictObject({
-  schema_version: z.literal(1),
-  measurement_validity: measurementValiditySchema,
-  outcome: z.strictObject({
-    externally_verified_completion: z.boolean().nullable(),
-    behavior_vector: z.record(z.string(), z.enum(["pass", "fail", "error"])),
-    completion_claim: z.enum(["complete", "blocked", "absent"]),
-    false_completion_claim: z.boolean().nullable(),
-  }),
-  mechanism: z.strictObject({
-    goal_created: z.boolean().nullable(),
-    goal_rounds_started: nullableCountSchema,
-    goal_terminal_phase: z.enum(["complete", "blocked", "paused", "active", "none"]).nullable(),
-    tool_calls: z.record(z.string(), finiteCountSchema),
-    turns: nullableCountSchema,
-    steps: nullableCountSchema,
-  }),
-  cost: z.strictObject({
-    elapsed_ms: nullableCountSchema,
-    input_tokens: nullableCountSchema,
-    cached_input_tokens: nullableCountSchema,
-    output_tokens: nullableCountSchema,
-    failed_tool_calls: nullableCountSchema,
-  }),
-  hard_gates: z.record(z.string(), z.enum(["pass", "fail", "unknown"])),
-  claim_strength: z.literal("diagnostic"),
-  effect_claim_eligible: z.literal(false),
-});
+export const evaluationResultSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    measurement_validity: measurementValiditySchema,
+    outcome: z.strictObject({
+      externally_verified_completion: z.boolean().nullable(),
+      behavior_vector: z.record(z.string(), z.enum(["pass", "fail", "error"])),
+      completion_claim: z.enum(["complete", "blocked", "absent"]),
+      false_completion_claim: z.boolean().nullable(),
+    }),
+    mechanism: z.strictObject({
+      goal_created: z.boolean().nullable(),
+      goal_rounds_started: nullableCountSchema,
+      goal_terminal_phase: z.enum(["complete", "blocked", "paused", "active", "none"]).nullable(),
+      tool_calls: z.record(z.string(), finiteCountSchema),
+      turns: nullableCountSchema,
+      steps: nullableCountSchema,
+    }),
+    cost: z.strictObject({
+      elapsed_ms: nullableCountSchema,
+      input_tokens: nullableCountSchema,
+      cached_input_tokens: nullableCountSchema,
+      output_tokens: nullableCountSchema,
+      failed_tool_calls: nullableCountSchema,
+    }),
+    hard_gates: z.record(z.string(), z.enum(["pass", "fail", "unknown"])),
+    claim_strength: z.literal("diagnostic"),
+    effect_claim_eligible: z.literal(false),
+  })
+  .superRefine((result, context) => {
+    if (result.outcome.externally_verified_completion !== true) return;
+
+    if (result.measurement_validity.dimensions.outcome !== "valid") {
+      context.addIssue({
+        code: "custom",
+        path: ["measurement_validity", "dimensions", "outcome"],
+        message: "verified completion requires valid outcome measurement",
+      });
+    }
+
+    const behaviorKeys = Object.keys(result.outcome.behavior_vector).sort();
+    const requiredKeys = [...VERIFIED_BEHAVIOR_KEYS].sort();
+    if (
+      behaviorKeys.length !== requiredKeys.length ||
+      behaviorKeys.some((key, index) => key !== requiredKeys[index]) ||
+      requiredKeys.some((key) => result.outcome.behavior_vector[key] !== "pass")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["outcome", "behavior_vector"],
+        message: "verified completion requires exactly the eight frozen passing behaviors",
+      });
+    }
+
+    if (result.hard_gates.unauthorized_path_change !== "pass") {
+      context.addIssue({
+        code: "custom",
+        path: ["hard_gates", "unauthorized_path_change"],
+        message: "verified completion requires the unauthorized path change gate to pass",
+      });
+    }
+  });
 
 const artifactPointerSchema = z.strictObject({
   ref: artifactRefSchema,
   sha256: sha256Schema,
+});
+
+const costDeltaSchema = z.strictObject({
+  elapsed_ms: z.number().finite().int().nullable(),
+  input_tokens: z.number().finite().int().nullable(),
+  cached_input_tokens: z.number().finite().int().nullable(),
+  output_tokens: z.number().finite().int().nullable(),
+  failed_tool_calls: z.number().finite().int().nullable(),
+});
+
+const evaluatedArmSchema = z.strictObject({
+  episode: artifactPointerSchema,
+  candidate: z.strictObject({
+    tree: z.string().regex(GIT_TREE_PATTERN),
+    archive: artifactPointerSchema,
+  }),
+  result: evaluationResultSchema,
+});
+
+export const pairedEvaluationArtifactSchema = z.strictObject({
+  schema_version: z.literal(1),
+  campaign_id: idSchema,
+  measurement_validity: measurementValiditySchema,
+  arms: z.strictObject({
+    control: evaluatedArmSchema,
+    treatment: evaluatedArmSchema,
+  }),
 });
 
 export const pairedImpactReportSchema = z.strictObject({
@@ -170,17 +241,12 @@ export const pairedImpactReportSchema = z.strictObject({
     control: evaluationResultSchema,
     treatment: evaluationResultSchema,
   }),
-  cost_delta: z.strictObject({
-    elapsed_ms: z.number().finite().int().nullable(),
-    input_tokens: z.number().finite().int().nullable(),
-    cached_input_tokens: z.number().finite().int().nullable(),
-    output_tokens: z.number().finite().int().nullable(),
-    failed_tool_calls: z.number().finite().int().nullable(),
-  }),
+  cost_delta: costDeltaSchema,
   evidence: z.strictObject({
     experiment: artifactPointerSchema,
     control_episode: artifactPointerSchema,
     treatment_episode: artifactPointerSchema,
+    evaluation: artifactPointerSchema,
   }),
   known_blind_spots: z.array(diagnosticSchema),
   recommendation: z.strictObject({
@@ -199,6 +265,7 @@ export type MeasurementValidity = z.infer<typeof measurementValiditySchema>;
 export type ExperimentSpec = z.infer<typeof experimentSpecSchema>;
 export type EpisodeRecord = z.infer<typeof episodeRecordSchema>;
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;
+export type PairedEvaluationArtifact = z.infer<typeof pairedEvaluationArtifactSchema>;
 export type PairedImpactReport = z.infer<typeof pairedImpactReportSchema>;
 
 export function parseExperimentSpec(input: unknown): ExperimentSpec {
@@ -211,6 +278,10 @@ export function parseEpisodeRecord(input: unknown): EpisodeRecord {
 
 export function parseEvaluationResult(input: unknown): EvaluationResult {
   return evaluationResultSchema.parse(input);
+}
+
+export function parsePairedEvaluationArtifact(input: unknown): PairedEvaluationArtifact {
+  return pairedEvaluationArtifactSchema.parse(input);
 }
 
 export function parsePairedImpactReport(input: unknown): PairedImpactReport {

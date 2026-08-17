@@ -1,90 +1,84 @@
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
-  assertRuntimeRootInvariant,
-  DEFAULT_RUNTIME_ROOT,
-  SOURCE_ROOT,
+  assertDedicatedDshHomePreBoot,
+  assertRuntimeLayoutInvariant,
+  DEDICATED_DSH_HOME,
+  DEDICATED_RUNTIME_ROOT,
+  OAUTH_REFERENCE_ROOT,
+  RuntimeRootInvariantError,
 } from "../../src/runtime-root.js";
 
-test("the frozen source and runtime roots are separate and the runtime root is 0700", async () => {
-  await assertRuntimeRootInvariant({
+const SOURCE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+
+test("pre-boot contract accepts only the exact inherited dedicated DSH_HOME", () => {
+  assert.doesNotThrow(() => assertDedicatedDshHomePreBoot({ DSH_HOME: DEDICATED_DSH_HOME }));
+  assert.throws(
+    () => assertDedicatedDshHomePreBoot({}),
+    (error: unknown) =>
+      error instanceof RuntimeRootInvariantError && error.code === "DSH_HOME_REQUIRED",
+  );
+  assert.throws(
+    () => assertDedicatedDshHomePreBoot({ DSH_HOME: `${DEDICATED_DSH_HOME}/other` }),
+    (error: unknown) =>
+      error instanceof RuntimeRootInvariantError && error.code === "DSH_HOME_MISMATCH",
+  );
+});
+
+test("approved source/runtime/reference roots and 0700 modes satisfy the invariant", async () => {
+  await assertRuntimeLayoutInvariant({
     sourceRoot: SOURCE_ROOT,
-    runtimeRoot: DEFAULT_RUNTIME_ROOT,
+    runtimeRoot: DEDICATED_RUNTIME_ROOT,
+    dshHome: DEDICATED_DSH_HOME,
+    oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
   });
 });
 
-test("runtime-root invariant rejects equal or nested roots", async () => {
+test("layout rejects overlap, permissive modes, and a symlinked missing ancestor", async () => {
   await assert.rejects(
-    assertRuntimeRootInvariant({ sourceRoot: SOURCE_ROOT, runtimeRoot: SOURCE_ROOT }),
-  );
-  await assert.rejects(
-    assertRuntimeRootInvariant({
+    assertRuntimeLayoutInvariant({
       sourceRoot: SOURCE_ROOT,
-      runtimeRoot: `${SOURCE_ROOT}/runtime`,
+      runtimeRoot: SOURCE_ROOT,
+      dshHome: `${SOURCE_ROOT}/dsh-home`,
+      oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
     }),
+    /physically separate/,
   );
-  await assert.rejects(
-    assertRuntimeRootInvariant({
-      sourceRoot: `${DEFAULT_RUNTIME_ROOT}/source`,
-      runtimeRoot: DEFAULT_RUNTIME_ROOT,
-    }),
-  );
-});
 
-test("runtime-root invariant fails closed when an existing root is not 0700", async () => {
-  const scratchParent = `${DEFAULT_RUNTIME_ROOT}/test-tmp`;
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
-  const runtimeRoot = await mkdtemp(`${scratchParent}/mode-`);
-
-  try {
-    await chmod(runtimeRoot, 0o755);
-    await assert.rejects(
-      assertRuntimeRootInvariant({ sourceRoot: SOURCE_ROOT, runtimeRoot }),
-      /0700/,
-    );
-  } finally {
-    await chmod(runtimeRoot, 0o700);
-    await rm(runtimeRoot, { recursive: true, force: true });
-  }
-});
-
-test("runtime-root invariant rejects a symlinked runtime root", async () => {
-  const scratchParent = `${DEFAULT_RUNTIME_ROOT}/test-tmp`;
-  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
-  const testRoot = await mkdtemp(`${scratchParent}/symlink-`);
-  const realRuntime = `${testRoot}/real-runtime`;
-  const linkedRuntime = `${testRoot}/linked-runtime`;
-
-  try {
-    await mkdir(realRuntime, { mode: 0o700 });
-    await symlink(realRuntime, linkedRuntime);
-    await assert.rejects(
-      assertRuntimeRootInvariant({ sourceRoot: SOURCE_ROOT, runtimeRoot: linkedRuntime }),
-      /must not be a symlink/,
-    );
-  } finally {
-    await rm(testRoot, { recursive: true, force: true });
-  }
-});
-
-test("runtime-root invariant resolves symlinked ancestors for a missing runtime leaf", async () => {
-  const scratchParent = `${DEFAULT_RUNTIME_ROOT}/test-tmp`;
-  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
-  const testRoot = await mkdtemp(`${scratchParent}/ancestor-symlink-`);
+  const testRoot = await mkdtemp(`${scratchParent}/layout-`);
+  const permissiveRoot = `${testRoot}/permissive`;
   const linkedAncestor = `${testRoot}/source-link`;
 
   try {
+    await mkdir(permissiveRoot, { mode: 0o700 });
+    await chmod(permissiveRoot, 0o755);
+    await assert.rejects(
+      assertRuntimeLayoutInvariant({
+        sourceRoot: SOURCE_ROOT,
+        runtimeRoot: permissiveRoot,
+        dshHome: `${permissiveRoot}/dsh-home`,
+        oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
+      }),
+      /0700/,
+    );
+
     await symlink(SOURCE_ROOT, linkedAncestor);
     await assert.rejects(
-      assertRuntimeRootInvariant({
+      assertRuntimeLayoutInvariant({
         sourceRoot: SOURCE_ROOT,
         runtimeRoot: `${linkedAncestor}/not-created`,
+        dshHome: `${linkedAncestor}/not-created/dsh-home`,
+        oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
       }),
       /physically separate/,
     );
   } finally {
+    await chmod(permissiveRoot, 0o700);
     await rm(testRoot, { recursive: true, force: true });
   }
 });

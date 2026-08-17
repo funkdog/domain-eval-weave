@@ -52,11 +52,12 @@
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["experiment", "control_episode", "treatment_episode"],
+      "required": ["experiment", "control_episode", "treatment_episode", "evaluation"],
       "properties": {
         "experiment": { "$ref": "#/$defs/artifactPointer" },
         "control_episode": { "$ref": "#/$defs/artifactPointer" },
-        "treatment_episode": { "$ref": "#/$defs/artifactPointer" }
+        "treatment_episode": { "$ref": "#/$defs/artifactPointer" },
+        "evaluation": { "$ref": "#/$defs/artifactPointer" }
       }
     },
     "known_blind_spots": {
@@ -234,7 +235,74 @@
         },
         "claim_strength": { "const": "diagnostic" },
         "effect_claim_eligible": { "const": false }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "externally_verified_completion": { "const": true }
+                }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "measurement_validity": {
+                "type": "object",
+                "properties": {
+                  "dimensions": {
+                    "type": "object",
+                    "properties": {
+                      "outcome": { "const": "valid" }
+                    }
+                  }
+                }
+              },
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "behavior_vector": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "basic_reservation",
+                      "idempotent_replay",
+                      "conflicting_replay_rejected",
+                      "no_oversubscription_concurrent",
+                      "terminal_transition_idempotency",
+                      "restart_recovery",
+                      "corrupt_state_fail_closed",
+                      "deterministic_snapshot"
+                    ],
+                    "properties": {
+                      "basic_reservation": { "const": "pass" },
+                      "idempotent_replay": { "const": "pass" },
+                      "conflicting_replay_rejected": { "const": "pass" },
+                      "no_oversubscription_concurrent": { "const": "pass" },
+                      "terminal_transition_idempotency": { "const": "pass" },
+                      "restart_recovery": { "const": "pass" },
+                      "corrupt_state_fail_closed": { "const": "pass" },
+                      "deterministic_snapshot": { "const": "pass" }
+                    }
+                  }
+                }
+              },
+              "hard_gates": {
+                "type": "object",
+                "required": ["unauthorized_path_change"],
+                "properties": {
+                  "unauthorized_path_change": { "const": "pass" }
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

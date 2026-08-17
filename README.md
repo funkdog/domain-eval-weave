@@ -1,7 +1,7 @@
 # DSH Eval Lab
 
-DSH Eval Lab is a local, personal experiment bench for measuring how one
-harness intervention changes open-coding delivery under controlled conditions.
+DSH Eval Lab is a DSH-native local plugin for measuring how one harness
+intervention changes open-coding delivery under controlled conditions.
 
 Phase 1 fixes the domain, task pack, model route, and intervention. It compares
 the DSH Goal stack off versus on and produces diagnostic evidence only; one
@@ -22,30 +22,39 @@ The runtime root is intentionally outside Git and has mode `0700`. Never put
 OAuth credentials, DSH sessions, candidate workspaces, Oracle artifacts, or
 campaign outputs in this repository.
 
+## Product entry
+
+Phase 1 is installed as a DSH bundle and has no standalone `dsh-eval` command.
+Every supported DSH process receives the dedicated home before boot:
+
+```sh
+umask 077
+install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime
+install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh plugin --profile eval add <local-checkout-or-built-tarball>
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval --help
+```
+
 ## Current state
 
-Milestone 0 is implemented as a local candidate. It contains:
+Plugin-first Milestone 0 is implemented as a local candidate: bundle manifest,
+app/bridge entrypoints, pure app grammar, runtime-root invariants, four strict
+artifact contracts, canonical JSON/digests, and full fake-Campaign replay.
 
-- strict Zod parsers and four JSON Schema interoperability faces;
-- deterministic canonical JSON and SHA-256 content digests;
-- portable `artifact://campaign/...` references with traversal, symlink, and
-  digest checks;
-- source/runtime/reference-root separation checks;
-- a side-effect-free CLI skeleton with the frozen exit-code families;
-- fake Campaign artifact replay tests that use only the dedicated runtime root.
-
-No DSH package, model carrier, OAuth command, Oracle, or Campaign runner is
-installed or executed by Milestone 0.
+Milestone 0 does not install or run DSH, invoke OAuth, or create a real Campaign.
+Milestone 1 adds DSH profile composition, the safety bridge, auth facade, and
+doctor.
 
 ## Development
 
-Use the frozen Node 24 toolchain, then run:
+Use Node 24 and pnpm 11.7.0:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm check
+pnpm lint
 pnpm test
-pnpm typecheck
 pnpm build
-node bin/dsh-eval.mjs --help
 ```

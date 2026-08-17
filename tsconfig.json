@@ -4,7 +4,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist",
     "strict": true,
     "exactOptionalPropertyTypes": true,
@@ -16,12 +16,11 @@
     "noUnusedParameters": true,
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
-    "resolveJsonModule": true,
     "declaration": true,
     "sourceMap": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }

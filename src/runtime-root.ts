@@ -1,8 +1,8 @@
 import { lstat, realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-export const SOURCE_ROOT = "/Users/slipshod/AIBuild/dsh-eval-lab";
-export const DEFAULT_RUNTIME_ROOT = "/Users/slipshod/AIBuild/dsh-eval-lab-runtime";
+export const DEDICATED_RUNTIME_ROOT = "/Users/slipshod/AIBuild/dsh-eval-lab-runtime";
+export const DEDICATED_DSH_HOME = `${DEDICATED_RUNTIME_ROOT}/dsh-home`;
 export const OAUTH_REFERENCE_ROOT = "/Users/slipshod/AIBuild/dsh-codex-oauth-lab";
 
 export class RuntimeRootInvariantError extends Error {
@@ -15,10 +15,11 @@ export class RuntimeRootInvariantError extends Error {
   }
 }
 
-export interface RuntimeRootInvariantInput {
+export interface RuntimeLayoutInput {
   readonly sourceRoot: string;
   readonly runtimeRoot: string;
-  readonly oauthReferenceRoot?: string;
+  readonly dshHome: string;
+  readonly oauthReferenceRoot: string;
 }
 
 function isSameOrNested(parent: string, candidate: string): boolean {
@@ -26,68 +27,94 @@ function isSameOrNested(parent: string, candidate: string): boolean {
   return relation === "" || (!relation.startsWith("..") && !isAbsolute(relation));
 }
 
-async function canonicalPath(path: string): Promise<string> {
-  const missingSegments: string[] = [];
-  let existingAncestor = resolve(path);
+async function canonicalizeMissingPath(path: string): Promise<string> {
+  const missing: string[] = [];
+  let current = resolve(path);
 
   while (true) {
     try {
-      const canonicalAncestor = await realpath(existingAncestor);
-      return resolve(canonicalAncestor, ...missingSegments);
+      return join(await realpath(current), ...missing);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-
-      const parent = dirname(existingAncestor);
-      if (parent === existingAncestor) throw error;
-      missingSegments.unshift(basename(existingAncestor));
-      existingAncestor = parent;
+      const parent = dirname(current);
+      if (parent === current) throw error;
+      missing.unshift(basename(current));
+      current = parent;
     }
   }
 }
 
-export async function assertRuntimeRootInvariant(input: RuntimeRootInvariantInput): Promise<void> {
-  const referenceRoot = input.oauthReferenceRoot ?? OAUTH_REFERENCE_ROOT;
+async function assertSecureDirectory(path: string, label: string): Promise<void> {
+  let entry: Awaited<ReturnType<typeof lstat>>;
+  try {
+    entry = await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new RuntimeRootInvariantError(
+        "RUNTIME_DIRECTORY_MISSING",
+        `${label} must exist before the DSH process boots`,
+      );
+    }
+    throw error;
+  }
+
+  if (entry.isSymbolicLink() || !entry.isDirectory()) {
+    throw new RuntimeRootInvariantError(
+      "RUNTIME_DIRECTORY_INVALID",
+      `${label} must be a real directory, not a symlink`,
+    );
+  }
+  if ((entry.mode & 0o777) !== 0o700) {
+    throw new RuntimeRootInvariantError(
+      "RUNTIME_DIRECTORY_PERMISSIONS",
+      `${label} must have mode 0700`,
+    );
+  }
+}
+
+export function assertDedicatedDshHomePreBoot(
+  env: Readonly<Record<string, string | undefined>>,
+): void {
+  const configured = env.DSH_HOME;
+  if (configured === undefined || configured.length === 0) {
+    throw new RuntimeRootInvariantError(
+      "DSH_HOME_REQUIRED",
+      "DSH_HOME must be set before the DSH process boots",
+    );
+  }
+  if (configured !== DEDICATED_DSH_HOME) {
+    throw new RuntimeRootInvariantError(
+      "DSH_HOME_MISMATCH",
+      "DSH_HOME does not match the dedicated Eval Lab home",
+    );
+  }
+}
+
+export async function assertRuntimeLayoutInvariant(input: RuntimeLayoutInput): Promise<void> {
   const namedRoots = [
     ["source", input.sourceRoot],
     ["runtime", input.runtimeRoot],
-    ["oauth-reference", referenceRoot],
+    ["oauth-reference", input.oauthReferenceRoot],
   ] as const;
-
-  for (const [name, path] of namedRoots) {
+  for (const [label, path] of [...namedRoots, ["dsh-home", input.dshHome] as const]) {
     if (!isAbsolute(path)) {
-      throw new RuntimeRootInvariantError(
-        "ROOT_NOT_ABSOLUTE",
-        `${name} root must be an absolute path`,
-      );
+      throw new RuntimeRootInvariantError("ROOT_NOT_ABSOLUTE", `${label} root must be absolute`);
     }
   }
 
-  const runtimeInputPath = resolve(input.runtimeRoot);
-  try {
-    const runtimeInputStat = await lstat(runtimeInputPath);
-    if (runtimeInputStat.isSymbolicLink()) {
-      throw new RuntimeRootInvariantError(
-        "RUNTIME_ROOT_SYMLINK",
-        "runtime root must not be a symlink",
-      );
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  if (resolve(input.dshHome) !== join(resolve(input.runtimeRoot), "dsh-home")) {
+    throw new RuntimeRootInvariantError(
+      "DSH_HOME_LAYOUT_INVALID",
+      "DSH home must be the dedicated runtime root's dsh-home child",
+    );
   }
 
-  const sourceRoot = await canonicalPath(input.sourceRoot);
-  const runtimeRoot = await canonicalPath(runtimeInputPath);
-  const oauthReferenceRoot = await canonicalPath(referenceRoot);
-  const canonicalRoots = [
-    ["source", sourceRoot],
-    ["runtime", runtimeRoot],
-    ["oauth-reference", oauthReferenceRoot],
-  ] as const;
-
+  const canonicalRoots = await Promise.all(
+    namedRoots.map(async ([label, path]) => [label, await canonicalizeMissingPath(path)] as const),
+  );
   for (let leftIndex = 0; leftIndex < canonicalRoots.length; leftIndex += 1) {
     const left = canonicalRoots[leftIndex];
     if (left === undefined) continue;
-
     for (let rightIndex = leftIndex + 1; rightIndex < canonicalRoots.length; rightIndex += 1) {
       const right = canonicalRoots[rightIndex];
       if (right === undefined) continue;
@@ -100,24 +127,6 @@ export async function assertRuntimeRootInvariant(input: RuntimeRootInvariantInpu
     }
   }
 
-  try {
-    const runtimeStat = await lstat(runtimeRoot);
-    if (runtimeStat.isSymbolicLink() || !runtimeStat.isDirectory()) {
-      throw new RuntimeRootInvariantError(
-        "RUNTIME_ROOT_NOT_DIRECTORY",
-        "runtime root must be a real directory, not a symlink",
-      );
-    }
-
-    const permissionBits = runtimeStat.mode & 0o777;
-    if (permissionBits !== 0o700) {
-      throw new RuntimeRootInvariantError(
-        "RUNTIME_ROOT_PERMISSIONS",
-        "existing runtime root must have mode 0700",
-      );
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-    throw error;
-  }
+  await assertSecureDirectory(resolve(input.runtimeRoot), "runtime root");
+  await assertSecureDirectory(resolve(input.dshHome), "DSH home");
 }

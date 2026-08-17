@@ -5,16 +5,20 @@ import test from "node:test";
 import {
   ArtifactIntegrityError,
   parseArtifactRef,
+  readArtifactBytes,
   readJsonArtifact,
   resolveArtifactRef,
+  writeArtifactBytes,
   writeCanonicalJsonArtifact,
 } from "../../src/contracts/artifacts.js";
 import { canonicalJsonDigest, sha256Hex } from "../../src/contracts/canonical-json.js";
+import { parseExperimentSpec } from "../../src/contracts/parsers.js";
 import { replayPairedImpactReport } from "../../src/contracts/replay.js";
-import { DEFAULT_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import {
   validEpisode,
   validExperiment,
+  validPairedEvaluation,
   validReport,
   validTreatmentEpisode,
 } from "../helpers/fixtures.js";
@@ -28,25 +32,91 @@ test("artifact refs are portable campaign refs, not cwd-relative or host-absolut
 });
 
 test("fake Campaign artifacts can be canonically written, verified, and replayed", async () => {
-  const scratchParent = `${DEFAULT_RUNTIME_ROOT}/test-tmp`;
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const campaignRoot = await mkdtemp(`${scratchParent}/campaign-m0-`);
 
   try {
+    const controlSession = await writeArtifactBytes(
+      campaignRoot,
+      "artifact://campaign/arms/control/session.jsonl",
+      Buffer.from('{"type":"turn/end"}\n', "utf8"),
+    );
+    const controlArchive = await writeArtifactBytes(
+      campaignRoot,
+      "artifact://campaign/arms/control/candidate.tar",
+      Buffer.from("control-candidate", "utf8"),
+    );
+    const treatmentSession = await writeArtifactBytes(
+      campaignRoot,
+      "artifact://campaign/arms/treatment/session.jsonl",
+      Buffer.from('{"type":"goal/change"}\n', "utf8"),
+    );
+    const treatmentArchive = await writeArtifactBytes(
+      campaignRoot,
+      "artifact://campaign/arms/treatment/candidate.tar",
+      Buffer.from("treatment-candidate", "utf8"),
+    );
     const experimentPointer = await writeCanonicalJsonArtifact(
       campaignRoot,
       "artifact://campaign/manifest.json",
       validExperiment,
     );
+    const controlEpisode = {
+      ...validEpisode,
+      evidence: {
+        ...validEpisode.evidence,
+        session_log_ref: controlSession.ref,
+        session_log_sha256: controlSession.sha256,
+        candidate_archive_ref: controlArchive.ref,
+        candidate_archive_sha256: controlArchive.sha256,
+      },
+    };
     const episodePointer = await writeCanonicalJsonArtifact(
       campaignRoot,
       "artifact://campaign/arms/control/episode.json",
-      validEpisode,
+      controlEpisode,
     );
+    const treatmentEpisode = {
+      ...validTreatmentEpisode,
+      evidence: {
+        ...validTreatmentEpisode.evidence,
+        session_log_ref: treatmentSession.ref,
+        session_log_sha256: treatmentSession.sha256,
+        candidate_archive_ref: treatmentArchive.ref,
+        candidate_archive_sha256: treatmentArchive.sha256,
+      },
+    };
     const treatmentEpisodePointer = await writeCanonicalJsonArtifact(
       campaignRoot,
       "artifact://campaign/arms/treatment/episode.json",
-      validTreatmentEpisode,
+      treatmentEpisode,
+    );
+    const pairedEvaluation = {
+      ...validPairedEvaluation,
+      arms: {
+        control: {
+          ...validPairedEvaluation.arms.control,
+          episode: episodePointer,
+          candidate: {
+            tree: controlEpisode.evidence.candidate_tree,
+            archive: controlArchive,
+          },
+        },
+        treatment: {
+          ...validPairedEvaluation.arms.treatment,
+          episode: treatmentEpisodePointer,
+          candidate: {
+            tree: treatmentEpisode.evidence.candidate_tree,
+            archive: treatmentArchive,
+          },
+        },
+      },
+    };
+    const evaluationPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/evaluation.json",
+      pairedEvaluation,
     );
     const report = {
       ...validReport,
@@ -56,6 +126,7 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         experiment: experimentPointer,
         control_episode: episodePointer,
         treatment_episode: treatmentEpisodePointer,
+        evaluation: evaluationPointer,
       },
     };
     const reportPointer = await writeCanonicalJsonArtifact(
@@ -66,9 +137,114 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
 
     const replay = await replayPairedImpactReport(campaignRoot, reportPointer);
     assert.deepEqual(replay.experiment, validExperiment);
-    assert.deepEqual(replay.control_episode, validEpisode);
-    assert.deepEqual(replay.treatment_episode, validTreatmentEpisode);
+    assert.deepEqual(replay.control_episode, controlEpisode);
+    assert.deepEqual(replay.treatment_episode, treatmentEpisode);
+    assert.deepEqual(replay.evaluation, pairedEvaluation);
+    assert.equal(
+      (await readArtifactBytes(campaignRoot, controlArchive)).toString(),
+      "control-candidate",
+    );
     assert.equal(canonicalJsonDigest(replay.report), reportPointer.sha256);
+
+    const wrongCostReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-cost.json",
+      {
+        ...report,
+        cost_delta: { ...report.cost_delta, elapsed_ms: 999 },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongCostReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
+    const wrongValidityReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-validity.json",
+      {
+        ...report,
+        measurement_validity: {
+          ...report.measurement_validity,
+          overall: "insufficient",
+        },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongValidityReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
+    const wrongCandidateEvaluationPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/evaluation-wrong-candidate.json",
+      {
+        ...pairedEvaluation,
+        arms: {
+          ...pairedEvaluation.arms,
+          control: {
+            ...pairedEvaluation.arms.control,
+            candidate: {
+              ...pairedEvaluation.arms.control.candidate,
+              archive: treatmentArchive,
+            },
+          },
+        },
+      },
+    );
+    const wrongCandidateReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-candidate.json",
+      {
+        ...report,
+        evidence: {
+          ...report.evidence,
+          evaluation: wrongCandidateEvaluationPointer,
+        },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongCandidateReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
+    const wrongEpisodeEvaluationPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/evaluation-wrong-episode.json",
+      {
+        ...pairedEvaluation,
+        arms: {
+          ...pairedEvaluation.arms,
+          control: {
+            ...pairedEvaluation.arms.control,
+            episode: treatmentEpisodePointer,
+          },
+        },
+      },
+    );
+    const wrongEpisodeReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-episode.json",
+      {
+        ...report,
+        evidence: {
+          ...report.evidence,
+          evaluation: wrongEpisodeEvaluationPointer,
+        },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongEpisodeReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
 
     const treatmentEpisodePath = resolveArtifactRef(campaignRoot, treatmentEpisodePointer.ref);
     await writeFile(treatmentEpisodePath, "{}", "utf8");
@@ -81,8 +257,56 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
   }
 });
 
+test("concurrent writes can create distinct artifacts under one missing parent", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const campaignRoot = await mkdtemp(`${scratchParent}/artifact-parent-race-`);
+
+  try {
+    const pointers = await Promise.all(
+      Array.from({ length: 64 }, (_, index) =>
+        writeArtifactBytes(
+          campaignRoot,
+          `artifact://campaign/shared/new/artifact-${index}.txt`,
+          `bytes-${index}`,
+        ),
+      ),
+    );
+    assert.equal(pointers.length, 64);
+    assert.equal(new Set(pointers.map((pointer) => pointer.ref)).size, 64);
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
+test("artifact writes are idempotent but never replace different frozen bytes", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const campaignRoot = await mkdtemp(`${scratchParent}/artifact-no-overwrite-`);
+
+  try {
+    const ref = "artifact://campaign/manifest.json";
+    const first = await writeCanonicalJsonArtifact(campaignRoot, ref, validExperiment);
+    assert.deepEqual(await writeCanonicalJsonArtifact(campaignRoot, ref, validExperiment), first);
+    await assert.rejects(
+      writeCanonicalJsonArtifact(campaignRoot, ref, {
+        ...validExperiment,
+        campaign_id: "different-campaign",
+      }),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError && error.code === "ARTIFACT_ALREADY_EXISTS",
+    );
+    assert.deepEqual(
+      await readJsonArtifact(campaignRoot, first, parseExperimentSpec),
+      validExperiment,
+    );
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
 test("artifact writes reject symlink parents and reads reject non-canonical JSON", async () => {
-  const scratchParent = `${DEFAULT_RUNTIME_ROOT}/test-tmp`;
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const testRoot = await mkdtemp(`${scratchParent}/artifact-safety-`);
   const campaignRoot = `${testRoot}/campaign`;

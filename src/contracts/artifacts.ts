@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { TextDecoder } from "node:util";
 
@@ -116,17 +116,36 @@ async function prepareArtifactParent(campaignRoot: string, ref: ArtifactRef): Pr
 
   for (const segment of directorySegments) {
     currentPath = resolve(currentPath, segment);
+    let needsCreation = false;
     try {
-      const entryStat = await lstat(currentPath);
-      if (entryStat.isSymbolicLink() || !entryStat.isDirectory()) {
-        throw new ArtifactIntegrityError(
-          "ARTIFACT_PARENT_INVALID",
-          "artifact parent must contain only real directories",
-        );
-      }
+      await lstat(currentPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      await mkdir(currentPath, { mode: 0o700 });
+      needsCreation = true;
+    }
+
+    if (needsCreation) {
+      try {
+        await mkdir(currentPath, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+    }
+
+    let entryStat: Awaited<ReturnType<typeof lstat>>;
+    try {
+      entryStat = await lstat(currentPath);
+    } catch {
+      throw new ArtifactIntegrityError(
+        "ARTIFACT_PARENT_INVALID",
+        "artifact parent could not be revalidated",
+      );
+    }
+    if (entryStat.isSymbolicLink() || !entryStat.isDirectory()) {
+      throw new ArtifactIntegrityError(
+        "ARTIFACT_PARENT_INVALID",
+        "artifact parent must contain only real directories",
+      );
     }
 
     const realCurrentPath = await realpath(currentPath);
@@ -144,40 +163,61 @@ export async function writeCanonicalJsonArtifact(
   inputRef: unknown,
   value: unknown,
 ): Promise<ArtifactPointer> {
+  return writeArtifactBytes(campaignRoot, inputRef, canonicalJson(value));
+}
+
+async function assertExistingArtifactMatches(
+  campaignRoot: string,
+  ref: ArtifactRef,
+  expectedBytes: Buffer,
+): Promise<void> {
+  let existingBytes: Buffer;
+  try {
+    const artifactPath = await assertReadableRegularArtifact(campaignRoot, ref);
+    existingBytes = await readFile(artifactPath);
+  } catch (error) {
+    if (error instanceof ArtifactIntegrityError) throw error;
+    throw new ArtifactIntegrityError("ARTIFACT_UNREADABLE", "existing artifact could not be read");
+  }
+
+  if (!existingBytes.equals(expectedBytes)) {
+    throw new ArtifactIntegrityError(
+      "ARTIFACT_ALREADY_EXISTS",
+      "artifact ref is already frozen with different bytes",
+    );
+  }
+}
+
+export async function writeArtifactBytes(
+  campaignRoot: string,
+  inputRef: unknown,
+  value: string | Uint8Array,
+): Promise<ArtifactPointer> {
   const ref = parseArtifactRef(inputRef);
   const artifactPath = resolveArtifactRef(campaignRoot, ref);
-  const bytes = Buffer.from(canonicalJson(value), "utf8");
+  const bytes = typeof value === "string" ? Buffer.from(value, "utf8") : Buffer.from(value);
   const temporaryPath = `${artifactPath}.tmp-${randomUUID()}`;
 
   await prepareArtifactParent(campaignRoot, ref);
   try {
-    const targetStat = await lstat(artifactPath);
-    if (targetStat.isSymbolicLink() || !targetStat.isFile()) {
-      throw new ArtifactIntegrityError(
-        "ARTIFACT_ENTRY_INVALID",
-        "existing artifact target must be a regular file",
-      );
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-
-  try {
     await writeFile(temporaryPath, bytes, { flag: "wx", mode: 0o600 });
-    await rename(temporaryPath, artifactPath);
-  } catch (error) {
+    try {
+      await link(temporaryPath, artifactPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      await assertExistingArtifactMatches(campaignRoot, ref, bytes);
+    }
+  } finally {
     await rm(temporaryPath, { force: true });
-    throw error;
   }
 
   return { ref, sha256: sha256Hex(bytes) };
 }
 
-export async function readJsonArtifact<T>(
+export async function readArtifactBytes(
   campaignRoot: string,
   inputPointer: { readonly ref: unknown; readonly sha256: unknown },
-  parser: (input: unknown) => T,
-): Promise<T> {
+): Promise<Buffer> {
   const pointer = parsePointer(inputPointer);
   let artifactPath: string;
   try {
@@ -194,6 +234,15 @@ export async function readJsonArtifact<T>(
       "artifact content does not match its recorded digest",
     );
   }
+  return bytes;
+}
+
+export async function readJsonArtifact<T>(
+  campaignRoot: string,
+  inputPointer: { readonly ref: unknown; readonly sha256: unknown },
+  parser: (input: unknown) => T,
+): Promise<T> {
+  const bytes = await readArtifactBytes(campaignRoot, inputPointer);
 
   let decoded: unknown;
   let text: string;

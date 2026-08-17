@@ -10,12 +10,14 @@ import {
   parseEpisodeRecord,
   parseEvaluationResult,
   parseExperimentSpec,
+  parsePairedEvaluationArtifact,
   parsePairedImpactReport,
 } from "../../src/contracts/parsers.js";
 import {
   validEpisode,
   validEvaluation,
   validExperiment,
+  validPairedEvaluation,
   validReport,
 } from "../helpers/fixtures.js";
 
@@ -24,7 +26,7 @@ const addFormats = (addFormatsModule.default ?? addFormatsModule) as unknown as 
 const contractCases = [
   ["experiment.schema.json", validExperiment],
   ["episode.schema.json", validEpisode],
-  ["evaluation-result.schema.json", validEvaluation],
+  ["evaluation-result.schema.json", validPairedEvaluation],
   ["report.schema.json", validReport],
 ] as const;
 
@@ -54,6 +56,20 @@ test("the four JSON Schema faces accept their canonical fixtures", async () => {
     const validate = ajv.compile(JSON.parse(source));
     assert.equal(validate(fixture), true, `${schemaName}: ${ajv.errorsText(validate.errors)}`);
   }
+});
+
+test("evaluation and report schemas share the exact EvaluationResult definition", async () => {
+  const [evaluationSource, reportSource] = await Promise.all([
+    readFile(new URL("../../contracts/evaluation-result.schema.json", import.meta.url), "utf8"),
+    readFile(new URL("../../contracts/report.schema.json", import.meta.url), "utf8"),
+  ]);
+  const evaluationSchema = JSON.parse(evaluationSource) as {
+    $defs: { evaluationResult: unknown };
+  };
+  const reportSchema = JSON.parse(reportSource) as {
+    $defs: { evaluationResult: unknown };
+  };
+  assert.deepEqual(evaluationSchema.$defs.evaluationResult, reportSchema.$defs.evaluationResult);
 });
 
 test("ExperimentSpec rejects unknown fields", async () => {
@@ -106,13 +122,64 @@ test("EpisodeRecord schema and parser reject non-normalized artifact paths", asy
 
 test("EvaluationResult rejects non-finite observed numbers", async () => {
   const invalid = {
-    ...validEvaluation,
-    cost: {
-      ...validEvaluation.cost,
-      elapsed_ms: Number.POSITIVE_INFINITY,
+    ...validPairedEvaluation,
+    arms: {
+      ...validPairedEvaluation.arms,
+      control: {
+        ...validPairedEvaluation.arms.control,
+        result: {
+          ...validEvaluation,
+          cost: {
+            ...validEvaluation.cost,
+            elapsed_ms: Number.POSITIVE_INFINITY,
+          },
+        },
+      },
     },
   };
-  assert.throws(() => parseEvaluationResult(invalid));
+  assert.throws(() => parsePairedEvaluationArtifact(invalid));
+  await assertSchemaRejects("evaluation-result.schema.json", invalid);
+});
+
+test("verified completion requires all eight passing behaviors and the path gate", async () => {
+  const invalid = {
+    ...validPairedEvaluation,
+    arms: {
+      ...validPairedEvaluation.arms,
+      control: {
+        ...validPairedEvaluation.arms.control,
+        result: {
+          ...validEvaluation,
+          outcome: {
+            ...validEvaluation.outcome,
+            behavior_vector: { basic_reservation: "pass" },
+          },
+        },
+      },
+    },
+  };
+  assert.throws(() => parsePairedEvaluationArtifact(invalid));
+  await assertSchemaRejects("evaluation-result.schema.json", invalid);
+});
+
+test("paired evaluation schema and parser reject unbound candidate evidence", async () => {
+  const invalid = {
+    ...validPairedEvaluation,
+    arms: {
+      ...validPairedEvaluation.arms,
+      control: {
+        ...validPairedEvaluation.arms.control,
+        candidate: {
+          ...validPairedEvaluation.arms.control.candidate,
+          archive: {
+            ref: "arms/control/candidate.tar",
+            sha256: validPairedEvaluation.arms.control.candidate.archive.sha256,
+          },
+        },
+      },
+    },
+  };
+  assert.throws(() => parsePairedEvaluationArtifact(invalid));
   await assertSchemaRejects("evaluation-result.schema.json", invalid);
 });
 
@@ -129,5 +196,6 @@ test("strict parsers accept all four canonical fixtures", () => {
   assert.deepEqual(parseExperimentSpec(validExperiment), validExperiment);
   assert.deepEqual(parseEpisodeRecord(validEpisode), validEpisode);
   assert.deepEqual(parseEvaluationResult(validEvaluation), validEvaluation);
+  assert.deepEqual(parsePairedEvaluationArtifact(validPairedEvaluation), validPairedEvaluation);
   assert.deepEqual(parsePairedImpactReport(validReport), validReport);
 });
