@@ -7,6 +7,7 @@ import {
 import { canonicalJson } from "./canonical-json.js";
 import {
   type EpisodeRecord,
+  type EvaluationResult,
   type ExperimentSpec,
   type PairedEvaluationArtifact,
   type PairedImpactReport,
@@ -26,6 +27,39 @@ export interface ReplayedPairedImpactReport {
 
 function crossReferenceFailure(message: string): never {
   throw new ArtifactIntegrityError("ARTIFACT_CROSS_REFERENCE_INVALID", message);
+}
+
+function rawCostDelta(
+  control: EvaluationResult["cost"],
+  treatment: EvaluationResult["cost"],
+): PairedImpactReport["cost_delta"] {
+  const delta = (controlValue: number | null, treatmentValue: number | null) =>
+    controlValue === null || treatmentValue === null ? null : treatmentValue - controlValue;
+  return {
+    elapsed_ms: delta(control.elapsed_ms, treatment.elapsed_ms),
+    input_tokens: delta(control.input_tokens, treatment.input_tokens),
+    cached_input_tokens: delta(control.cached_input_tokens, treatment.cached_input_tokens),
+    output_tokens: delta(control.output_tokens, treatment.output_tokens),
+    failed_tool_calls: delta(control.failed_tool_calls, treatment.failed_tool_calls),
+  };
+}
+
+function assertArmEvaluationBinding(
+  arm: "control" | "treatment",
+  evaluation: PairedEvaluationArtifact["arms"][typeof arm],
+  reportEpisodePointer: ArtifactPointer,
+  episode: EpisodeRecord,
+): void {
+  if (canonicalJson(evaluation.episode) !== canonicalJson(reportEpisodePointer)) {
+    crossReferenceFailure(`${arm} evaluation is not bound to the report episode pointer`);
+  }
+  if (
+    evaluation.candidate.tree !== episode.evidence.candidate_tree ||
+    evaluation.candidate.archive.ref !== episode.evidence.candidate_archive_ref ||
+    evaluation.candidate.archive.sha256 !== episode.evidence.candidate_archive_sha256
+  ) {
+    crossReferenceFailure(`${arm} evaluation is not bound to the frozen episode candidate`);
+  }
 }
 
 export async function replayPairedImpactReport(
@@ -61,11 +95,36 @@ export async function replayPairedImpactReport(
     crossReferenceFailure("episode variant digests do not match the experiment");
   }
   if (
-    canonicalJson(report.arms.control) !== canonicalJson(evaluation.control) ||
-    canonicalJson(report.arms.treatment) !== canonicalJson(evaluation.treatment)
+    canonicalJson(report.arms.control) !== canonicalJson(evaluation.arms.control.result) ||
+    canonicalJson(report.arms.treatment) !== canonicalJson(evaluation.arms.treatment.result)
   ) {
     crossReferenceFailure("report arm evaluations do not match evaluation evidence");
   }
+  if (
+    canonicalJson(report.measurement_validity) !== canonicalJson(evaluation.measurement_validity)
+  ) {
+    crossReferenceFailure("report paired validity does not match evaluation evidence");
+  }
+  const expectedCostDelta = rawCostDelta(
+    evaluation.arms.control.result.cost,
+    evaluation.arms.treatment.result.cost,
+  );
+  if (canonicalJson(report.cost_delta) !== canonicalJson(expectedCostDelta)) {
+    crossReferenceFailure("report cost delta is not derived from evaluation evidence");
+  }
+
+  assertArmEvaluationBinding(
+    "control",
+    evaluation.arms.control,
+    report.evidence.control_episode,
+    controlEpisode,
+  );
+  assertArmEvaluationBinding(
+    "treatment",
+    evaluation.arms.treatment,
+    report.evidence.treatment_episode,
+    treatmentEpisode,
+  );
 
   const nestedPointers = [controlEpisode, treatmentEpisode].flatMap((episode) => {
     const pointers: ArtifactPointer[] = [];

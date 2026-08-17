@@ -205,11 +205,31 @@ const artifactPointerSchema = z.strictObject({
   sha256: sha256Schema,
 });
 
+const costDeltaSchema = z.strictObject({
+  elapsed_ms: z.number().finite().int().nullable(),
+  input_tokens: z.number().finite().int().nullable(),
+  cached_input_tokens: z.number().finite().int().nullable(),
+  output_tokens: z.number().finite().int().nullable(),
+  failed_tool_calls: z.number().finite().int().nullable(),
+});
+
+const evaluatedArmSchema = z.strictObject({
+  episode: artifactPointerSchema,
+  candidate: z.strictObject({
+    tree: z.string().regex(GIT_TREE_PATTERN),
+    archive: artifactPointerSchema,
+  }),
+  result: evaluationResultSchema,
+});
+
 export const pairedEvaluationArtifactSchema = z.strictObject({
   schema_version: z.literal(1),
   campaign_id: idSchema,
-  control: evaluationResultSchema,
-  treatment: evaluationResultSchema,
+  measurement_validity: measurementValiditySchema,
+  arms: z.strictObject({
+    control: evaluatedArmSchema,
+    treatment: evaluatedArmSchema,
+  }),
 });
 
 export const pairedImpactReportSchema = z.strictObject({
@@ -221,13 +241,7 @@ export const pairedImpactReportSchema = z.strictObject({
     control: evaluationResultSchema,
     treatment: evaluationResultSchema,
   }),
-  cost_delta: z.strictObject({
-    elapsed_ms: z.number().finite().int().nullable(),
-    input_tokens: z.number().finite().int().nullable(),
-    cached_input_tokens: z.number().finite().int().nullable(),
-    output_tokens: z.number().finite().int().nullable(),
-    failed_tool_calls: z.number().finite().int().nullable(),
-  }),
+  cost_delta: costDeltaSchema,
   evidence: z.strictObject({
     experiment: artifactPointerSchema,
     control_episode: artifactPointerSchema,

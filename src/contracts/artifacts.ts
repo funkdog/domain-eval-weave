@@ -116,17 +116,36 @@ async function prepareArtifactParent(campaignRoot: string, ref: ArtifactRef): Pr
 
   for (const segment of directorySegments) {
     currentPath = resolve(currentPath, segment);
+    let needsCreation = false;
     try {
-      const entryStat = await lstat(currentPath);
-      if (entryStat.isSymbolicLink() || !entryStat.isDirectory()) {
-        throw new ArtifactIntegrityError(
-          "ARTIFACT_PARENT_INVALID",
-          "artifact parent must contain only real directories",
-        );
-      }
+      await lstat(currentPath);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      await mkdir(currentPath, { mode: 0o700 });
+      needsCreation = true;
+    }
+
+    if (needsCreation) {
+      try {
+        await mkdir(currentPath, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+    }
+
+    let entryStat: Awaited<ReturnType<typeof lstat>>;
+    try {
+      entryStat = await lstat(currentPath);
+    } catch {
+      throw new ArtifactIntegrityError(
+        "ARTIFACT_PARENT_INVALID",
+        "artifact parent could not be revalidated",
+      );
+    }
+    if (entryStat.isSymbolicLink() || !entryStat.isDirectory()) {
+      throw new ArtifactIntegrityError(
+        "ARTIFACT_PARENT_INVALID",
+        "artifact parent must contain only real directories",
+      );
     }
 
     const realCurrentPath = await realpath(currentPath);

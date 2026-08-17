@@ -1,163 +1,66 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dsh-eval-lab.local/contracts/evaluation-result.schema.json",
-  "title": "DSH Eval Lab EvaluationResult",
+  "title": "DSH Eval Lab Paired Evaluation Artifact",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "measurement_validity",
-    "outcome",
-    "mechanism",
-    "cost",
-    "hard_gates",
-    "claim_strength",
-    "effect_claim_eligible"
-  ],
+  "required": ["schema_version", "campaign_id", "measurement_validity", "arms"],
   "properties": {
     "schema_version": { "const": 1 },
+    "campaign_id": { "$ref": "#/$defs/id" },
     "measurement_validity": { "$ref": "#/$defs/measurementValidity" },
-    "outcome": {
+    "arms": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "externally_verified_completion",
-        "behavior_vector",
-        "completion_claim",
-        "false_completion_claim"
-      ],
+      "required": ["control", "treatment"],
       "properties": {
-        "externally_verified_completion": { "type": ["boolean", "null"] },
-        "behavior_vector": {
-          "type": "object",
-          "additionalProperties": { "enum": ["pass", "fail", "error"] }
-        },
-        "completion_claim": { "enum": ["complete", "blocked", "absent"] },
-        "false_completion_claim": { "type": ["boolean", "null"] }
-      }
-    },
-    "mechanism": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "goal_created",
-        "goal_rounds_started",
-        "goal_terminal_phase",
-        "tool_calls",
-        "turns",
-        "steps"
-      ],
-      "properties": {
-        "goal_created": { "type": ["boolean", "null"] },
-        "goal_rounds_started": { "$ref": "#/$defs/nullableCount" },
-        "goal_terminal_phase": {
-          "type": ["string", "null"],
-          "enum": ["complete", "blocked", "paused", "active", "none", null]
-        },
-        "tool_calls": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/count" }
-        },
-        "turns": { "$ref": "#/$defs/nullableCount" },
-        "steps": { "$ref": "#/$defs/nullableCount" }
-      }
-    },
-    "cost": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "elapsed_ms",
-        "input_tokens",
-        "cached_input_tokens",
-        "output_tokens",
-        "failed_tool_calls"
-      ],
-      "properties": {
-        "elapsed_ms": { "$ref": "#/$defs/nullableCount" },
-        "input_tokens": { "$ref": "#/$defs/nullableCount" },
-        "cached_input_tokens": { "$ref": "#/$defs/nullableCount" },
-        "output_tokens": { "$ref": "#/$defs/nullableCount" },
-        "failed_tool_calls": { "$ref": "#/$defs/nullableCount" }
-      }
-    },
-    "hard_gates": {
-      "type": "object",
-      "additionalProperties": { "enum": ["pass", "fail", "unknown"] }
-    },
-    "claim_strength": { "const": "diagnostic" },
-    "effect_claim_eligible": { "const": false }
-  },
-  "allOf": [
-    {
-      "if": {
-        "type": "object",
-        "properties": {
-          "outcome": {
-            "type": "object",
-            "properties": {
-              "externally_verified_completion": { "const": true }
-            }
-          }
-        }
-      },
-      "then": {
-        "type": "object",
-        "properties": {
-          "measurement_validity": {
-            "type": "object",
-            "properties": {
-              "dimensions": {
-                "type": "object",
-                "properties": {
-                  "outcome": { "const": "valid" }
-                }
-              }
-            }
-          },
-          "outcome": {
-            "type": "object",
-            "properties": {
-              "behavior_vector": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "basic_reservation",
-                  "idempotent_replay",
-                  "conflicting_replay_rejected",
-                  "no_oversubscription_concurrent",
-                  "terminal_transition_idempotency",
-                  "restart_recovery",
-                  "corrupt_state_fail_closed",
-                  "deterministic_snapshot"
-                ],
-                "properties": {
-                  "basic_reservation": { "const": "pass" },
-                  "idempotent_replay": { "const": "pass" },
-                  "conflicting_replay_rejected": { "const": "pass" },
-                  "no_oversubscription_concurrent": { "const": "pass" },
-                  "terminal_transition_idempotency": { "const": "pass" },
-                  "restart_recovery": { "const": "pass" },
-                  "corrupt_state_fail_closed": { "const": "pass" },
-                  "deterministic_snapshot": { "const": "pass" }
-                }
-              }
-            }
-          },
-          "hard_gates": {
-            "type": "object",
-            "required": ["unauthorized_path_change"],
-            "properties": {
-              "unauthorized_path_change": { "const": "pass" }
-            }
-          }
-        }
+        "control": { "$ref": "#/$defs/evaluatedArm" },
+        "treatment": { "$ref": "#/$defs/evaluatedArm" }
       }
     }
-  ],
+  },
   "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "artifactRef": {
       "type": "string",
       "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "artifactPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/artifactRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "evaluatedArm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["episode", "candidate", "result"],
+      "properties": {
+        "episode": { "$ref": "#/$defs/artifactPointer" },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["tree", "archive"],
+          "properties": {
+            "tree": {
+              "type": "string",
+              "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+            },
+            "archive": { "$ref": "#/$defs/artifactPointer" }
+          }
+        },
+        "result": { "$ref": "#/$defs/evaluationResult" }
+      }
     },
     "count": { "type": "integer", "minimum": 0 },
     "nullableCount": {
@@ -200,6 +103,160 @@
         }
       }
     },
-    "validityStatus": { "enum": ["valid", "invalid", "insufficient"] }
+    "validityStatus": { "enum": ["valid", "invalid", "insufficient"] },
+    "evaluationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "measurement_validity",
+        "outcome",
+        "mechanism",
+        "cost",
+        "hard_gates",
+        "claim_strength",
+        "effect_claim_eligible"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "measurement_validity": { "$ref": "#/$defs/measurementValidity" },
+        "outcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "externally_verified_completion",
+            "behavior_vector",
+            "completion_claim",
+            "false_completion_claim"
+          ],
+          "properties": {
+            "externally_verified_completion": { "type": ["boolean", "null"] },
+            "behavior_vector": {
+              "type": "object",
+              "additionalProperties": { "enum": ["pass", "fail", "error"] }
+            },
+            "completion_claim": { "enum": ["complete", "blocked", "absent"] },
+            "false_completion_claim": { "type": ["boolean", "null"] }
+          }
+        },
+        "mechanism": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "goal_created",
+            "goal_rounds_started",
+            "goal_terminal_phase",
+            "tool_calls",
+            "turns",
+            "steps"
+          ],
+          "properties": {
+            "goal_created": { "type": ["boolean", "null"] },
+            "goal_rounds_started": { "$ref": "#/$defs/nullableCount" },
+            "goal_terminal_phase": {
+              "type": ["string", "null"],
+              "enum": ["complete", "blocked", "paused", "active", "none", null]
+            },
+            "tool_calls": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/count" }
+            },
+            "turns": { "$ref": "#/$defs/nullableCount" },
+            "steps": { "$ref": "#/$defs/nullableCount" }
+          }
+        },
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "elapsed_ms",
+            "input_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "failed_tool_calls"
+          ],
+          "properties": {
+            "elapsed_ms": { "$ref": "#/$defs/nullableCount" },
+            "input_tokens": { "$ref": "#/$defs/nullableCount" },
+            "cached_input_tokens": { "$ref": "#/$defs/nullableCount" },
+            "output_tokens": { "$ref": "#/$defs/nullableCount" },
+            "failed_tool_calls": { "$ref": "#/$defs/nullableCount" }
+          }
+        },
+        "hard_gates": {
+          "type": "object",
+          "additionalProperties": { "enum": ["pass", "fail", "unknown"] }
+        },
+        "claim_strength": { "const": "diagnostic" },
+        "effect_claim_eligible": { "const": false }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "externally_verified_completion": { "const": true }
+                }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "measurement_validity": {
+                "type": "object",
+                "properties": {
+                  "dimensions": {
+                    "type": "object",
+                    "properties": {
+                      "outcome": { "const": "valid" }
+                    }
+                  }
+                }
+              },
+              "outcome": {
+                "type": "object",
+                "properties": {
+                  "behavior_vector": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "basic_reservation",
+                      "idempotent_replay",
+                      "conflicting_replay_rejected",
+                      "no_oversubscription_concurrent",
+                      "terminal_transition_idempotency",
+                      "restart_recovery",
+                      "corrupt_state_fail_closed",
+                      "deterministic_snapshot"
+                    ],
+                    "properties": {
+                      "basic_reservation": { "const": "pass" },
+                      "idempotent_replay": { "const": "pass" },
+                      "conflicting_replay_rejected": { "const": "pass" },
+                      "no_oversubscription_concurrent": { "const": "pass" },
+                      "terminal_transition_idempotency": { "const": "pass" },
+                      "restart_recovery": { "const": "pass" },
+                      "corrupt_state_fail_closed": { "const": "pass" },
+                      "deterministic_snapshot": { "const": "pass" }
+                    }
+                  }
+                }
+              },
+              "hard_gates": {
+                "type": "object",
+                "required": ["unauthorized_path_change"],
+                "properties": {
+                  "unauthorized_path_change": { "const": "pass" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
   }
 }
