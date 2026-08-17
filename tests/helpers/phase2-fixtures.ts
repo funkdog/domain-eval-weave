@@ -1,3 +1,5 @@
+import { canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
+
 const digest = (character: string): string => character.repeat(64);
 
 export const validHarnessManifest = {
@@ -159,6 +161,167 @@ export const validSuiteManifest = {
     },
   ],
   timeout_ms_per_arm: 2_700_000,
+  claim_strength: "multi_task_diagnostic",
+  effect_claim_eligible: false,
+} as const;
+
+const snapshotTasks = [
+  validTaskEntry,
+  {
+    ...validTaskEntry,
+    task_id: "ledger-audit-v1",
+    bucket: "non-trigger",
+    overlays: [{ source_ref: "eval-packs/open-coding-goal-v1/overlays/audit", target_ref: "src" }],
+    activation_expectation: "forbidden",
+  },
+  {
+    ...validTaskEntry,
+    task_id: "ledger-concurrency-v1",
+    bucket: "holdout",
+    overlays: [
+      { source_ref: "eval-packs/open-coding-goal-v1/overlays/concurrency", target_ref: "src" },
+    ],
+    activation_expectation: "observed",
+  },
+] as const;
+const snapshotEvalPackDigest = canonicalJsonDigest(validEvalPack);
+const snapshotTaskDigests = Object.fromEntries(
+  snapshotTasks.map((task) => [task.task_id, canonicalJsonDigest(task)]),
+);
+const snapshotRegistry = {
+  ...validRegistry,
+  eval_packs: validRegistry.eval_packs.map((pointer) => ({
+    ...pointer,
+    sha256: snapshotEvalPackDigest,
+  })),
+  tasks: validRegistry.tasks.map((pointer) => ({
+    ...pointer,
+    sha256: snapshotTaskDigests[pointer.id] ?? digest("0"),
+  })),
+};
+
+export const validRegistrySnapshot = {
+  schema_version: 1,
+  registry: snapshotRegistry,
+  eval_pack: validEvalPack,
+  tasks: snapshotTasks,
+  digests: {
+    registry: canonicalJsonDigest(snapshotRegistry),
+    eval_pack: snapshotEvalPackDigest,
+    tasks: snapshotTaskDigests,
+  },
+} as const;
+
+export const validCampaignPointerArtifact = {
+  schema_version: 1,
+  suite_id: "suite-1",
+  task_id: "ledger-full-v1",
+  bucket: "trigger",
+  campaign_id: "campaign-full",
+  campaign_report: { ref: "artifact://campaign/report.json", sha256: digest("a") },
+  activation: {
+    control: { ref: "artifact://campaign/arms/control/activation.json", sha256: digest("b") },
+    treatment: { ref: "artifact://campaign/arms/treatment/activation.json", sha256: digest("c") },
+  },
+  exposure: {
+    control: { ref: "artifact://campaign/arms/control/exposure.json", sha256: digest("d") },
+    treatment: { ref: "artifact://campaign/arms/treatment/exposure.json", sha256: digest("e") },
+  },
+} as const;
+
+const zeroCost = {
+  elapsed_ms: 0,
+  input_tokens: 0,
+  cached_input_tokens: 0,
+  output_tokens: 0,
+  failed_tool_calls: 0,
+} as const;
+const zeroDelta = { ...zeroCost };
+const armSummary = {
+  externally_verified_completion: true,
+  completion_claim: "complete",
+  goal_activated: false,
+  goal_rounds_started: 0,
+  goal_terminal_phase: "none",
+  cost: zeroCost,
+} as const;
+const taskEvaluation = (
+  taskId: string,
+  bucket: "trigger" | "non-trigger" | "holdout",
+  campaignId: string,
+  treatmentActivated: boolean,
+) => ({
+  task_id: taskId,
+  bucket,
+  campaign_id: campaignId,
+  campaign_pointer: {
+    ref: `artifact://suite/tasks/${taskId}/campaign-pointer.json`,
+    sha256: digest(bucket === "trigger" ? "1" : bucket === "non-trigger" ? "2" : "3"),
+  },
+  campaign_report: { ref: "artifact://campaign/report.json", sha256: digest("a") },
+  paired_overall: "valid",
+  suite_overall: "valid",
+  activation_assessment: {
+    status: "pass",
+    code:
+      bucket === "trigger"
+        ? "ACTIVATION_EXPECTED_OBSERVED"
+        : bucket === "non-trigger"
+          ? "NON_TRIGGER_ACTIVATION_ABSENT"
+          : "HOLDOUT_ACTIVATION_ABSENT",
+    treatment_activated: treatmentActivated,
+  },
+  arms: {
+    control: armSummary,
+    treatment: {
+      ...armSummary,
+      goal_activated: treatmentActivated,
+      goal_terminal_phase: treatmentActivated ? "complete" : "none",
+    },
+  },
+  cost_delta: zeroDelta,
+});
+const validSuiteTasks = [
+  taskEvaluation("ledger-full-v1", "trigger", "campaign-full", true),
+  taskEvaluation("ledger-audit-v1", "non-trigger", "campaign-audit", false),
+  taskEvaluation("ledger-concurrency-v1", "holdout", "campaign-concurrency", false),
+];
+
+export const validSuiteEvaluation = {
+  schema_version: 1,
+  suite_id: "suite-1",
+  measurement_validity: "valid",
+  reasons: [],
+  tasks: validSuiteTasks,
+  summary: {
+    valid_task_count: 3,
+    invalid_task_count: 0,
+    insufficient_task_count: 0,
+    trigger_activation: true,
+    non_trigger_guardrail: "pass",
+    holdout_activation_observed: false,
+  },
+  claim_strength: "multi_task_diagnostic",
+  effect_claim_eligible: false,
+} as const;
+
+export const validSuiteReport = {
+  ...validSuiteEvaluation,
+  evidence: {
+    manifest: { ref: "artifact://suite/manifest.json", sha256: digest("4") },
+    binding: { ref: "artifact://suite/binding.json", sha256: digest("5") },
+    registry_snapshot: { ref: "artifact://suite/registry.json", sha256: digest("6") },
+    evaluation: { ref: "artifact://suite/evaluation.json", sha256: digest("7") },
+  },
+  recommendation: { action: "keep", rationale_codes: ["SUITE_VALID"] },
+} as const;
+
+export const validSuiteInvalidEnvelope = {
+  schema_version: 1,
+  suite_id: "suite-1",
+  measurement_validity: "invalid",
+  reason: "ARTIFACT_INTEGRITY_FAILURE",
+  message: "Frozen Suite evidence failed integrity or semantic replay.",
   claim_strength: "multi_task_diagnostic",
   effect_claim_eligible: false,
 } as const;

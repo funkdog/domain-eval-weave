@@ -8,20 +8,30 @@ import * as addFormatsModule from "ajv-formats";
 
 import {
   parseActivationArtifact,
+  parseCampaignPointerArtifact,
   parseEvalPack,
   parseExposureRecord,
   parseHarnessManifest,
   parseRegistry,
+  parseRegistrySnapshot,
+  parseSuiteEvaluationArtifact,
+  parseSuiteInvalidEnvelope,
   parseSuiteManifest,
+  parseSuiteReport,
   parseTaskEntry,
 } from "../../src/contracts/phase2.js";
 import {
   validActivationArtifact,
+  validCampaignPointerArtifact,
   validEvalPack,
   validExposureRecord,
   validHarnessManifest,
   validRegistry,
+  validRegistrySnapshot,
+  validSuiteEvaluation,
+  validSuiteInvalidEnvelope,
   validSuiteManifest,
+  validSuiteReport,
   validTaskEntry,
 } from "../helpers/phase2-fixtures.js";
 
@@ -31,7 +41,19 @@ const addFormats = (addFormatsModule.default ?? addFormatsModule) as unknown as 
 async function validator(name: string) {
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   addFormats(ajv);
-  return ajv.compile(JSON.parse(await readFile(new URL(name, CONTRACT_ROOT), "utf8")));
+  for (const schemaName of [
+    "registry.schema.json",
+    "eval-pack.schema.json",
+    "task-entry.schema.json",
+    "suite-evaluation.schema.json",
+    name,
+  ]) {
+    const schema = JSON.parse(await readFile(new URL(schemaName, CONTRACT_ROOT), "utf8"));
+    if (!ajv.getSchema(schema.$id)) ajv.addSchema(schema);
+  }
+  const validate = ajv.getSchema(`https://dsh-eval-lab.local/contracts/${name}`);
+  assert.ok(validate, `missing validator for ${name}`);
+  return validate;
 }
 
 test("Phase 2 persisted faces have JSON Schema and Zod parser parity", async () => {
@@ -43,12 +65,32 @@ test("Phase 2 persisted faces have JSON Schema and Zod parser parity", async () 
     ["activation.schema.json", validActivationArtifact, parseActivationArtifact],
     ["exposure.schema.json", validExposureRecord, parseExposureRecord],
     ["suite-manifest.schema.json", validSuiteManifest, parseSuiteManifest],
+    ["registry-snapshot.schema.json", validRegistrySnapshot, parseRegistrySnapshot],
+    ["campaign-pointer.schema.json", validCampaignPointerArtifact, parseCampaignPointerArtifact],
+    ["suite-evaluation.schema.json", validSuiteEvaluation, parseSuiteEvaluationArtifact],
+    ["suite-report.schema.json", validSuiteReport, parseSuiteReport],
+    ["suite-invalid.schema.json", validSuiteInvalidEnvelope, parseSuiteInvalidEnvelope],
   ] as const;
   for (const [schemaName, value, parser] of faces) {
     const validate = await validator(schemaName);
     assert.equal(validate(value), true, `${schemaName}: ${JSON.stringify(validate.errors)}`);
     assert.deepEqual(parser(value), value);
   }
+});
+
+test("Suite faces reject digest, summary, and scheme cross-reference drift", () => {
+  const snapshot = structuredClone(validRegistrySnapshot) as Record<string, unknown>;
+  (snapshot.digests as { registry: string }).registry = "0".repeat(64);
+  assert.throws(() => parseRegistrySnapshot(snapshot));
+
+  const evaluation = structuredClone(validSuiteEvaluation) as Record<string, unknown>;
+  (evaluation.summary as { valid_task_count: number }).valid_task_count = 2;
+  assert.throws(() => parseSuiteEvaluationArtifact(evaluation));
+
+  const report = structuredClone(validSuiteReport) as Record<string, unknown>;
+  const evidence = report.evidence as { manifest: { ref: string } };
+  evidence.manifest.ref = "artifact://campaign/manifest.json";
+  assert.throws(() => parseSuiteReport(report));
 });
 
 test("registry/eval pack rejects a missing bucket and duplicate task membership", () => {
@@ -90,4 +132,8 @@ test("exposure rejects reversed timestamps and Suite rejects duplicate task ids"
   const tasks = suite.tasks as Record<string, unknown>[];
   if (tasks[1] !== undefined) tasks[1].task_id = "ledger-audit-v1";
   assert.throws(() => parseSuiteManifest(suite));
+
+  const reordered = structuredClone(validSuiteManifest) as Record<string, unknown>;
+  (reordered.task_order as string[]).reverse();
+  assert.throws(() => parseSuiteManifest(reordered));
 });

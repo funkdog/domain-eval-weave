@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/suite-report.schema.json",
+  "title": "DSH Eval Lab Suite Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "measurement_validity",
+    "reasons",
+    "tasks",
+    "summary",
+    "evidence",
+    "recommendation",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "suite_id": { "$ref": "#/$defs/id" },
+    "measurement_validity": {
+      "$ref": "https://dsh-eval-lab.local/contracts/suite-evaluation.schema.json#/$defs/validity"
+    },
+    "reasons": {
+      "$ref": "https://dsh-eval-lab.local/contracts/suite-evaluation.schema.json#/$defs/reasons"
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "https://dsh-eval-lab.local/contracts/suite-evaluation.schema.json#/$defs/task"
+      }
+    },
+    "summary": {
+      "$ref": "https://dsh-eval-lab.local/contracts/suite-evaluation.schema.json#/$defs/summary"
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest", "binding", "registry_snapshot", "evaluation"],
+      "properties": {
+        "manifest": { "$ref": "#/$defs/suitePointer" },
+        "binding": { "$ref": "#/$defs/suitePointer" },
+        "registry_snapshot": { "$ref": "#/$defs/suitePointer" },
+        "evaluation": { "$ref": "#/$defs/suitePointer" }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "rationale_codes"],
+      "properties": {
+        "action": { "enum": ["keep", "iterate_binding", "keep_baseline", "run_more"] },
+        "rationale_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+        }
+      }
+    },
+    "claim_strength": { "const": "multi_task_diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "suiteRef": {
+      "type": "string",
+      "pattern": "^artifact://suite/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "suitePointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/suiteRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

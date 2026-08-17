@@ -2,7 +2,11 @@ import { TextDecoder } from "node:util";
 
 import type { ArmEvaluationOutput, ArmExecutionOutput } from "../campaign/coordinator.js";
 import { runPairedCampaign } from "../campaign/coordinator.js";
-import { parseArtifactRef, writeCanonicalJsonArtifact } from "../contracts/artifacts.js";
+import {
+  type ArtifactPointer,
+  parseArtifactRef,
+  writeCanonicalJsonArtifact,
+} from "../contracts/artifacts.js";
 import { sha256Hex } from "../contracts/canonical-json.js";
 import type { ExperimentSpec, VariantSpec } from "../contracts/parsers.js";
 import type { TaskEntry } from "../contracts/phase2.js";
@@ -15,6 +19,16 @@ import type { TaskPackIdentity } from "../task-pack/loader.js";
 function armRef(arm: "control" | "treatment", name: string): string {
   return `artifact://campaign/arms/${arm}/${name}`;
 }
+
+export type Phase2TaskCampaignResult = Awaited<ReturnType<typeof runPairedCampaign>> & {
+  readonly phase2Pointers: {
+    readonly activation: {
+      readonly control: ArtifactPointer;
+      readonly treatment: ArtifactPointer;
+    };
+    readonly exposure: { readonly control: ArtifactPointer; readonly treatment: ArtifactPointer };
+  };
+};
 
 export async function runPhase2TaskCampaign(input: {
   readonly suiteId: string;
@@ -35,7 +49,7 @@ export async function runPhase2TaskCampaign(input: {
     arm: "control" | "treatment",
     output: ArmExecutionOutput,
   ) => Promise<ArmEvaluationOutput>;
-}): ReturnType<typeof runPairedCampaign> {
+}): Promise<Phase2TaskCampaignResult> {
   if (
     sha256Hex(input.publicTask) !== input.task.public_task_sha256 ||
     input.taskPackIdentity.public_task_sha256 !== input.task.public_task_sha256 ||
@@ -45,7 +59,11 @@ export async function runPhase2TaskCampaign(input: {
     throw new Error("Phase 2 Task and Phase 1 Campaign identity disagree");
   }
 
-  return runPairedCampaign({
+  const phase2Pointers: {
+    activation: Partial<Record<"control" | "treatment", ArtifactPointer>>;
+    exposure: Partial<Record<"control" | "treatment", ArtifactPointer>>;
+  } = { activation: {}, exposure: {} };
+  const result = await runPairedCampaign({
     campaignRoot: input.campaignRoot,
     experiment: input.experiment,
     variants: input.variants,
@@ -84,12 +102,26 @@ export async function runPhase2TaskCampaign(input: {
           ? output.sessionLog
           : new TextDecoder("utf-8", { fatal: true }).decode(output.sessionLog);
       const activation = projectGoalActivation(decodeOfficialSessionJsonl(sessionText));
-      await Promise.all([
+      const [activationPointer, exposurePointer] = await Promise.all([
         writeCanonicalJsonArtifact(input.campaignRoot, armRef(arm, "activation.json"), activation),
         writeCanonicalJsonArtifact(input.campaignRoot, armRef(arm, "exposure.json"), exposure),
       ]);
+      phase2Pointers.activation[arm] = activationPointer;
+      phase2Pointers.exposure[arm] = exposurePointer;
       return output;
     },
     evaluateArm: input.evaluateArm,
   });
+  const { control: controlActivation, treatment: treatmentActivation } = phase2Pointers.activation;
+  const { control: controlExposure, treatment: treatmentExposure } = phase2Pointers.exposure;
+  if (!controlActivation || !treatmentActivation || !controlExposure || !treatmentExposure) {
+    throw new Error("Phase 2 activation/exposure pointers are incomplete");
+  }
+  return {
+    ...result,
+    phase2Pointers: {
+      activation: { control: controlActivation, treatment: treatmentActivation },
+      exposure: { control: controlExposure, treatment: treatmentExposure },
+    },
+  };
 }

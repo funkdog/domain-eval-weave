@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/suite-invalid.schema.json",
+  "title": "DSH Eval Lab Suite Measurement Invalid Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "measurement_validity",
+    "reason",
+    "message",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "suite_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "measurement_validity": { "const": "invalid" },
+    "reason": { "const": "ARTIFACT_INTEGRITY_FAILURE" },
+    "message": { "const": "Frozen Suite evidence failed integrity or semantic replay." },
+    "claim_strength": { "const": "multi_task_diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  }
+}

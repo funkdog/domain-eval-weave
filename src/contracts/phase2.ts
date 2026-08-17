@@ -1,6 +1,8 @@
 import { z } from "zod";
 
 import { parseArtifactRef } from "./artifact-ref.js";
+import { canonicalJsonDigest } from "./canonical-json.js";
+import { parseSuiteArtifactRef } from "./suite-artifact-ref.js";
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
@@ -39,6 +41,21 @@ const artifactRefSchema = z.string().transform((value, context) => {
 });
 
 const artifactPointerSchema = z.strictObject({ ref: artifactRefSchema, sha256: sha256Schema });
+const suiteArtifactRefSchema = z.string().transform((value, context) => {
+  try {
+    return parseSuiteArtifactRef(value);
+  } catch (error) {
+    context.addIssue({
+      code: "custom",
+      message: error instanceof Error ? error.message : "invalid Suite artifact ref",
+    });
+    return z.NEVER;
+  }
+});
+const suiteArtifactPointerSchema = z.strictObject({
+  ref: suiteArtifactRefSchema,
+  sha256: sha256Schema,
+});
 const bucketSchema = z.enum(["trigger", "non-trigger", "holdout"]);
 const goalOperationSchema = z.enum([
   "create",
@@ -327,6 +344,7 @@ export const suiteManifestSchema = z
       new Set(taskIds).size !== taskIds.length ||
       new Set(campaignIds).size !== campaignIds.length ||
       [...taskIds].sort().join("\n") !== [...suite.task_order].sort().join("\n") ||
+      taskIds.join("\n") !== suite.task_order.join("\n") ||
       new Set(buckets).size !== 3
     ) {
       context.addIssue({
@@ -337,6 +355,243 @@ export const suiteManifestSchema = z
     }
   });
 
+export const registrySnapshotSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    registry: registrySchema,
+    eval_pack: evalPackSchema,
+    tasks: z.array(taskEntrySchema).length(3),
+    digests: z.strictObject({
+      registry: sha256Schema,
+      eval_pack: sha256Schema,
+      tasks: z.record(idSchema, sha256Schema),
+    }),
+  })
+  .superRefine((snapshot, context) => {
+    if (canonicalJsonDigest(snapshot.registry) !== snapshot.digests.registry) {
+      context.addIssue({
+        code: "custom",
+        path: ["digests", "registry"],
+        message: "digest mismatch",
+      });
+    }
+    if (canonicalJsonDigest(snapshot.eval_pack) !== snapshot.digests.eval_pack) {
+      context.addIssue({
+        code: "custom",
+        path: ["digests", "eval_pack"],
+        message: "digest mismatch",
+      });
+    }
+    const tasks = new Map(snapshot.tasks.map((task) => [task.task_id, task]));
+    const expectedIds = [...snapshot.eval_pack.task_ids].sort();
+    const actualIds = [...tasks.keys()].sort();
+    if (expectedIds.join("\n") !== actualIds.join("\n")) {
+      context.addIssue({ code: "custom", path: ["tasks"], message: "Task set mismatch" });
+    }
+    if (Object.keys(snapshot.digests.tasks).sort().join("\n") !== actualIds.join("\n")) {
+      context.addIssue({
+        code: "custom",
+        path: ["digests", "tasks"],
+        message: "Task digest set mismatch",
+      });
+    }
+    for (const task of snapshot.tasks) {
+      if (canonicalJsonDigest(task) !== snapshot.digests.tasks[task.task_id]) {
+        context.addIssue({
+          code: "custom",
+          path: ["digests", "tasks", task.task_id],
+          message: "digest mismatch",
+        });
+      }
+    }
+    const registryEvalPack = snapshot.registry.eval_packs.find(
+      (pointer) => pointer.id === snapshot.eval_pack.eval_pack_id,
+    );
+    if (registryEvalPack?.sha256 !== snapshot.digests.eval_pack) {
+      context.addIssue({
+        code: "custom",
+        path: ["registry", "eval_packs"],
+        message: "binding mismatch",
+      });
+    }
+    for (const task of snapshot.tasks) {
+      const pointer = snapshot.registry.tasks.find((candidate) => candidate.id === task.task_id);
+      if (pointer?.sha256 !== snapshot.digests.tasks[task.task_id]) {
+        context.addIssue({
+          code: "custom",
+          path: ["registry", "tasks"],
+          message: "binding mismatch",
+        });
+      }
+    }
+  });
+
+export const campaignPointerArtifactSchema = z.strictObject({
+  schema_version: z.literal(1),
+  suite_id: idSchema,
+  task_id: idSchema,
+  bucket: bucketSchema,
+  campaign_id: idSchema,
+  campaign_report: artifactPointerSchema,
+  activation: z.strictObject({
+    control: artifactPointerSchema,
+    treatment: artifactPointerSchema,
+  }),
+  exposure: z.strictObject({
+    control: artifactPointerSchema,
+    treatment: artifactPointerSchema,
+  }),
+});
+
+const suiteCostSchema = z.strictObject({
+  elapsed_ms: nonnegativeCountSchema.nullable(),
+  input_tokens: nonnegativeCountSchema.nullable(),
+  cached_input_tokens: nonnegativeCountSchema.nullable(),
+  output_tokens: nonnegativeCountSchema.nullable(),
+  failed_tool_calls: nonnegativeCountSchema.nullable(),
+});
+const suiteCostDeltaSchema = z.strictObject({
+  elapsed_ms: z.number().finite().int().nullable(),
+  input_tokens: z.number().finite().int().nullable(),
+  cached_input_tokens: z.number().finite().int().nullable(),
+  output_tokens: z.number().finite().int().nullable(),
+  failed_tool_calls: z.number().finite().int().nullable(),
+});
+const suiteArmSummarySchema = z.strictObject({
+  externally_verified_completion: z.boolean().nullable(),
+  completion_claim: z.enum(["complete", "blocked", "absent"]),
+  goal_activated: z.boolean().nullable(),
+  goal_rounds_started: nonnegativeCountSchema.nullable(),
+  goal_terminal_phase: goalPhaseSchema.nullable(),
+  cost: suiteCostSchema,
+});
+const activationAssessmentSchema = z.strictObject({
+  status: z.enum(["pass", "fail", "insufficient", "invalid"]),
+  code: z.enum([
+    "ACTIVATION_EXPECTED_OBSERVED",
+    "TRIGGER_ACTIVATION_MISSING",
+    "NON_TRIGGER_ACTIVATION_ABSENT",
+    "NON_TRIGGER_OVER_ACTIVATION",
+    "HOLDOUT_ACTIVATION_OBSERVED",
+    "HOLDOUT_ACTIVATION_ABSENT",
+    "CONTROL_CONTAMINATION",
+    "CAMPAIGN_INVALID",
+  ]),
+  treatment_activated: z.boolean(),
+});
+const suiteTaskEvaluationSchema = z.strictObject({
+  task_id: idSchema,
+  bucket: bucketSchema,
+  campaign_id: idSchema,
+  campaign_pointer: suiteArtifactPointerSchema,
+  campaign_report: artifactPointerSchema,
+  paired_overall: z.enum(["valid", "invalid", "insufficient"]),
+  suite_overall: z.enum(["valid", "invalid", "insufficient"]),
+  activation_assessment: activationAssessmentSchema,
+  arms: z.strictObject({
+    control: suiteArmSummarySchema,
+    treatment: suiteArmSummarySchema,
+  }),
+  cost_delta: suiteCostDeltaSchema,
+});
+const suiteSummarySchema = z.strictObject({
+  valid_task_count: nonnegativeCountSchema,
+  invalid_task_count: nonnegativeCountSchema,
+  insufficient_task_count: nonnegativeCountSchema,
+  trigger_activation: z.boolean().nullable(),
+  non_trigger_guardrail: z.enum(["pass", "fail"]).nullable(),
+  holdout_activation_observed: z.boolean().nullable(),
+});
+const suiteValiditySchema = z.enum(["valid", "invalid", "insufficient"]);
+const suiteReasonsSchema = z
+  .array(z.string().regex(/^[A-Z][A-Z0-9_]*$/))
+  .refine((values) => new Set(values).size === values.length, "reason codes must be unique");
+
+function validateSuiteEvaluationShape(
+  suite: {
+    readonly tasks: readonly {
+      readonly task_id: string;
+      readonly bucket: string;
+      readonly suite_overall: string;
+    }[];
+    readonly summary: {
+      readonly valid_task_count: number;
+      readonly invalid_task_count: number;
+      readonly insufficient_task_count: number;
+    };
+  },
+  context: z.RefinementCtx,
+): void {
+  const taskIds = suite.tasks.map((task) => task.task_id);
+  const buckets = suite.tasks.map((task) => task.bucket);
+  const count = (status: string) =>
+    suite.tasks.filter((task) => task.suite_overall === status).length;
+  if (new Set(taskIds).size !== 3 || new Set(buckets).size !== 3) {
+    context.addIssue({
+      code: "custom",
+      path: ["tasks"],
+      message: "Suite needs one unique Task per bucket",
+    });
+  }
+  if (
+    suite.summary.valid_task_count !== count("valid") ||
+    suite.summary.invalid_task_count !== count("invalid") ||
+    suite.summary.insufficient_task_count !== count("insufficient")
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["summary"],
+      message: "Suite summary counts disagree",
+    });
+  }
+}
+
+export const suiteEvaluationArtifactSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    suite_id: idSchema,
+    measurement_validity: suiteValiditySchema,
+    reasons: suiteReasonsSchema,
+    tasks: z.array(suiteTaskEvaluationSchema).length(3),
+    summary: suiteSummarySchema,
+    claim_strength: z.literal("multi_task_diagnostic"),
+    effect_claim_eligible: z.literal(false),
+  })
+  .superRefine(validateSuiteEvaluationShape);
+
+export const suiteReportSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    suite_id: idSchema,
+    measurement_validity: suiteValiditySchema,
+    reasons: suiteReasonsSchema,
+    tasks: z.array(suiteTaskEvaluationSchema).length(3),
+    summary: suiteSummarySchema,
+    evidence: z.strictObject({
+      manifest: suiteArtifactPointerSchema,
+      binding: suiteArtifactPointerSchema,
+      registry_snapshot: suiteArtifactPointerSchema,
+      evaluation: suiteArtifactPointerSchema,
+    }),
+    recommendation: z.strictObject({
+      action: z.enum(["keep", "iterate_binding", "keep_baseline", "run_more"]),
+      rationale_codes: suiteReasonsSchema.min(1),
+    }),
+    claim_strength: z.literal("multi_task_diagnostic"),
+    effect_claim_eligible: z.literal(false),
+  })
+  .superRefine(validateSuiteEvaluationShape);
+
+export const suiteInvalidEnvelopeSchema = z.strictObject({
+  schema_version: z.literal(1),
+  suite_id: idSchema,
+  measurement_validity: z.literal("invalid"),
+  reason: z.literal("ARTIFACT_INTEGRITY_FAILURE"),
+  message: z.literal("Frozen Suite evidence failed integrity or semantic replay."),
+  claim_strength: z.literal("multi_task_diagnostic"),
+  effect_claim_eligible: z.literal(false),
+});
+
 export type HarnessManifest = z.infer<typeof harnessManifestSchema>;
 export type Registry = z.infer<typeof registrySchema>;
 export type EvalPack = z.infer<typeof evalPackSchema>;
@@ -344,6 +599,12 @@ export type TaskEntry = z.infer<typeof taskEntrySchema>;
 export type ActivationArtifact = z.infer<typeof activationArtifactSchema>;
 export type ExposureRecord = z.infer<typeof exposureRecordSchema>;
 export type SuiteManifest = z.infer<typeof suiteManifestSchema>;
+export type RegistrySnapshot = z.infer<typeof registrySnapshotSchema>;
+export type CampaignPointerArtifact = z.infer<typeof campaignPointerArtifactSchema>;
+export type SuiteTaskEvaluation = z.infer<typeof suiteTaskEvaluationSchema>;
+export type SuiteEvaluationArtifact = z.infer<typeof suiteEvaluationArtifactSchema>;
+export type SuiteReport = z.infer<typeof suiteReportSchema>;
+export type SuiteInvalidEnvelope = z.infer<typeof suiteInvalidEnvelopeSchema>;
 
 export const parseHarnessManifest = (input: unknown): HarnessManifest =>
   harnessManifestSchema.parse(input);
@@ -356,3 +617,12 @@ export const parseExposureRecord = (input: unknown): ExposureRecord =>
   exposureRecordSchema.parse(input);
 export const parseSuiteManifest = (input: unknown): SuiteManifest =>
   suiteManifestSchema.parse(input);
+export const parseRegistrySnapshot = (input: unknown): RegistrySnapshot =>
+  registrySnapshotSchema.parse(input);
+export const parseCampaignPointerArtifact = (input: unknown): CampaignPointerArtifact =>
+  campaignPointerArtifactSchema.parse(input);
+export const parseSuiteEvaluationArtifact = (input: unknown): SuiteEvaluationArtifact =>
+  suiteEvaluationArtifactSchema.parse(input);
+export const parseSuiteReport = (input: unknown): SuiteReport => suiteReportSchema.parse(input);
+export const parseSuiteInvalidEnvelope = (input: unknown): SuiteInvalidEnvelope =>
+  suiteInvalidEnvelopeSchema.parse(input);
