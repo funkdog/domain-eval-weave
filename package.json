@@ -19,6 +19,9 @@
     "runtime-profile",
     "variants",
     "task-packs",
+    "harnesses",
+    "registry",
+    "eval-packs",
     "README.md"
   ],
   "dsh": {
