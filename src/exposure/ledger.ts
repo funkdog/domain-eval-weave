@@ -1,0 +1,217 @@
+import { randomUUID } from "node:crypto";
+import { link, lstat, mkdir, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
+
+import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { type ExposureRecord, parseExposureRecord } from "../contracts/phase2.js";
+import { DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
+
+const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+export class ExposureLedgerError extends Error {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "ExposureLedgerError";
+    this.code = code;
+  }
+}
+
+export interface ExposureWrite {
+  readonly path: string;
+  readonly sha256: string;
+}
+
+function isPathInside(root: string, candidate: string): boolean {
+  const relation = relative(root, candidate);
+  return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
+}
+
+export function phase2ExposureId(
+  suiteId: string,
+  taskId: string,
+  arm: "control" | "treatment",
+): string {
+  if (!ID_PATTERN.test(suiteId) || !ID_PATTERN.test(taskId)) {
+    throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "Suite and Task ids must be normalized");
+  }
+  const id = `${suiteId}--${taskId}--${arm}`;
+  if (!ID_PATTERN.test(id)) {
+    throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "derived exposure id is too long");
+  }
+  return id;
+}
+
+async function dedicatedRuntimeRoot(): Promise<string> {
+  const root = resolve(DEDICATED_RUNTIME_ROOT);
+  const stat = await lstat(root);
+  if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700) {
+    throw new ExposureLedgerError(
+      "RUNTIME_ROOT_INVALID",
+      "dedicated runtime root must be a physical 0700 directory",
+    );
+  }
+  return realpath(root);
+}
+
+async function ensurePrivateDirectory(target: string, finalCode: string): Promise<string> {
+  const realRuntime = await dedicatedRuntimeRoot();
+  const runtime = resolve(DEDICATED_RUNTIME_ROOT);
+  const normalizedTarget = resolve(target);
+  if (!isPathInside(runtime, normalizedTarget)) {
+    throw new ExposureLedgerError(
+      "EXPOSURE_ROOT_ESCAPE",
+      "exposure storage must remain under the dedicated runtime root",
+    );
+  }
+
+  let current = runtime;
+  for (const segment of relative(runtime, normalizedTarget).split("/")) {
+    current = resolve(current, segment);
+    let missing = false;
+    try {
+      await lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      missing = true;
+    }
+    if (missing) {
+      try {
+        await mkdir(current, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+    }
+
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink() || !stat.isDirectory() || (stat.mode & 0o777) !== 0o700) {
+      throw new ExposureLedgerError(finalCode, "exposure path must contain only 0700 directories");
+    }
+    const physical = await realpath(current);
+    if (!isPathInside(realRuntime, physical)) {
+      throw new ExposureLedgerError(finalCode, "exposure path resolves outside runtime root");
+    }
+  }
+  return realpath(normalizedTarget);
+}
+
+async function readRecord(path: string, expectedId?: string): Promise<ExposureRecord> {
+  const stat = await lstat(path);
+  if (stat.isSymbolicLink() || !stat.isFile() || (stat.mode & 0o777) !== 0o600) {
+    throw new ExposureLedgerError(
+      "EXPOSURE_ENTRY_INVALID",
+      "exposure entry must be a physical 0600 file",
+    );
+  }
+  const text = await readFile(path, "utf8");
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(text);
+  } catch {
+    throw new ExposureLedgerError("EXPOSURE_JSON_INVALID", "exposure entry is not JSON");
+  }
+  const record = parseExposureRecord(decoded);
+  if (canonicalJson(record) !== text) {
+    throw new ExposureLedgerError("EXPOSURE_NOT_CANONICAL", "exposure entry is not canonical JSON");
+  }
+  if (expectedId !== undefined && record.exposure_id !== expectedId) {
+    throw new ExposureLedgerError(
+      "EXPOSURE_FILENAME_MISMATCH",
+      "exposure filename and record id disagree",
+    );
+  }
+  return record;
+}
+
+export class ExposureLedger {
+  readonly #instanceRoot: string;
+
+  constructor(instanceRoot: string) {
+    if (!isAbsolute(instanceRoot)) {
+      throw new ExposureLedgerError(
+        "INSTANCE_ROOT_NOT_ABSOLUTE",
+        "exposure instance root must be absolute",
+      );
+    }
+    this.#instanceRoot = resolve(instanceRoot);
+  }
+
+  async #root(): Promise<string> {
+    await ensurePrivateDirectory(this.#instanceRoot, "INSTANCE_ROOT_INVALID");
+    return ensurePrivateDirectory(
+      resolve(this.#instanceRoot, "exposures"),
+      "EXPOSURE_ROOT_INVALID",
+    );
+  }
+
+  async write(input: unknown): Promise<ExposureWrite> {
+    const record = parseExposureRecord(input);
+    const expectedId = phase2ExposureId(record.suite_id, record.task_id, record.arm);
+    if (record.exposure_id !== expectedId) {
+      throw new ExposureLedgerError(
+        "EXPOSURE_ID_MISMATCH",
+        "exposure id must be derived from Suite, Task, and arm",
+      );
+    }
+    const root = await this.#root();
+    const path = resolve(root, `${record.exposure_id}.json`);
+    if (!isPathInside(root, path)) {
+      throw new ExposureLedgerError("EXPOSURE_PATH_ESCAPE", "exposure path escapes its root");
+    }
+    const bytes = Buffer.from(canonicalJson(record), "utf8");
+    const temporary = resolve(root, `.${record.exposure_id}.tmp-${randomUUID()}`);
+    try {
+      await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 });
+      try {
+        await link(temporary, path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        const existing = await readRecord(path, record.exposure_id);
+        if (canonicalJson(existing) !== bytes.toString("utf8")) {
+          throw new ExposureLedgerError(
+            "EXPOSURE_ALREADY_EXISTS",
+            "exposure id is already frozen with different bytes",
+          );
+        }
+      }
+    } finally {
+      await rm(temporary, { force: true });
+    }
+    return { path, sha256: sha256Hex(bytes) };
+  }
+
+  async list(): Promise<readonly ExposureRecord[]> {
+    const root = await this.#root();
+    const records: ExposureRecord[] = [];
+    for (const name of (await readdir(root)).sort()) {
+      if (!name.endsWith(".json")) {
+        throw new ExposureLedgerError(
+          "EXPOSURE_ENTRY_UNKNOWN",
+          "exposure root contains an unknown entry",
+        );
+      }
+      const id = name.slice(0, -".json".length);
+      if (!ID_PATTERN.test(id)) {
+        throw new ExposureLedgerError(
+          "EXPOSURE_FILENAME_INVALID",
+          "exposure filename is not normalized",
+        );
+      }
+      records.push(await readRecord(resolve(root, name), id));
+    }
+    return records;
+  }
+
+  async assertHoldoutUnexposed(taskId: string): Promise<void> {
+    if (!ID_PATTERN.test(taskId)) {
+      throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "holdout Task id is invalid");
+    }
+    if ((await this.list()).some((record) => record.task_id === taskId)) {
+      throw new ExposureLedgerError(
+        "HOLDOUT_ALREADY_EXPOSED",
+        `holdout Task has an existing model exposure: ${taskId}`,
+      );
+    }
+  }
+}
