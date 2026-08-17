@@ -1,0 +1,35 @@
+{
+  "name": "dsh-eval-lab",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local controlled DSH harness evaluation lab",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "bin": {
+    "dsh-eval": "./bin/dsh-eval.mjs"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "pnpm lint",
+    "test": "node --import tsx --test tests/unit/*.test.ts tests/contract/*.test.ts",
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:contract": "node --import tsx --test tests/contract/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2"
+  }
+}

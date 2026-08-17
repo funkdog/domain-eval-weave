@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/episode.schema.json",
+  "title": "DSH Eval Lab EpisodeRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "episode_id",
+    "campaign_id",
+    "arm",
+    "variant_digest",
+    "workspace_base_digest",
+    "process",
+    "evidence",
+    "infrastructure_errors"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "episode_id": { "$ref": "#/$defs/id" },
+    "campaign_id": { "$ref": "#/$defs/id" },
+    "arm": { "enum": ["control", "treatment"] },
+    "variant_digest": { "$ref": "#/$defs/sha256" },
+    "workspace_base_digest": { "$ref": "#/$defs/sha256" },
+    "session_id": { "$ref": "#/$defs/id" },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at", "ended_at", "exit_code", "signal", "timed_out"],
+      "properties": {
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "exit_code": { "type": ["integer", "null"] },
+        "signal": { "type": ["string", "null"] },
+        "timed_out": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "session_log_ref": { "$ref": "#/$defs/artifactRef" },
+        "session_log_sha256": { "$ref": "#/$defs/sha256" },
+        "candidate_tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "candidate_archive_ref": { "$ref": "#/$defs/artifactRef" },
+        "candidate_archive_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "dependentRequired": {
+        "session_log_ref": ["session_log_sha256"],
+        "session_log_sha256": ["session_log_ref"],
+        "candidate_archive_ref": ["candidate_archive_sha256"],
+        "candidate_archive_sha256": ["candidate_archive_ref"]
+      }
+    },
+    "infrastructure_errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/diagnostic" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "artifactRef": {
+      "type": "string",
+      "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message", "evidence_refs"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "severity": { "enum": ["error", "warning", "info"] },
+        "message": { "type": "string", "minLength": 1 },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactRef" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

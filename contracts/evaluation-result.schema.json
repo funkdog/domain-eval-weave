@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/evaluation-result.schema.json",
+  "title": "DSH Eval Lab EvaluationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "measurement_validity",
+    "outcome",
+    "mechanism",
+    "cost",
+    "hard_gates",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "measurement_validity": { "$ref": "#/$defs/measurementValidity" },
+    "outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "externally_verified_completion",
+        "behavior_vector",
+        "completion_claim",
+        "false_completion_claim"
+      ],
+      "properties": {
+        "externally_verified_completion": { "type": ["boolean", "null"] },
+        "behavior_vector": {
+          "type": "object",
+          "additionalProperties": { "enum": ["pass", "fail", "error"] }
+        },
+        "completion_claim": { "enum": ["complete", "blocked", "absent"] },
+        "false_completion_claim": { "type": ["boolean", "null"] }
+      }
+    },
+    "mechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal_created",
+        "goal_rounds_started",
+        "goal_terminal_phase",
+        "tool_calls",
+        "turns",
+        "steps"
+      ],
+      "properties": {
+        "goal_created": { "type": ["boolean", "null"] },
+        "goal_rounds_started": { "$ref": "#/$defs/nullableCount" },
+        "goal_terminal_phase": {
+          "type": ["string", "null"],
+          "enum": ["complete", "blocked", "paused", "active", "none", null]
+        },
+        "tool_calls": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/count" }
+        },
+        "turns": { "$ref": "#/$defs/nullableCount" },
+        "steps": { "$ref": "#/$defs/nullableCount" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsed_ms",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "failed_tool_calls"
+      ],
+      "properties": {
+        "elapsed_ms": { "$ref": "#/$defs/nullableCount" },
+        "input_tokens": { "$ref": "#/$defs/nullableCount" },
+        "cached_input_tokens": { "$ref": "#/$defs/nullableCount" },
+        "output_tokens": { "$ref": "#/$defs/nullableCount" },
+        "failed_tool_calls": { "$ref": "#/$defs/nullableCount" }
+      }
+    },
+    "hard_gates": {
+      "type": "object",
+      "additionalProperties": { "enum": ["pass", "fail", "unknown"] }
+    },
+    "claim_strength": { "const": "diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "artifactRef": {
+      "type": "string",
+      "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "count": { "type": "integer", "minimum": 0 },
+    "nullableCount": {
+      "anyOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }]
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message", "evidence_refs"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "severity": { "enum": ["error", "warning", "info"] },
+        "message": { "type": "string", "minLength": 1 },
+        "evidence_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/artifactRef" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "measurementValidity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall", "dimensions", "reasons"],
+      "properties": {
+        "overall": { "$ref": "#/$defs/validityStatus" },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "mechanism", "cost"],
+          "properties": {
+            "outcome": { "$ref": "#/$defs/validityStatus" },
+            "mechanism": { "$ref": "#/$defs/validityStatus" },
+            "cost": { "$ref": "#/$defs/validityStatus" }
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/diagnostic" }
+        }
+      }
+    },
+    "validityStatus": { "enum": ["valid", "invalid", "insufficient"] }
+  }
+}

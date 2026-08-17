@@ -24,6 +24,28 @@ campaign outputs in this repository.
 
 ## Current state
 
-The workspace and planning truth sources are initialized. Product implementation
-has not started. The next unit is Milestone 0: repository contracts, red parser
-tests, canonical JSON/digests, artifact references, and the CLI skeleton.
+Milestone 0 is implemented as a local candidate. It contains:
+
+- strict Zod parsers and four JSON Schema interoperability faces;
+- deterministic canonical JSON and SHA-256 content digests;
+- portable `artifact://campaign/...` references with traversal, symlink, and
+  digest checks;
+- source/runtime/reference-root separation checks;
+- a side-effect-free CLI skeleton with the frozen exit-code families;
+- fake Campaign artifact replay tests that use only the dedicated runtime root.
+
+No DSH package, model carrier, OAuth command, Oracle, or Campaign runner is
+installed or executed by Milestone 0.
+
+## Development
+
+Use the frozen Node 24 toolchain, then run:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm check
+pnpm test
+pnpm typecheck
+pnpm build
+node bin/dsh-eval.mjs --help
+```
