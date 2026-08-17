@@ -83,6 +83,34 @@ export function syntheticSessionLog(input: {
         },
       },
       {
+        type: "user/message",
+        data: {
+          id: `goal-round-1-${input.arm}`,
+          role: "user",
+          content: [{ type: "text", text: "Continue the frozen public reservation task." }],
+          source: {
+            kind: "goal",
+            goalId: `goal-${input.arm}`,
+            revision: 1,
+            round: 1,
+          },
+        },
+      },
+      {
+        type: "user/message",
+        data: {
+          id: `goal-round-2-${input.arm}`,
+          role: "user",
+          content: [{ type: "text", text: "Continue the frozen public reservation task." }],
+          source: {
+            kind: "goal",
+            goalId: `goal-${input.arm}`,
+            revision: 1,
+            round: 2,
+          },
+        },
+      },
+      {
         type: "goal/change",
         data: {
           kind: "goal/change",

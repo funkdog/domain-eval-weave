@@ -122,6 +122,7 @@ function validGoalSnapshot(value: unknown): value is Record<string, unknown> {
     !validGoalRef({ id: value.id, revision: value.revision }) ||
     typeof value.objective !== "string" ||
     value.objective.trim().length === 0 ||
+    value.objective !== value.objective.trim() ||
     !["active", "paused", "blocked", "complete"].includes(String(value.phase)) ||
     !positiveSafeInteger(value.maxGoalRounds) ||
     (value.maxGoalRounds as number) > 8
@@ -136,36 +137,79 @@ function validGoalSnapshot(value: unknown): value is Record<string, unknown> {
     typeof reason.code === "string" &&
     /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(reason.code) &&
     typeof reason.message === "string" &&
-    reason.message.trim().length > 0
+    reason.message.trim().length > 0 &&
+    reason.message === reason.message.trim()
   );
 }
 
-function validGoalChangeSequence(events: readonly SessionEventRecord[]): boolean {
-  let current:
-    | {
-        readonly id: string;
-        readonly revision: number;
-        readonly phase: string;
-        readonly roundsStarted: number;
-        readonly createdAt: number;
-        readonly updatedAt: number;
-      }
-    | undefined;
+interface GoalFoldSnapshot {
+  readonly id: string;
+  readonly revision: number;
+  readonly objective: string;
+  readonly phase: "active" | "paused" | "blocked" | "complete";
+  readonly maxGoalRounds: number;
+  readonly blockedReason: unknown;
+  readonly roundsStarted: number;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+interface GoalFoldResult {
+  readonly valid: boolean;
+  readonly maximumRoundsStarted: number;
+}
+
+const invalidGoalFold = (): GoalFoldResult => ({ valid: false, maximumRoundsStarted: 0 });
+
+function sameGoalDefinition(current: GoalFoldSnapshot, next: Record<string, unknown>): boolean {
+  return next.objective === current.objective && next.maxGoalRounds === current.maxGoalRounds;
+}
+
+function sameBlockedReason(left: unknown, right: unknown): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return canonicalJson(left) === canonicalJson(right);
+}
+
+function foldGoalEvidence(events: readonly SessionEventRecord[]): GoalFoldResult {
+  let current: GoalFoldSnapshot | undefined;
+  let maximumRoundsStarted = 0;
   const seenGoalIds = new Set<string>();
   for (const event of events) {
     const data = recordData(event);
-    if (data.kind !== "goal/change" || data.version !== 1) return false;
+    if (event.type === "user/message") {
+      const source = data.source;
+      if (!isRecord(source) || source.kind !== "goal") continue;
+      if (
+        typeof source.goalId !== "string" ||
+        source.goalId.length === 0 ||
+        !positiveSafeInteger(source.revision) ||
+        !positiveSafeInteger(source.round) ||
+        current === undefined ||
+        current.phase !== "active" ||
+        source.goalId !== current.id ||
+        source.revision !== current.revision ||
+        source.round !== current.roundsStarted + 1 ||
+        source.round > current.maxGoalRounds
+      ) {
+        return invalidGoalFold();
+      }
+      current = { ...current, roundsStarted: source.round };
+      maximumRoundsStarted = Math.max(maximumRoundsStarted, source.round);
+      continue;
+    }
+    if (event.type !== "goal/change") continue;
+    if (data.kind !== "goal/change" || data.version !== 1) return invalidGoalFold();
     if (data.operation === "clear") {
       if (
         !exactKeys(data, ["kind", "version", "operation", "cleared", "clearedAt"]) ||
         current === undefined ||
         !validGoalRef(data.cleared) ||
         data.cleared.id !== current.id ||
-        data.cleared.revision !== current.revision ||
+        data.cleared.revision !== current.revision + 1 ||
         !nonnegativeSafeInteger(data.clearedAt) ||
         data.clearedAt < current.updatedAt
       ) {
-        return false;
+        return invalidGoalFold();
       }
       current = undefined;
       continue;
@@ -189,50 +233,92 @@ function validGoalChangeSequence(events: readonly SessionEventRecord[]): boolean
       !nonnegativeSafeInteger(data.updatedAt) ||
       data.updatedAt < data.createdAt
     ) {
-      return false;
+      return invalidGoalFold();
     }
-    const expectedPhase: Partial<Record<string, string>> = {
-      create: "active",
-      pause: "paused",
-      resume: "active",
-      complete: "complete",
-      block: "blocked",
-    };
-    if (
-      expectedPhase[data.operation] !== undefined &&
-      data.goal.phase !== expectedPhase[data.operation]
-    ) {
-      return false;
-    }
+    const goal = data.goal;
     if (data.operation === "create") {
       if (
         (current !== undefined && current.phase !== "complete") ||
-        data.goal.revision !== 1 ||
+        goal.revision !== 1 ||
+        goal.phase !== "active" ||
         data.roundsStarted !== 0 ||
-        seenGoalIds.has(data.goal.id as string)
+        seenGoalIds.has(goal.id as string)
       )
-        return false;
-      seenGoalIds.add(data.goal.id as string);
-    } else if (
-      current === undefined ||
-      data.goal.id !== current.id ||
-      data.goal.revision !== current.revision + 1 ||
-      data.createdAt !== current.createdAt ||
-      data.updatedAt < current.updatedAt ||
-      data.roundsStarted < current.roundsStarted
-    ) {
-      return false;
+        return invalidGoalFold();
+      seenGoalIds.add(goal.id as string);
+    } else {
+      if (
+        current === undefined ||
+        goal.id !== current.id ||
+        goal.revision !== current.revision + 1 ||
+        data.createdAt !== current.createdAt ||
+        data.updatedAt < current.updatedAt ||
+        data.roundsStarted !== current.roundsStarted
+      ) {
+        return invalidGoalFold();
+      }
+      switch (data.operation) {
+        case "edit":
+          if (
+            goal.phase !== current.phase ||
+            !sameBlockedReason(goal.blockedReason, current.blockedReason)
+          ) {
+            return invalidGoalFold();
+          }
+          break;
+        case "pause":
+          if (
+            !sameGoalDefinition(current, goal) ||
+            current.phase !== "active" ||
+            goal.phase !== "paused"
+          ) {
+            return invalidGoalFold();
+          }
+          break;
+        case "resume":
+          if (
+            !sameGoalDefinition(current, goal) ||
+            !["active", "paused", "blocked"].includes(current.phase) ||
+            goal.phase !== "active" ||
+            current.roundsStarted >= (goal.maxGoalRounds as number)
+          ) {
+            return invalidGoalFold();
+          }
+          break;
+        case "complete":
+          if (
+            !sameGoalDefinition(current, goal) ||
+            current.phase === "complete" ||
+            goal.phase !== "complete"
+          ) {
+            return invalidGoalFold();
+          }
+          break;
+        case "block":
+          if (
+            !sameGoalDefinition(current, goal) ||
+            current.phase !== "active" ||
+            goal.phase !== "blocked"
+          ) {
+            return invalidGoalFold();
+          }
+          break;
+      }
     }
     current = {
-      id: data.goal.id as string,
-      revision: data.goal.revision as number,
-      phase: data.goal.phase as string,
+      id: goal.id as string,
+      revision: goal.revision as number,
+      objective: goal.objective as string,
+      phase: goal.phase as "active" | "paused" | "blocked" | "complete",
+      maxGoalRounds: goal.maxGoalRounds as number,
+      blockedReason: goal.blockedReason,
       roundsStarted: data.roundsStarted as number,
       createdAt: data.createdAt as number,
       updatedAt: data.updatedAt as number,
     };
+    maximumRoundsStarted = Math.max(maximumRoundsStarted, current.roundsStarted);
   }
-  return true;
+  return { valid: true, maximumRoundsStarted };
 }
 
 function validLifecycle(events: readonly SessionEventRecord[]): boolean {
@@ -405,9 +491,9 @@ export function projectSessionEvidence(input: {
   if (!validLifecycle(events)) invalid = true;
 
   const goalEvents = events.filter((event) => event.type === "goal/change");
-  const goalEvidenceValid = validGoalChangeSequence(goalEvents);
-  if (!goalEvidenceValid) invalid = true;
-  const validGoalEvents = goalEvidenceValid ? goalEvents : [];
+  const goalFold = foldGoalEvidence(events);
+  if (!goalFold.valid) invalid = true;
+  const validGoalEvents = goalFold.valid ? goalEvents : [];
 
   const toolCalls: Record<string, number> = {};
   const callNames = new Map<string, string>();
@@ -516,12 +602,7 @@ export function projectSessionEvidence(input: {
     completion_claim: completionClaim,
     mechanism: {
       goal_created: validGoalEvents.some((event) => recordData(event).operation === "create"),
-      goal_rounds_started: validGoalEvents.reduce((maximum, event) => {
-        const value = recordData(event).roundsStarted;
-        return typeof value === "number" && Number.isSafeInteger(value)
-          ? Math.max(maximum, value)
-          : maximum;
-      }, 0),
+      goal_rounds_started: goalFold.valid ? goalFold.maximumRoundsStarted : 0,
       goal_terminal_phase: phase,
       tool_calls: Object.fromEntries(
         Object.entries(toolCalls).sort(([left], [right]) => left.localeCompare(right)),

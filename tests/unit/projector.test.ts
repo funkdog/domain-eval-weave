@@ -81,9 +81,31 @@ const events = [
     },
   },
   {
-    type: "goal/change",
+    type: "user/message",
     seq: 6,
     time: 7,
+    data: {
+      id: "goal-round-1",
+      role: "user",
+      content: [{ type: "text", text: "Continue the public task." }],
+      source: { kind: "goal", goalId: "goal-1", revision: 1, round: 1 },
+    },
+  },
+  {
+    type: "user/message",
+    seq: 7,
+    time: 8,
+    data: {
+      id: "goal-round-2",
+      role: "user",
+      content: [{ type: "text", text: "Continue the public task." }],
+      source: { kind: "goal", goalId: "goal-1", revision: 1, round: 2 },
+    },
+  },
+  {
+    type: "goal/change",
+    seq: 8,
+    time: 9,
     data: {
       kind: "goal/change",
       version: 1,
@@ -102,14 +124,14 @@ const events = [
   },
   {
     type: "tool/call",
-    seq: 7,
-    time: 8,
+    seq: 9,
+    time: 10,
     data: { turn: 1, step: 1, callId: "call-1", name: "workspace_test", arguments: "{}" },
   },
   {
     type: "tool/result",
-    seq: 8,
-    time: 9,
+    seq: 10,
+    time: 11,
     data: {
       turn: 1,
       step: 1,
@@ -129,8 +151,8 @@ const events = [
   },
   {
     type: "assistant/message",
-    seq: 9,
-    time: 10,
+    seq: 11,
+    time: 12,
     data: {
       turn: 1,
       step: 1,
@@ -146,8 +168,8 @@ const events = [
       usage: { inputTokens: 100, cacheReadTokens: 7, cacheWriteTokens: 3, outputTokens: 20 },
     },
   },
-  { type: "step/end", seq: 10, time: 11, data: { turn: 1, step: 1 } },
-  { type: "turn/end", seq: 11, time: 12, data: { turn: 1, reason: { kind: "completed" } } },
+  { type: "step/end", seq: 12, time: 13, data: { turn: 1, step: 1 } },
+  { type: "turn/end", seq: 13, time: 14, data: { turn: 1, reason: { kind: "completed" } } },
 ] as const;
 
 const project = (candidateEvents: readonly SessionEventRecord[] = events) =>
@@ -156,6 +178,52 @@ const project = (candidateEvents: readonly SessionEventRecord[] = events) =>
     events: candidateEvents,
     expectedPublicTask: "public task",
   });
+
+type UnsequencedEvent = Omit<SessionEventRecord, "seq" | "time">;
+
+const goalSnapshot = (
+  operation: "create" | "edit" | "pause" | "resume" | "complete" | "block",
+  revision: number,
+  phase: "active" | "paused" | "blocked" | "complete",
+  overrides: {
+    readonly objective?: string;
+    readonly maxGoalRounds?: number;
+    readonly roundsStarted?: number;
+    readonly createdAt?: number;
+    readonly updatedAt?: number;
+  } = {},
+): UnsequencedEvent => ({
+  type: "goal/change",
+  data: {
+    kind: "goal/change",
+    version: 1,
+    operation,
+    goal: {
+      id: "goal-1",
+      revision,
+      objective: overrides.objective ?? "finish",
+      phase,
+      maxGoalRounds: overrides.maxGoalRounds ?? 8,
+      ...(phase === "blocked"
+        ? { blockedReason: { code: "needs-input", message: "Needs input" } }
+        : {}),
+    },
+    roundsStarted: overrides.roundsStarted ?? 0,
+    createdAt: overrides.createdAt ?? 1,
+    updatedAt: overrides.updatedAt ?? revision,
+  },
+});
+
+const withGoalEvidence = (rows: readonly UnsequencedEvent[]): SessionEventRecord[] => {
+  const result: UnsequencedEvent[] = [];
+  for (const event of events) {
+    if (event.type === "goal/change") continue;
+    if (event.type === "user/message" && event.data.source.kind === "goal") continue;
+    if (event.type === "tool/call") result.push(...rows);
+    result.push({ type: event.type, data: event.data });
+  }
+  return result.map((event, index) => ({ ...event, seq: index, time: index + 1 }));
+};
 
 test("official-decoder seam rejects packed rows and seq gaps", () => {
   const text = [JSON.stringify(header), ...events.map((event) => JSON.stringify(event))].join("\n");
@@ -295,7 +363,7 @@ test("projector accepts the exact rc.6 clear tombstone shape", () => {
             kind: "goal/change",
             version: 1,
             operation: "clear",
-            cleared: { id: "goal-1", revision: 1 },
+            cleared: { id: "goal-1", revision: 2 },
             clearedAt: 2,
           },
         }
@@ -305,6 +373,116 @@ test("projector accepts the exact rc.6 clear tombstone shape", () => {
   assert.equal(projection.measurement_validity.dimensions.mechanism, "valid");
   assert.equal(projection.mechanism.goal_created, true);
   assert.equal(projection.mechanism.goal_terminal_phase, "none");
+});
+
+test("projector rejects Goal continuation rounds that skip the next admitted round", () => {
+  const skippedRound = withGoalEvidence([
+    goalSnapshot("create", 1, "active"),
+    {
+      type: "user/message",
+      data: {
+        id: "goal-round-2",
+        role: "user",
+        content: [{ type: "text", text: "Continue the public task." }],
+        source: { kind: "goal", goalId: "goal-1", revision: 1, round: 2 },
+      },
+    },
+    goalSnapshot("complete", 2, "complete", { roundsStarted: 2 }),
+  ]);
+  assert.equal(project(skippedRound).measurement_validity.dimensions.mechanism, "invalid");
+});
+
+test("projector rejects rc.6 operations that mutate protected state", () => {
+  const invalidOperations = [
+    goalSnapshot("edit", 2, "paused"),
+    goalSnapshot("pause", 2, "paused", { objective: "tampered" }),
+    goalSnapshot("resume", 2, "active", { objective: "tampered" }),
+    goalSnapshot("complete", 2, "complete", { objective: "tampered" }),
+    goalSnapshot("block", 2, "blocked", { objective: "tampered" }),
+  ] as const;
+
+  for (const invalidOperation of invalidOperations) {
+    const projection = project(
+      withGoalEvidence([goalSnapshot("create", 1, "active"), invalidOperation]),
+    );
+    assert.equal(
+      projection.measurement_validity.dimensions.mechanism,
+      "invalid",
+      String((invalidOperation.data as Record<string, unknown>).operation),
+    );
+  }
+});
+
+test("projector rejects forbidden rc.6 source-phase transitions", () => {
+  const invalidSequences = [
+    [
+      goalSnapshot("create", 1, "active"),
+      goalSnapshot("pause", 2, "paused"),
+      goalSnapshot("pause", 3, "paused"),
+    ],
+    [
+      goalSnapshot("create", 1, "active"),
+      goalSnapshot("complete", 2, "complete"),
+      goalSnapshot("resume", 3, "active"),
+    ],
+    [
+      goalSnapshot("create", 1, "active"),
+      goalSnapshot("pause", 2, "paused"),
+      goalSnapshot("block", 3, "blocked"),
+    ],
+    [
+      goalSnapshot("create", 1, "active"),
+      goalSnapshot("complete", 2, "complete"),
+      goalSnapshot("complete", 3, "complete"),
+    ],
+  ] as const;
+
+  for (const sequence of invalidSequences) {
+    assert.equal(
+      project(withGoalEvidence(sequence)).measurement_validity.dimensions.mechanism,
+      "invalid",
+    );
+  }
+});
+
+test("projector accepts the official rc.6 edit and phase-transition sequence", () => {
+  const changedDefinition = { objective: "finish safely", maxGoalRounds: 6 } as const;
+  const projection = project(
+    withGoalEvidence([
+      goalSnapshot("create", 1, "active"),
+      goalSnapshot("edit", 2, "active", changedDefinition),
+      goalSnapshot("pause", 3, "paused", changedDefinition),
+      goalSnapshot("resume", 4, "active", changedDefinition),
+      goalSnapshot("block", 5, "blocked", changedDefinition),
+      goalSnapshot("resume", 6, "active", changedDefinition),
+      goalSnapshot("complete", 7, "complete", changedDefinition),
+    ]),
+  );
+
+  assert.equal(projection.measurement_validity.dimensions.mechanism, "valid");
+  assert.equal(projection.mechanism.goal_terminal_phase, "complete");
+});
+
+test("projector rejects resume after the Goal round budget is exhausted", () => {
+  const oneRound = { maxGoalRounds: 1 } as const;
+  const projection = project(
+    withGoalEvidence([
+      goalSnapshot("create", 1, "active", oneRound),
+      {
+        type: "user/message",
+        data: {
+          id: "goal-round-1",
+          role: "user",
+          content: [{ type: "text", text: "Continue the public task." }],
+          source: { kind: "goal", goalId: "goal-1", revision: 1, round: 1 },
+        },
+      },
+      goalSnapshot("pause", 2, "paused", { ...oneRound, roundsStarted: 1 }),
+      goalSnapshot("resume", 3, "active", { ...oneRound, roundsStarted: 1 }),
+    ]),
+  );
+
+  assert.equal(projection.measurement_validity.dimensions.mechanism, "invalid");
 });
 
 test("open lifecycle boundaries and model-facing tool errors invalidate or count correctly", () => {
@@ -358,7 +536,7 @@ test("external completion and false-completion stay separate from the Agent clai
 });
 
 test("a treatment that never creates Goal is mechanism-insufficient, not an outcome failure", () => {
-  const projection = project(events.filter((event) => event.type !== "goal/change"));
+  const projection = project(withGoalEvidence([]));
   const behavior = {
     basic_reservation: "pass",
     idempotent_replay: "pass",
