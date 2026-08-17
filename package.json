@@ -1,0 +1,48 @@
+{
+  "name": "dsh-eval-lab",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH-native controlled harness evaluation plugin",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "exports": {
+    "./app": "./dist/app/index.js",
+    "./bridge": "./dist/bridge/index.js"
+  },
+  "files": [
+    "dist",
+    "contracts",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "lint": "tsc -p tsconfig.test.json",
+    "prepare": "pnpm build",
+    "test": "node --import tsx --test tests/unit/*.test.ts tests/contract/*.test.ts",
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:contract": "node --import tsx --test tests/contract/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2",
+    "yaml": "2.9.0"
+  }
+}

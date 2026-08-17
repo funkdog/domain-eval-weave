@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/experiment.schema.json",
+  "title": "DSH Eval Lab ExperimentSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "campaign_id",
+    "created_at",
+    "domain",
+    "eval_pack_id",
+    "task_pack_digest",
+    "control_variant_digest",
+    "treatment_variant_digest",
+    "intervention",
+    "arm_order",
+    "timeout_ms_per_arm",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "campaign_id": { "$ref": "#/$defs/id" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "domain": { "const": "open-coding-delivery" },
+    "eval_pack_id": { "const": "open-coding-delivery-v1" },
+    "task_pack_digest": { "$ref": "#/$defs/sha256" },
+    "control_variant_digest": { "$ref": "#/$defs/sha256" },
+    "treatment_variant_digest": { "$ref": "#/$defs/sha256" },
+    "intervention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "allowed_config_paths"],
+      "properties": {
+        "id": { "const": "dsh-goal-stack" },
+        "allowed_config_paths": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "goal.disabled" },
+            { "const": "goal-round-driver.disabled" },
+            { "const": "command-goal.disabled" },
+            { "const": "tool-goal.disabled" }
+          ],
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "arm_order": {
+      "type": "array",
+      "items": { "enum": ["control", "treatment"] },
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true
+    },
+    "timeout_ms_per_arm": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5400000
+    },
+    "claim_strength": { "const": "diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
