@@ -1,0 +1,16 @@
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Defense in depth only. Runtime data must live in the separate 0700 root.
+.env
+.env.*
+*.pem
+*.key
+*auth*.json
+dsh-home/
+sessions/
+workspaces/
+campaigns/
