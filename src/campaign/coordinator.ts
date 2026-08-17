@@ -18,6 +18,7 @@ import {
   parseEpisodeRecord,
   parseExperimentSpec,
   parsePairedEvaluationArtifact,
+  parsePairedImpactReport,
 } from "../contracts/parsers.js";
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import {
@@ -33,6 +34,7 @@ export interface ArmExecutionOutput {
   readonly sessionId: string;
   readonly sessionLog: string | Uint8Array;
   readonly candidateTree: string;
+  readonly candidatePatch: Uint8Array;
   readonly candidateArchive: Uint8Array;
   readonly workspaceBaseDigest: string;
   readonly process: EpisodeRecord["process"];
@@ -81,13 +83,15 @@ async function persistArm(
   assertSecretFreeText(sessionText);
   assertSecretFreeText(output.stdout ?? "");
   assertSecretFreeText(output.stderr ?? "");
-  const [sessionPointer, archivePointer] = await Promise.all([
-    writeArtifactBytes(campaignRoot, armRef(arm, "session.jsonl"), output.sessionLog),
-    writeArtifactBytes(campaignRoot, armRef(arm, "candidate.tar"), output.candidateArchive),
-    writeArtifactBytes(campaignRoot, armRef(arm, "stdout.txt"), output.stdout ?? ""),
-    writeArtifactBytes(campaignRoot, armRef(arm, "stderr.txt"), output.stderr ?? ""),
-    writeArtifactBytes(campaignRoot, armRef(arm, "candidate.tree"), `${output.candidateTree}\n`),
-  ]);
+  const [sessionPointer, archivePointer, stdoutPointer, stderrPointer, treePointer, patchPointer] =
+    await Promise.all([
+      writeArtifactBytes(campaignRoot, armRef(arm, "session.jsonl"), output.sessionLog),
+      writeArtifactBytes(campaignRoot, armRef(arm, "candidate.tar"), output.candidateArchive),
+      writeArtifactBytes(campaignRoot, armRef(arm, "stdout.txt"), output.stdout ?? ""),
+      writeArtifactBytes(campaignRoot, armRef(arm, "stderr.txt"), output.stderr ?? ""),
+      writeArtifactBytes(campaignRoot, armRef(arm, "candidate.tree"), `${output.candidateTree}\n`),
+      writeArtifactBytes(campaignRoot, armRef(arm, "candidate.patch"), output.candidatePatch),
+    ]);
   const episode: EpisodeRecord = {
     schema_version: 1,
     episode_id: `${experiment.campaign_id}-${arm}`,
@@ -102,8 +106,16 @@ async function persistArm(
       session_log_ref: sessionPointer.ref,
       session_log_sha256: sessionPointer.sha256,
       candidate_tree: output.candidateTree,
+      candidate_tree_ref: treePointer.ref,
+      candidate_tree_sha256: treePointer.sha256,
+      candidate_patch_ref: patchPointer.ref,
+      candidate_patch_sha256: patchPointer.sha256,
       candidate_archive_ref: archivePointer.ref,
       candidate_archive_sha256: archivePointer.sha256,
+      stdout_ref: stdoutPointer.ref,
+      stdout_sha256: stdoutPointer.sha256,
+      stderr_ref: stderrPointer.ref,
+      stderr_sha256: stderrPointer.sha256,
     },
     infrastructure_errors: [],
   };
@@ -331,5 +343,75 @@ export async function rebuildCampaignReport(input: {
     markdown,
   );
   await replayPairedImpactReport(input.campaignRoot, reportPointer);
+  return { report, reportPointer, markdownPointer };
+}
+
+export async function writeMeasurementInvalidReport(input: {
+  readonly campaignRoot: string;
+  readonly frozenReportPointer: ArtifactPointer;
+}): Promise<{
+  readonly report: PairedImpactReport;
+  readonly reportPointer: ArtifactPointer;
+  readonly markdownPointer: ArtifactPointer;
+}> {
+  const frozen = await readJsonArtifact(input.campaignRoot, input.frozenReportPointer, (value) => {
+    const parsed = parsePairedImpactReport(value);
+    return parsed;
+  });
+  const diagnostic = {
+    code: "ARTIFACT_INTEGRITY_FAILURE",
+    severity: "error" as const,
+    message: "Frozen Campaign evidence failed digest or cross-reference validation.",
+    evidence_refs: [],
+  };
+  const invalidValidity = {
+    overall: "invalid" as const,
+    dimensions: {
+      outcome: "invalid" as const,
+      mechanism: "invalid" as const,
+      cost: "invalid" as const,
+    },
+    reasons: [diagnostic],
+  };
+  const invalidateArm = (arm: EvaluationResult): EvaluationResult => ({
+    ...arm,
+    measurement_validity: invalidValidity,
+    outcome: {
+      ...arm.outcome,
+      externally_verified_completion: null,
+      false_completion_claim: null,
+    },
+    hard_gates: Object.fromEntries([
+      ...Object.keys(arm.hard_gates).map((name) => [name, "unknown"] as const),
+      ["artifact_integrity", "fail"],
+    ]),
+  });
+  const report: PairedImpactReport = {
+    ...frozen,
+    measurement_validity: invalidValidity,
+    arms: {
+      control: invalidateArm(frozen.arms.control),
+      treatment: invalidateArm(frozen.arms.treatment),
+    },
+    known_blind_spots: [
+      ...frozen.known_blind_spots.filter((item) => item.code !== diagnostic.code),
+      diagnostic,
+    ],
+    recommendation: {
+      action: "run_more",
+      rationale_codes: [diagnostic.code],
+    },
+  };
+  const reportPointer = await writeCanonicalJsonArtifact(
+    input.campaignRoot,
+    "artifact://campaign/measurement-invalid.json",
+    report,
+  );
+  const markdown = renderPairedReportMarkdown(report);
+  const markdownPointer = await writeArtifactBytes(
+    input.campaignRoot,
+    "artifact://campaign/measurement-invalid.md",
+    markdown,
+  );
   return { report, reportPointer, markdownPointer };
 }

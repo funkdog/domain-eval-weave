@@ -104,6 +104,7 @@ function validLifecycle(events: readonly SessionEventRecord[]): boolean {
 
 export interface SessionProjection {
   readonly measurement_validity: MeasurementValidity;
+  readonly prompt_isolation_valid: boolean;
   readonly completion_claim: "complete" | "blocked" | "absent";
   readonly mechanism: {
     readonly goal_created: boolean;
@@ -129,12 +130,43 @@ export interface SessionProjection {
 export function projectSessionEvidence(input: {
   readonly header: SessionHeaderRecord;
   readonly events: readonly SessionEventRecord[];
+  readonly expectedPublicTask: string;
 }): SessionProjection {
   const seedBoundary = input.events.findLastIndex((event) => event.type === "session/end-seed");
   const events = input.events.slice(seedBoundary + 1);
   const presentTypes = new Set(events.map((event) => event.type));
   const reasons: Diagnostic[] = [];
   let invalid = false;
+
+  const userMessages = events.filter((event) => event.type === "user/message");
+  const directUserMessages = userMessages.filter((event) => {
+    const source = recordData(event).source;
+    return isRecord(source) && source.kind === "user";
+  });
+  const textOf = (event: SessionEventRecord): string | undefined => {
+    const data = recordData(event);
+    if (data.role !== "user" || !Array.isArray(data.content) || data.content.length === 0) {
+      return undefined;
+    }
+    if (
+      !data.content.every(
+        (block) => isRecord(block) && block.type === "text" && typeof block.text === "string",
+      )
+    ) {
+      return undefined;
+    }
+    return data.content.map((block) => (block as Record<string, string>).text).join("");
+  };
+  const forbiddenPromptEvidence =
+    /(?:\b(?:oracle|gold|control|treatment)\b|(?:^|[\s"'`])arm\s*[:=]|\/campaigns\/|\/oracle(?:\/|$)|report\.(?:json|md))/i;
+  const promptIsolationValid =
+    directUserMessages.length === 1 &&
+    textOf(directUserMessages[0] as SessionEventRecord) === input.expectedPublicTask &&
+    userMessages.every((event) => {
+      const text = textOf(event);
+      return text !== undefined && !forbiddenPromptEvidence.test(text);
+    });
+  if (!promptIsolationValid) invalid = true;
 
   for (const event of events) {
     if (!KNOWN_SESSION_EVENT_TYPES.has(event.type) && event.ignorable !== true) invalid = true;
@@ -295,6 +327,14 @@ export function projectSessionEvidence(input: {
       evidence_refs: [],
     });
   }
+  if (!promptIsolationValid) {
+    reasons.push({
+      code: "PROMPT_ISOLATION_INVALID",
+      severity: "error",
+      message: "The model-facing prompt did not match the frozen public task boundary.",
+      evidence_refs: [],
+    });
+  }
   const lastText = assistantMessages
     .map(assistantText)
     .filter((text) => text !== undefined)
@@ -324,6 +364,7 @@ export function projectSessionEvidence(input: {
       },
       reasons,
     },
+    prompt_isolation_valid: promptIsolationValid,
     completion_claim: completionClaim,
     mechanism: {
       goal_created: goalEvents.some((event) => recordData(event).operation === "create"),

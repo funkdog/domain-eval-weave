@@ -38,6 +38,21 @@
     "evidence": {
       "type": "object",
       "additionalProperties": false,
+      "required": [
+        "session_log_ref",
+        "session_log_sha256",
+        "candidate_tree",
+        "candidate_tree_ref",
+        "candidate_tree_sha256",
+        "candidate_patch_ref",
+        "candidate_patch_sha256",
+        "candidate_archive_ref",
+        "candidate_archive_sha256",
+        "stdout_ref",
+        "stdout_sha256",
+        "stderr_ref",
+        "stderr_sha256"
+      ],
       "properties": {
         "session_log_ref": { "$ref": "#/$defs/artifactRef" },
         "session_log_sha256": { "$ref": "#/$defs/sha256" },
@@ -45,14 +60,16 @@
           "type": "string",
           "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
         },
+        "candidate_tree_ref": { "$ref": "#/$defs/artifactRef" },
+        "candidate_tree_sha256": { "$ref": "#/$defs/sha256" },
+        "candidate_patch_ref": { "$ref": "#/$defs/artifactRef" },
+        "candidate_patch_sha256": { "$ref": "#/$defs/sha256" },
         "candidate_archive_ref": { "$ref": "#/$defs/artifactRef" },
-        "candidate_archive_sha256": { "$ref": "#/$defs/sha256" }
-      },
-      "dependentRequired": {
-        "session_log_ref": ["session_log_sha256"],
-        "session_log_sha256": ["session_log_ref"],
-        "candidate_archive_ref": ["candidate_archive_sha256"],
-        "candidate_archive_sha256": ["candidate_archive_ref"]
+        "candidate_archive_sha256": { "$ref": "#/$defs/sha256" },
+        "stdout_ref": { "$ref": "#/$defs/artifactRef" },
+        "stdout_sha256": { "$ref": "#/$defs/sha256" },
+        "stderr_ref": { "$ref": "#/$defs/artifactRef" },
+        "stderr_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
     "infrastructure_errors": {

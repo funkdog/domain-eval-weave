@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
-
+import { EXIT_CODE } from "../../src/app/args.js";
+import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 import { rebuildCampaignReport, runPairedCampaign } from "../../src/campaign/coordinator.js";
 import { CampaignStateStore } from "../../src/campaign/state.js";
 import { parseEvaluationResult, parseExperimentSpec } from "../../src/contracts/parsers.js";
@@ -21,7 +23,7 @@ const taskPackIdentity = parseTaskPackIdentity(validTaskPackIdentity);
 const evaluated = (result: ReturnType<typeof parseEvaluationResult>) => ({
   result,
   behavior: result.outcome.behavior_vector,
-  oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v1" },
+  oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v2" },
 });
 
 test("fake paired Campaign runs arms serially and artifact-only rebuild keeps the report digest", async () => {
@@ -50,6 +52,7 @@ test("fake paired Campaign runs arms serially and artifact-only rebuild keeps th
           sessionId: `session-${arm}`,
           sessionLog: `${JSON.stringify({ type: "session", arm })}\n`,
           candidateTree: arm === "control" ? "1".repeat(40) : "2".repeat(40),
+          candidatePatch: Buffer.from(`${arm}-patch`, "utf8"),
           candidateArchive: Buffer.from(`${arm}-candidate`, "utf8"),
           workspaceBaseDigest: taskPackIdentity.pack.base_tree_sha256,
           process: {
@@ -108,6 +111,60 @@ test("an interrupted arm persists interrupted state and never reports", async ()
   }
 });
 
+test("report corruption writes a separate measurement-invalid report without overwriting", async () => {
+  const campaignId = `campaign-invalid-report-${randomUUID()}`;
+  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
+  const experiment = parseExperimentSpec({ ...validExperiment, campaign_id: campaignId });
+  const controlEvaluation = parseEvaluationResult(validEvaluation);
+  const treatmentEvaluation = parseEvaluationResult(validTreatmentEvaluation);
+  try {
+    await runPairedCampaign({
+      campaignRoot,
+      experiment,
+      variants,
+      taskPackIdentity,
+      executeArm: async (arm) => ({
+        sessionId: `session-${arm}`,
+        sessionLog: `${JSON.stringify({ type: "session", arm })}\n`,
+        candidateTree: arm === "control" ? "1".repeat(40) : "2".repeat(40),
+        candidatePatch: Buffer.from(`${arm}-patch`),
+        candidateArchive: Buffer.from(`${arm}-candidate`),
+        workspaceBaseDigest: taskPackIdentity.pack.base_tree_sha256,
+        process: {
+          started_at: "2026-08-17T10:00:00.000Z",
+          ended_at: "2026-08-17T10:01:00.000Z",
+          exit_code: 0,
+          signal: null,
+          timed_out: false,
+        },
+      }),
+      evaluateArm: async (arm) =>
+        evaluated(arm === "control" ? controlEvaluation : treatmentEvaluation),
+    });
+    const originalReport = await readFile(`${campaignRoot}/report.json`);
+    await writeFile(`${campaignRoot}/arms/control/candidate.patch`, "tampered-patch", "utf8");
+    let stdout = "";
+    let stderr = "";
+    const executor = new DefaultAppExecutor({
+      stdout: (text) => (stdout += text),
+      stderr: (text) => (stderr += text),
+    });
+    assert.equal(
+      await executor.execute({ kind: "report", campaignId }),
+      EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+    );
+    assert.match(stdout, /Overall: \*\*invalid\*\*/);
+    assert.match(stderr, /ARTIFACT_INTEGRITY_FAILURE/);
+    assert.deepEqual(await readFile(`${campaignRoot}/report.json`), originalReport);
+    const invalid = JSON.parse(await readFile(`${campaignRoot}/measurement-invalid.json`, "utf8"));
+    assert.equal(invalid.measurement_validity.overall, "invalid");
+    assert.equal(invalid.recommendation.action, "run_more");
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
 test("secret-shaped carrier output is rejected before any transcript or stdout artifact persists", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
@@ -124,6 +181,7 @@ test("secret-shaped carrier output is rejected before any transcript or stdout a
           sessionId: `session-${arm}`,
           sessionLog: "access_token=synthetic-forbidden\n",
           candidateTree: "1".repeat(40),
+          candidatePatch: Buffer.from("candidate-patch"),
           candidateArchive: Buffer.from("candidate"),
           workspaceBaseDigest: taskPackIdentity.pack.base_tree_sha256,
           process: {
@@ -229,6 +287,7 @@ test("fake paired Campaign covers the frozen outcome, Goal activation, and usage
           sessionId: `session-${arm}`,
           sessionLog: `${JSON.stringify({ type: "session", arm })}\n`,
           candidateTree: arm === "control" ? "1".repeat(40) : "2".repeat(40),
+          candidatePatch: Buffer.from(`${arm}-patch`),
           candidateArchive: Buffer.from(`${arm}-candidate`),
           workspaceBaseDigest: taskPackIdentity.pack.base_tree_sha256,
           process: {

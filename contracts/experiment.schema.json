@@ -13,6 +13,7 @@
     "task_pack_digest",
     "control_variant_digest",
     "treatment_variant_digest",
+    "deployment",
     "intervention",
     "arm_order",
     "timeout_ms_per_arm",
@@ -28,6 +29,17 @@
     "task_pack_digest": { "$ref": "#/$defs/sha256" },
     "control_variant_digest": { "$ref": "#/$defs/sha256" },
     "treatment_variant_digest": { "$ref": "#/$defs/sha256" },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["digest", "eval_package_sha256", "qualification", "calibration"],
+      "properties": {
+        "digest": { "$ref": "#/$defs/sha256" },
+        "eval_package_sha256": { "$ref": "#/$defs/sha256" },
+        "qualification": { "$ref": "#/$defs/qualificationEvidence" },
+        "calibration": { "$ref": "#/$defs/calibrationEvidence" }
+      }
+    },
     "intervention": {
       "type": "object",
       "additionalProperties": false,
@@ -70,6 +82,86 @@
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "qualificationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "ready",
+        "deployment_digest",
+        "session_id",
+        "common_tool_schema_sha256"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "ready": { "const": true },
+        "deployment_digest": { "$ref": "#/$defs/sha256" },
+        "session_id": { "$ref": "#/$defs/id" },
+        "common_tool_schema_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "calibrationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "ready",
+        "task_pack_digest",
+        "calibration_digest",
+        "eval_package_sha256",
+        "candidates",
+        "repeatable",
+        "seed_stable"
+      ],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "ready": { "const": true },
+        "task_pack_digest": { "$ref": "#/$defs/sha256" },
+        "calibration_digest": { "$ref": "#/$defs/sha256" },
+        "eval_package_sha256": { "$ref": "#/$defs/sha256" },
+        "candidates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "red",
+            "gold",
+            "no_lock_failures",
+            "no_persistence_failures",
+            "corrupt_resets_failures"
+          ],
+          "properties": {
+            "red": { "$ref": "#/$defs/behaviorStatuses" },
+            "gold": { "$ref": "#/$defs/behaviorStatuses" },
+            "no_lock_failures": {
+              "type": "array",
+              "prefixItems": [{ "const": "no_oversubscription_concurrent" }],
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "no_persistence_failures": {
+              "type": "array",
+              "prefixItems": [{ "const": "restart_recovery" }],
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "corrupt_resets_failures": {
+              "type": "array",
+              "prefixItems": [{ "const": "corrupt_state_fail_closed" }],
+              "minItems": 1,
+              "maxItems": 1
+            }
+          }
+        },
+        "repeatable": { "const": true },
+        "seed_stable": { "const": true }
+      }
+    },
+    "behaviorStatuses": {
+      "type": "array",
+      "items": { "enum": ["pass", "fail", "error"] },
+      "minItems": 8,
+      "maxItems": 8
     }
   }
 }

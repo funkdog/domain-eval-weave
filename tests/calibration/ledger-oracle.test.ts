@@ -68,6 +68,44 @@ test("the seeded Oracle produces byte-identical vectors for the same candidate a
   }
 });
 
+test("Oracle rejects candidates that accept invalid integers or unknown state versions", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/oracle-invalid-contract-`);
+  const invalidIntegers = `${scratch}/invalid-integers`;
+  const unknownVersion = `${scratch}/unknown-version`;
+  const gold = `${packRoot}/calibration/gold-equivalent`;
+  await Promise.all([
+    cp(gold, invalidIntegers, { recursive: true }),
+    cp(gold, unknownVersion, { recursive: true }),
+  ]);
+  const invalidLedger = `${invalidIntegers}/src/ledger.ts`;
+  const versionLedger = `${unknownVersion}/src/ledger.ts`;
+  await writeFile(
+    invalidLedger,
+    (await readFile(invalidLedger, "utf8"))
+      .replace('positive(capacity, "capacity");', "")
+      .replace('positive(request.units, "units");', ""),
+  );
+  await writeFile(
+    versionLedger,
+    (await readFile(versionLedger, "utf8")).replace("value.version !== 1 || ", ""),
+  );
+  const oracle = new LedgerOracle({
+    runner: new StrictProcessRunner(),
+    oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
+  });
+
+  try {
+    const invalid = await oracle.evaluateDirectory(invalidIntegers, 42, `${scratch}/checks-a`);
+    const version = await oracle.evaluateDirectory(unknownVersion, 42, `${scratch}/checks-b`);
+    assert.equal(invalid.basic_reservation, "fail");
+    assert.equal(version.corrupt_state_fail_closed, "fail");
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
 test("candidate code cannot read the hidden Oracle source during evaluation", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });

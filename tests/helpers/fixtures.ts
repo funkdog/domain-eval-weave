@@ -18,6 +18,7 @@ export const validControlVariant = {
   },
   dsh_package_tree_sha256: DIGEST_C,
   codex_connect_package_sha256: DIGEST_D,
+  eval_package_sha256: DIGEST_D,
   model_route: {
     provider: "openai-codex",
     model: "gpt-5.6-sol",
@@ -57,13 +58,51 @@ export const validTaskPackIdentity = {
     allowed_candidate_globs: ["src/**"],
     forbidden_entry_types: ["symlink", "submodule"],
     public_test_command: ["node", "--test", "test/public/*.test.ts"],
-    oracle_version: "ledger-oracle-v1",
+    oracle_version: "ledger-oracle-v2",
     calibration_digest: DIGEST_B,
   },
   public_task_sha256: DIGEST_C,
   oracle_runner_sha256: DIGEST_D,
 } as const;
 export const TASK_PACK_DIGEST = sha256Hex(canonicalJson(validTaskPackIdentity));
+
+export const DEPLOYMENT_DIGEST = sha256Hex(
+  canonicalJson({
+    control: validControlVariant.resolved_config_sha256,
+    treatment: validTreatmentVariant.resolved_config_sha256,
+    task_pack: TASK_PACK_DIGEST,
+    model: { provider: "openai-codex", model: "gpt-5.6-sol", effort: "xhigh" },
+    dsh_package_tree: validControlVariant.dsh_package_tree_sha256,
+    codex_connect_package: validControlVariant.codex_connect_package_sha256,
+    eval_package: validControlVariant.eval_package_sha256,
+    common_patch: validControlVariant.common_patch_sha256,
+  }),
+);
+
+export const validQualificationEvidence = {
+  schema_version: 1,
+  ready: true,
+  deployment_digest: DEPLOYMENT_DIGEST,
+  session_id: "qualification-session-m0",
+  common_tool_schema_sha256: validControlVariant.tool_schema_sha256,
+} as const;
+
+export const validCalibrationEvidence = {
+  schema_version: 1,
+  ready: true,
+  task_pack_digest: TASK_PACK_DIGEST,
+  calibration_digest: validTaskPackIdentity.pack.calibration_digest,
+  eval_package_sha256: validControlVariant.eval_package_sha256,
+  candidates: {
+    red: ["fail", "fail", "fail", "fail", "fail", "fail", "fail", "fail"],
+    gold: ["pass", "pass", "pass", "pass", "pass", "pass", "pass", "pass"],
+    no_lock_failures: ["no_oversubscription_concurrent"],
+    no_persistence_failures: ["restart_recovery"],
+    corrupt_resets_failures: ["corrupt_state_fail_closed"],
+  },
+  repeatable: true,
+  seed_stable: true,
+} as const;
 
 export const validExperiment = {
   schema_version: 1,
@@ -74,6 +113,12 @@ export const validExperiment = {
   task_pack_digest: TASK_PACK_DIGEST,
   control_variant_digest: CONTROL_VARIANT_DIGEST,
   treatment_variant_digest: TREATMENT_VARIANT_DIGEST,
+  deployment: {
+    digest: DEPLOYMENT_DIGEST,
+    eval_package_sha256: validControlVariant.eval_package_sha256,
+    qualification: validQualificationEvidence,
+    calibration: validCalibrationEvidence,
+  },
   intervention: {
     id: "dsh-goal-stack",
     allowed_config_paths: [
@@ -108,8 +153,16 @@ export const validEpisode = {
     session_log_ref: "artifact://campaign/arms/control/session.jsonl",
     session_log_sha256: DIGEST_A,
     candidate_tree: "d".repeat(40),
+    candidate_tree_ref: "artifact://campaign/arms/control/candidate.tree",
+    candidate_tree_sha256: DIGEST_C,
+    candidate_patch_ref: "artifact://campaign/arms/control/candidate.patch",
+    candidate_patch_sha256: DIGEST_D,
     candidate_archive_ref: "artifact://campaign/arms/control/candidate.tar",
     candidate_archive_sha256: DIGEST_B,
+    stdout_ref: "artifact://campaign/arms/control/stdout.txt",
+    stdout_sha256: DIGEST_C,
+    stderr_ref: "artifact://campaign/arms/control/stderr.txt",
+    stderr_sha256: DIGEST_D,
   },
   infrastructure_errors: [],
 } as const;
@@ -123,7 +176,11 @@ export const validTreatmentEpisode = {
   evidence: {
     ...validEpisode.evidence,
     session_log_ref: "artifact://campaign/arms/treatment/session.jsonl",
+    candidate_tree_ref: "artifact://campaign/arms/treatment/candidate.tree",
+    candidate_patch_ref: "artifact://campaign/arms/treatment/candidate.patch",
     candidate_archive_ref: "artifact://campaign/arms/treatment/candidate.tar",
+    stdout_ref: "artifact://campaign/arms/treatment/stdout.txt",
+    stderr_ref: "artifact://campaign/arms/treatment/stderr.txt",
   },
 } as const;
 

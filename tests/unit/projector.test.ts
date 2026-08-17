@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { decodeOfficialSessionJsonl, decodeSessionJsonl } from "../../src/projector/jsonl.js";
+import {
+  decodeOfficialSessionJsonl,
+  decodeSessionJsonl,
+  type SessionEventRecord,
+} from "../../src/projector/jsonl.js";
 import { projectSessionEvidence } from "../../src/projector/projector.js";
 import { evaluationFromEvidence } from "../../src/validity/evaluation.js";
 
@@ -146,6 +150,13 @@ const events = [
   { type: "turn/end", seq: 11, time: 12, data: { turn: 1, reason: { kind: "completed" } } },
 ] as const;
 
+const project = (candidateEvents: readonly SessionEventRecord[] = events) =>
+  projectSessionEvidence({
+    header,
+    events: candidateEvents,
+    expectedPublicTask: "public task",
+  });
+
 test("official-decoder seam rejects packed rows and seq gaps", () => {
   const text = [JSON.stringify(header), ...events.map((event) => JSON.stringify(event))].join("\n");
   const decoded = decodeSessionJsonl(text, (record) => [record]);
@@ -166,7 +177,7 @@ test("official-decoder seam rejects packed rows and seq gaps", () => {
 });
 
 test("projector folds real rc.6 Goal, messages, tools, lifecycle, and usage", () => {
-  const projection = projectSessionEvidence({ header, events });
+  const projection = project(events);
   assert.equal(projection.measurement_validity.overall, "valid");
   assert.equal(projection.completion_claim, "complete");
   assert.deepEqual(projection.mechanism, {
@@ -183,7 +194,24 @@ test("projector folds real rc.6 Goal, messages, tools, lifecycle, and usage", ()
     output_tokens: 20,
     failed_tool_calls: 0,
   });
-  assert.deepEqual(projectSessionEvidence({ header, events }), projection);
+  assert.deepEqual(project(events), projection);
+});
+
+test("projector invalidates a Session whose user task differs from the frozen public prompt", () => {
+  const poisoned = events.map((event) =>
+    event.type === "user/message" && event.data.source.kind === "user"
+      ? {
+          ...event,
+          data: {
+            ...event.data,
+            content: [{ type: "text", text: "public task\narm=treatment" }],
+          },
+        }
+      : event,
+  );
+  const projection = project(poisoned);
+  assert.equal(projection.measurement_validity.overall, "invalid");
+  assert.equal(projection.prompt_isolation_valid, false);
 });
 
 test("missing usage abstains on token cost without invalidating mechanism", () => {
@@ -195,7 +223,7 @@ test("missing usage abstains on token cost without invalidating mechanism", () =
         }
       : event,
   );
-  const projection = projectSessionEvidence({ header, events: withoutUsage });
+  const projection = project(withoutUsage);
   assert.equal(projection.measurement_validity.dimensions.cost, "insufficient");
   assert.equal(projection.measurement_validity.dimensions.mechanism, "valid");
   assert.equal(projection.cost.input_tokens, null);
@@ -216,7 +244,7 @@ test("missing terminal token abstains on claim interpretation while preserving O
         }
       : event,
   );
-  const projection = projectSessionEvidence({ header, events: withoutClaim });
+  const projection = project(withoutClaim);
   assert.equal(projection.completion_claim, "absent");
   assert.equal(projection.measurement_validity.overall, "insufficient");
   assert.equal(projection.measurement_validity.dimensions.outcome, "valid");
@@ -230,27 +258,18 @@ test("known rc.6 lifecycle events are tolerated while unknown required events in
     { type: "assistant/chunk", seq: 11, time: 12, data: { turn: 1, step: 1, chunk: {} } },
     { ...terminalEvent, seq: 12, time: 13 },
   ];
-  assert.equal(
-    projectSessionEvidence({ header, events: known }).measurement_validity.overall,
-    "valid",
-  );
+  assert.equal(project(known).measurement_validity.overall, "valid");
 
   const unknown = [
     ...events,
     { type: "future/required", seq: 12, time: 13, data: {}, ignorable: false },
   ];
-  assert.equal(
-    projectSessionEvidence({ header, events: unknown }).measurement_validity.overall,
-    "invalid",
-  );
+  assert.equal(project(unknown).measurement_validity.overall, "invalid");
 });
 
 test("open lifecycle boundaries and model-facing tool errors invalidate or count correctly", () => {
   const openStep = events.filter((event) => event.type !== "step/end");
-  assert.equal(
-    projectSessionEvidence({ header, events: openStep }).measurement_validity.overall,
-    "invalid",
-  );
+  assert.equal(project(openStep).measurement_validity.overall, "invalid");
 
   const failed = events.map((event) =>
     event.type === "tool/result"
@@ -266,11 +285,11 @@ test("open lifecycle boundaries and model-facing tool errors invalidate or count
         }
       : event,
   );
-  assert.equal(projectSessionEvidence({ header, events: failed }).cost.failed_tool_calls, 1);
+  assert.equal(project(failed).cost.failed_tool_calls, 1);
 });
 
 test("external completion and false-completion stay separate from the Agent claim", () => {
-  const projection = projectSessionEvidence({ header, events });
+  const projection = project(events);
   const behavior = {
     basic_reservation: "pass",
     idempotent_replay: "pass",
@@ -299,10 +318,7 @@ test("external completion and false-completion stay separate from the Agent clai
 });
 
 test("a treatment that never creates Goal is mechanism-insufficient, not an outcome failure", () => {
-  const projection = projectSessionEvidence({
-    header,
-    events: events.filter((event) => event.type !== "goal/change"),
-  });
+  const projection = project(events.filter((event) => event.type !== "goal/change"));
   const behavior = {
     basic_reservation: "pass",
     idempotent_replay: "pass",

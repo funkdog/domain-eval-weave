@@ -1,3 +1,4 @@
+import { fingerprintEvalDeployment } from "../fingerprint/deployment.js";
 import { parseTaskPackIdentity, type TaskPackIdentity } from "../task-pack/loader.js";
 import {
   ArtifactIntegrityError,
@@ -109,6 +110,30 @@ function assertArmEvaluationBinding(
   }
 }
 
+async function verifyEpisodeEvidenceBytes(
+  campaignRoot: string,
+  arm: "control" | "treatment",
+  episode: EpisodeRecord,
+): Promise<void> {
+  const pointers: ArtifactPointer[] = [
+    { ref: episode.evidence.session_log_ref, sha256: episode.evidence.session_log_sha256 },
+    { ref: episode.evidence.candidate_tree_ref, sha256: episode.evidence.candidate_tree_sha256 },
+    { ref: episode.evidence.candidate_patch_ref, sha256: episode.evidence.candidate_patch_sha256 },
+    {
+      ref: episode.evidence.candidate_archive_ref,
+      sha256: episode.evidence.candidate_archive_sha256,
+    },
+    { ref: episode.evidence.stdout_ref, sha256: episode.evidence.stdout_sha256 },
+    { ref: episode.evidence.stderr_ref, sha256: episode.evidence.stderr_sha256 },
+  ];
+  const bytes = await Promise.all(
+    pointers.map((pointer) => readArtifactBytes(campaignRoot, pointer)),
+  );
+  if (bytes[1]?.toString("utf8") !== `${episode.evidence.candidate_tree}\n`) {
+    crossReferenceFailure(`${arm} candidate tree artifact does not match the Episode tree`);
+  }
+}
+
 export async function replayPairedImpactReport(
   campaignRoot: string,
   reportPointer: ArtifactPointer,
@@ -168,6 +193,7 @@ export async function replayPairedImpactReport(
     common_patch_sha256: variant.common_patch_sha256,
     dsh_package_tree_sha256: variant.dsh_package_tree_sha256,
     codex_connect_package_sha256: variant.codex_connect_package_sha256,
+    eval_package_sha256: variant.eval_package_sha256,
     model_route: variant.model_route,
     tool_schema_sha256: variant.tool_schema_sha256,
     tools_mode: variant.tools_mode,
@@ -178,6 +204,32 @@ export async function replayPairedImpactReport(
     canonicalJson(commonVariantFace(treatmentVariant))
   ) {
     crossReferenceFailure("VariantSpecs differ outside the frozen Goal intervention face");
+  }
+  const expectedDeploymentDigest = fingerprintEvalDeployment({
+    control: controlVariant.resolved_config_sha256,
+    treatment: treatmentVariant.resolved_config_sha256,
+    task_pack: experiment.task_pack_digest,
+    model: {
+      provider: controlVariant.model_route.provider,
+      model: controlVariant.model_route.model,
+      effort: controlVariant.model_route.reasoning_effort,
+    },
+    dsh_package_tree: controlVariant.dsh_package_tree_sha256,
+    codex_connect_package: controlVariant.codex_connect_package_sha256,
+    eval_package: controlVariant.eval_package_sha256,
+    common_patch: controlVariant.common_patch_sha256,
+  });
+  if (
+    experiment.deployment.digest !== expectedDeploymentDigest ||
+    experiment.deployment.eval_package_sha256 !== controlVariant.eval_package_sha256 ||
+    experiment.deployment.qualification.deployment_digest !== expectedDeploymentDigest ||
+    experiment.deployment.qualification.common_tool_schema_sha256 !==
+      controlVariant.tool_schema_sha256 ||
+    experiment.deployment.calibration.task_pack_digest !== experiment.task_pack_digest ||
+    experiment.deployment.calibration.calibration_digest !== taskPack.pack.calibration_digest ||
+    experiment.deployment.calibration.eval_package_sha256 !== controlVariant.eval_package_sha256
+  ) {
+    crossReferenceFailure("Experiment deployment, qualification, and calibration evidence drifted");
   }
   if (
     controlEpisode.variant_digest !== experiment.control_variant_digest ||
@@ -238,23 +290,10 @@ export async function replayPairedImpactReport(
     treatmentEpisode,
   );
 
-  const nestedPointers = [controlEpisode, treatmentEpisode].flatMap((episode) => {
-    const pointers: ArtifactPointer[] = [];
-    if (episode.evidence.session_log_ref && episode.evidence.session_log_sha256) {
-      pointers.push({
-        ref: episode.evidence.session_log_ref,
-        sha256: episode.evidence.session_log_sha256,
-      });
-    }
-    if (episode.evidence.candidate_archive_ref && episode.evidence.candidate_archive_sha256) {
-      pointers.push({
-        ref: episode.evidence.candidate_archive_ref,
-        sha256: episode.evidence.candidate_archive_sha256,
-      });
-    }
-    return pointers;
-  });
-  await Promise.all(nestedPointers.map((pointer) => readArtifactBytes(campaignRoot, pointer)));
+  await Promise.all([
+    verifyEpisodeEvidenceBytes(campaignRoot, "control", controlEpisode),
+    verifyEpisodeEvidenceBytes(campaignRoot, "treatment", treatmentEpisode),
+  ]);
 
   return {
     report,

@@ -79,6 +79,45 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
       "artifact://campaign/arms/treatment/candidate.tar",
       Buffer.from("treatment-candidate", "utf8"),
     );
+    const [
+      controlTree,
+      controlPatch,
+      controlStdout,
+      controlStderr,
+      treatmentTree,
+      treatmentPatch,
+      treatmentStdout,
+      treatmentStderr,
+    ] = await Promise.all([
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/arms/control/candidate.tree",
+        `${validEpisode.evidence.candidate_tree}\n`,
+      ),
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/arms/control/candidate.patch",
+        "control-patch",
+      ),
+      writeArtifactBytes(campaignRoot, "artifact://campaign/arms/control/stdout.txt", "control"),
+      writeArtifactBytes(campaignRoot, "artifact://campaign/arms/control/stderr.txt", ""),
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/arms/treatment/candidate.tree",
+        `${validTreatmentEpisode.evidence.candidate_tree}\n`,
+      ),
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/arms/treatment/candidate.patch",
+        "treatment-patch",
+      ),
+      writeArtifactBytes(
+        campaignRoot,
+        "artifact://campaign/arms/treatment/stdout.txt",
+        "treatment",
+      ),
+      writeArtifactBytes(campaignRoot, "artifact://campaign/arms/treatment/stderr.txt", ""),
+    ]);
     const experimentPointer = await writeCanonicalJsonArtifact(
       campaignRoot,
       "artifact://campaign/manifest.json",
@@ -90,8 +129,16 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         ...validEpisode.evidence,
         session_log_ref: controlSession.ref,
         session_log_sha256: controlSession.sha256,
+        candidate_tree_ref: controlTree.ref,
+        candidate_tree_sha256: controlTree.sha256,
+        candidate_patch_ref: controlPatch.ref,
+        candidate_patch_sha256: controlPatch.sha256,
         candidate_archive_ref: controlArchive.ref,
         candidate_archive_sha256: controlArchive.sha256,
+        stdout_ref: controlStdout.ref,
+        stdout_sha256: controlStdout.sha256,
+        stderr_ref: controlStderr.ref,
+        stderr_sha256: controlStderr.sha256,
       },
     };
     const episodePointer = await writeCanonicalJsonArtifact(
@@ -105,8 +152,16 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         ...validTreatmentEpisode.evidence,
         session_log_ref: treatmentSession.ref,
         session_log_sha256: treatmentSession.sha256,
+        candidate_tree_ref: treatmentTree.ref,
+        candidate_tree_sha256: treatmentTree.sha256,
+        candidate_patch_ref: treatmentPatch.ref,
+        candidate_patch_sha256: treatmentPatch.sha256,
         candidate_archive_ref: treatmentArchive.ref,
         candidate_archive_sha256: treatmentArchive.sha256,
+        stdout_ref: treatmentStdout.ref,
+        stdout_sha256: treatmentStdout.sha256,
+        stderr_ref: treatmentStderr.ref,
+        stderr_sha256: treatmentStderr.sha256,
       },
     };
     const treatmentEpisodePointer = await writeCanonicalJsonArtifact(
@@ -119,7 +174,7 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         writeCanonicalJsonArtifact(campaignRoot, "artifact://campaign/oracle/seed.json", {
           schema_version: 1,
           seed: 1729,
-          oracle_version: "ledger-oracle-v1",
+          oracle_version: "ledger-oracle-v2",
         }),
         writeCanonicalJsonArtifact(
           campaignRoot,
@@ -218,6 +273,40 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
     );
     await assert.rejects(
       replayPairedImpactReport(campaignRoot, wrongValidityReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
+    const wrongDeploymentExperimentPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/manifest-wrong-deployment.json",
+      {
+        ...validExperiment,
+        deployment: {
+          ...validExperiment.deployment,
+          digest: "f".repeat(64),
+          qualification: {
+            ...validExperiment.deployment.qualification,
+            deployment_digest: "f".repeat(64),
+          },
+        },
+      },
+    );
+    const wrongDeploymentReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-deployment.json",
+      {
+        ...report,
+        experiment_digest: wrongDeploymentExperimentPointer.sha256,
+        evidence: {
+          ...report.evidence,
+          experiment: wrongDeploymentExperimentPointer,
+        },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongDeploymentReportPointer),
       (error: unknown) =>
         error instanceof ArtifactIntegrityError &&
         error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
@@ -326,6 +415,14 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         error instanceof ArtifactIntegrityError &&
         error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
     );
+
+    const controlPatchPath = resolveArtifactRef(campaignRoot, controlPatch.ref);
+    await writeFile(controlPatchPath, "tampered-patch", "utf8");
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, reportPointer),
+      ArtifactIntegrityError,
+    );
+    await writeFile(controlPatchPath, "control-patch", "utf8");
 
     const treatmentEpisodePath = resolveArtifactRef(campaignRoot, treatmentEpisodePointer.ref);
     await writeFile(treatmentEpisodePath, "{}", "utf8");

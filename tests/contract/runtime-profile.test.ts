@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -64,5 +64,26 @@ test("profile materialization is idempotent and never overwrites drift", async (
     assert.equal(await readFile(`${root}/package.json`, "utf8"), "{}\n");
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("profile materialization rejects a root symlink before writing frozen files", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/profile-symlink-`);
+  const outside = await mkdtemp(`${scratchParent}/profile-outside-`);
+  const linkedRoot = `${scratch}/eval-runner`;
+  await symlink(outside, linkedRoot);
+
+  try {
+    await assert.rejects(
+      materializeFrozenFiles(linkedRoot, runnerProfileFiles("file:/tmp/dsh-eval-lab.tgz")),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_PATH_INVALID",
+    );
+    await assert.rejects(readFile(`${outside}/package.json`, "utf8"), { code: "ENOENT" });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });

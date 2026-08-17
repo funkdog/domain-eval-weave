@@ -1,6 +1,6 @@
 {
   "name": "dsh-eval-lab",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.6",
   "private": true,
   "type": "module",
   "description": "DSH-native controlled harness evaluation plugin",

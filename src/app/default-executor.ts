@@ -8,7 +8,11 @@ import { promisify } from "node:util";
 import { type AuthExecutionInput, AuthFacade } from "../auth/facade.js";
 import { createWorkspaceToolGuard } from "../bridge/guard.js";
 import { createWorkspaceTestDefinition } from "../bridge/workspace-test.js";
-import { type CampaignPointers, rebuildCampaignReport } from "../campaign/coordinator.js";
+import {
+  type CampaignPointers,
+  rebuildCampaignReport,
+  writeMeasurementInvalidReport,
+} from "../campaign/coordinator.js";
 import {
   CarrierQualificationError,
   dshLaunch,
@@ -22,8 +26,8 @@ import {
   readJsonArtifact,
   resolveArtifactRef,
 } from "../contracts/artifacts.js";
-import { sha256Hex } from "../contracts/canonical-json.js";
-import { parsePairedImpactReport } from "../contracts/parsers.js";
+import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { parseCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
 import { runDoctor } from "../doctor/index.js";
 import {
   findPackageRoot,
@@ -184,6 +188,41 @@ function assertRunnerRows(rows: readonly ComposedRow[]): void {
   }
 }
 
+async function assertSandboxFunctionalProbe(): Promise<void> {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/doctor/tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${parent}/sandbox-`);
+  const allowed = `${scratch}/allowed`;
+  const denied = `${scratch}/denied`;
+  const writable = `${allowed}/tmp`;
+  try {
+    await Promise.all([mkdir(allowed, { mode: 0o700 }), mkdir(denied, { mode: 0o700 })]);
+    await writeFile(`${denied}/sentinel.txt`, "synthetic sandbox sentinel", "utf8");
+    const result = await new StrictProcessRunner().run({
+      executable: process.execPath,
+      args: [
+        "-e",
+        `const fs=require("node:fs");let denied=false;try{fs.readFileSync(${JSON.stringify(`${denied}/sentinel.txt`)})}catch{denied=true}fs.writeFileSync(${JSON.stringify(`${writable}/probe.txt`)},"ok");process.stdout.write(denied?"SANDBOX_OK":"SANDBOX_LEAK")`,
+      ],
+      cwd: allowed,
+      readableRoots: [allowed],
+      writableRoot: writable,
+      timeoutMs: 5_000,
+      maxOutputBytes: 4_096,
+    });
+    if (
+      result.exitCode !== 0 ||
+      result.timedOut ||
+      result.outputLimitExceeded ||
+      result.stdout !== "SANDBOX_OK"
+    ) {
+      throw new Error("sandbox functional probe failed");
+    }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
 function packageRoot(): string {
   return fileURLToPath(new URL("../..", import.meta.url));
 }
@@ -324,9 +363,15 @@ async function runCalibration(): Promise<{ readonly ready: boolean; readonly pat
       seed: 1729,
     });
     const taskPackDigest = await digestTaskPack(packRoot);
+    const evalPackageSha256 = await fingerprintPackageContent(packageRoot());
     const path = `${DEDICATED_RUNTIME_ROOT}/calibration/${taskPackDigest}.json`;
     await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    const bytes = `${JSON.stringify({ ...result, task_pack_digest: taskPackDigest, calibration_digest: pack.calibration_digest })}\n`;
+    const bytes = `${canonicalJson({
+      ...result,
+      task_pack_digest: taskPackDigest,
+      calibration_digest: pack.calibration_digest,
+      eval_package_sha256: evalPackageSha256,
+    })}\n`;
     try {
       await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
     } catch (error) {
@@ -427,6 +472,7 @@ async function runProductDoctor() {
       run: async () => {
         assertRunnerRows(await control());
         assertRunnerRows(await treatment());
+        await assertSandboxFunctionalProbe();
       },
     },
     {
@@ -438,13 +484,13 @@ async function runProductDoctor() {
       id: "calibration",
       run: async () => {
         const path = await calibrationPath();
-        const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+        const value = parseCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
         const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
         const pack = await loadTaskPack(packRoot);
         if (
-          value.ready !== true ||
           value.task_pack_digest !== (await digestTaskPack(packRoot)) ||
-          value.calibration_digest !== pack.calibration_digest
+          value.calibration_digest !== pack.calibration_digest ||
+          value.eval_package_sha256 !== (await fingerprintPackageContent(packageRoot()))
         ) {
           throw new Error("calibration artifact is stale or not ready");
         }
@@ -522,14 +568,26 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         case "report": {
           const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${invocation.campaignId}`;
           const pointers = await campaignPointers(campaignRoot);
-          const rebuilt = await rebuildCampaignReport({
-            campaignRoot,
-            pointers,
-          });
-          this.#stdout(
-            await readFile(resolveArtifactRef(campaignRoot, rebuilt.markdownPointer.ref), "utf8"),
-          );
-          return EXIT_CODE.OK;
+          try {
+            const rebuilt = await rebuildCampaignReport({
+              campaignRoot,
+              pointers,
+            });
+            this.#stdout(
+              await readFile(resolveArtifactRef(campaignRoot, rebuilt.markdownPointer.ref), "utf8"),
+            );
+            return EXIT_CODE.OK;
+          } catch (error) {
+            if (!(error instanceof ArtifactIntegrityError)) throw error;
+            const invalid = await writeMeasurementInvalidReport({
+              campaignRoot,
+              frozenReportPointer: pointers.report,
+            });
+            this.#stdout(
+              await readFile(resolveArtifactRef(campaignRoot, invalid.markdownPointer.ref), "utf8"),
+            );
+            throw error;
+          }
         }
       }
     } catch (error) {

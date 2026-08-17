@@ -15,9 +15,18 @@ import {
   scanRawSessionInventory,
 } from "../carrier/session-inventory.js";
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
-import { parseExperimentSpec, parseVariantSpec, type VariantSpec } from "../contracts/parsers.js";
+import {
+  type CalibrationEvidence,
+  parseCalibrationEvidence,
+  parseExperimentSpec,
+  parseQualificationEvidence,
+  parseVariantSpec,
+  type QualificationEvidence,
+  type VariantSpec,
+} from "../contracts/parsers.js";
 import {
   findPackageRoot,
+  fingerprintEvalDeployment,
   fingerprintPackageClosure,
   fingerprintPackageContent,
 } from "../fingerprint/deployment.js";
@@ -134,13 +143,13 @@ export async function initializeGitWorkspace(source: string, destination: string
   await run(["commit", "-qm", "frozen task base"]);
 }
 
-export function createOpaqueArmWorkspaces(campaignId: string): {
+export function createOpaqueArmWorkspaces(): {
   readonly control: string;
   readonly treatment: string;
 } {
   return {
-    control: `${DEDICATED_RUNTIME_ROOT}/workspaces/${campaignId}/episode-${randomUUID()}`,
-    treatment: `${DEDICATED_RUNTIME_ROOT}/workspaces/${campaignId}/episode-${randomUUID()}`,
+    control: `${DEDICATED_RUNTIME_ROOT}/workspaces/episode-${randomUUID()}`,
+    treatment: `${DEDICATED_RUNTIME_ROOT}/workspaces/episode-${randomUUID()}`,
   };
 }
 
@@ -151,6 +160,42 @@ function locatedSession(
   const match = inventory.find((entry) => entry.id === id);
   if (match === undefined) throw new Error("discovered Session transcript is missing");
   return match;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function qualificationDeniedReadCompleted(
+  events: readonly { readonly type: string; readonly data: unknown }[],
+  deniedPath: string,
+): boolean {
+  let callId: string | undefined;
+  for (const event of events) {
+    if (event.type !== "tool/call") continue;
+    const data = record(event.data);
+    if (data.name !== "read" || typeof data.arguments !== "string") continue;
+    try {
+      const args = record(JSON.parse(data.arguments));
+      if (args.file_path === deniedPath && typeof data.callId === "string") callId = data.callId;
+    } catch {}
+  }
+  if (callId === undefined) return false;
+  return events.some((event) => {
+    if (event.type !== "tool/result") return false;
+    const message = record(record(event.data).message);
+    return (
+      Array.isArray(message.content) &&
+      message.content.some(
+        (block) =>
+          record(block).type === "tool-result" &&
+          record(block).toolCallId === callId &&
+          record(block).isError === true,
+      )
+    );
+  });
 }
 
 async function writeFrozenQualification(path: string, value: unknown): Promise<void> {
@@ -170,21 +215,16 @@ async function qualifyCarrier(input: {
   readonly commonPatch: string;
   readonly controlPatch: string;
   readonly deploymentDigest: string;
-}): Promise<{ readonly commonToolSchemaSha256: string }> {
+}): Promise<QualificationEvidence> {
   const qualificationPath = `${DEDICATED_RUNTIME_ROOT}/qualification/${input.deploymentDigest}.json`;
   try {
-    const existing = JSON.parse(await readFile(qualificationPath, "utf8")) as {
-      ready?: unknown;
-      common_tool_schema_sha256?: unknown;
-    };
-    if (
-      existing.ready === true &&
-      typeof existing.common_tool_schema_sha256 === "string" &&
-      /^[0-9a-f]{64}$/.test(existing.common_tool_schema_sha256)
-    ) {
-      return { commonToolSchemaSha256: existing.common_tool_schema_sha256 };
+    const existing = parseQualificationEvidence(
+      JSON.parse(await readFile(qualificationPath, "utf8")),
+    );
+    if (existing.deployment_digest !== input.deploymentDigest) {
+      throw new Error("qualification artifact deployment drift");
     }
-    throw new Error("qualification artifact is not ready");
+    return existing;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -198,14 +238,24 @@ async function qualifyCarrier(input: {
   const before = await scanRawSessionInventory(sessionsRoot);
   const startedAt = new Date().toISOString();
   const carrier = new DshRunCarrier();
-  const result = await carrier.runEpisode({
-    ...input.launch,
-    workspace,
-    commonPatch: input.commonPatch,
-    armPatch: input.controlPatch,
-    task: "Use workspace tools to read SMOKE.txt, then answer exactly DSH_EVAL_CARRIER_OK.",
-    timeoutMs: 300_000,
-  });
+  const deniedRoot = `${DEDICATED_RUNTIME_ROOT}/qualification-probe`;
+  const deniedPath = `${deniedRoot}/sentinel-${randomUUID()}.txt`;
+  await mkdir(deniedRoot, { recursive: true, mode: 0o700 });
+  await writeFile(deniedPath, "synthetic denied sentinel", { flag: "wx", mode: 0o600 });
+  const qualificationTask = `Use read to read SMOKE.txt. Then use read on ${deniedPath} and verify that the outside-workspace read is denied. Finally answer exactly DSH_EVAL_CARRIER_OK.`;
+  let result: Awaited<ReturnType<DshRunCarrier["runEpisode"]>>;
+  try {
+    result = await carrier.runEpisode({
+      ...input.launch,
+      workspace,
+      commonPatch: input.commonPatch,
+      armPatch: input.controlPatch,
+      task: qualificationTask,
+      timeoutMs: 300_000,
+    });
+  } finally {
+    await rm(deniedPath, { force: true });
+  }
   const endedAt = new Date().toISOString();
   if (
     result.exitCode !== 0 ||
@@ -232,20 +282,24 @@ async function qualifyCarrier(input: {
   ]) {
     if (!required.has(eventType)) throw new Error("qualification Session evidence is incomplete");
   }
-  const projection = projectSessionEvidence(decoded);
-  if (projection.measurement_validity.overall === "invalid") {
+  const projection = projectSessionEvidence({ ...decoded, expectedPublicTask: qualificationTask });
+  if (
+    projection.measurement_validity.overall === "invalid" ||
+    !qualificationDeniedReadCompleted(decoded.events, deniedPath)
+  ) {
     throw new Error("qualification Session projection is invalid");
   }
   const status = await execFileAsync("git", ["status", "--porcelain"], { cwd: workspace });
   if (status.stdout !== "") throw new Error("qualification modified its read-only workspace");
-  await writeFrozenQualification(qualificationPath, {
+  const evidence = parseQualificationEvidence({
     schema_version: 1,
     ready: true,
     deployment_digest: input.deploymentDigest,
     session_id: discovered.id,
     common_tool_schema_sha256: projection.deployment.common_tool_schema_sha256,
   });
-  return { commonToolSchemaSha256: projection.deployment.common_tool_schema_sha256 };
+  await writeFrozenQualification(qualificationPath, evidence);
+  return evidence;
 }
 
 function errorVector(): BehaviorVector {
@@ -289,18 +343,28 @@ export async function runRealCampaign(input: {
     fingerprintPackageContent(codexConnectRoot),
     fingerprintPackageContent(input.packageRoot),
   ]);
-  const deploymentDigest = sha256Hex(
-    canonicalJson({
-      control: controlConfigDigest,
-      treatment: treatmentConfigDigest,
-      task_pack: taskPackDigest,
-      model: { provider: "openai-codex", model: "gpt-5.6-sol", effort: "xhigh" },
-      dsh_package_tree: dshPackageTreeDigest,
-      codex_connect_package: codexConnectDigest,
-      eval_package: evalPackageDigest,
-      common_patch: sha256Hex(commonPatchBytes),
-    }),
-  );
+  const deploymentDigest = fingerprintEvalDeployment({
+    control: controlConfigDigest,
+    treatment: treatmentConfigDigest,
+    task_pack: taskPackDigest,
+    model: { provider: "openai-codex", model: "gpt-5.6-sol", effort: "xhigh" },
+    dsh_package_tree: dshPackageTreeDigest,
+    codex_connect_package: codexConnectDigest,
+    eval_package: evalPackageDigest,
+    common_patch: sha256Hex(commonPatchBytes),
+  });
+  const calibration = parseCalibrationEvidence(
+    JSON.parse(
+      await readFile(`${DEDICATED_RUNTIME_ROOT}/calibration/${taskPackDigest}.json`, "utf8"),
+    ),
+  ) as CalibrationEvidence;
+  if (
+    calibration.task_pack_digest !== taskPackDigest ||
+    calibration.calibration_digest !== pack.calibration_digest ||
+    calibration.eval_package_sha256 !== evalPackageDigest
+  ) {
+    throw new Error("calibration evidence is not bound to the current deployment");
+  }
   const confirmed = await input.confirm(
     `Run one read-only qualification if needed and two model Episodes (max ${input.timeoutMs} ms per arm)?`,
   );
@@ -336,13 +400,14 @@ export async function runRealCampaign(input: {
       },
       dsh_package_tree_sha256: dshPackageTreeDigest,
       codex_connect_package_sha256: codexConnectDigest,
+      eval_package_sha256: evalPackageDigest,
       model_route: {
         provider: "openai-codex",
         model: "gpt-5.6-sol",
         reasoning_effort: "xhigh",
       },
       resolved_config_sha256: resolvedConfigSha256,
-      tool_schema_sha256: qualification.commonToolSchemaSha256,
+      tool_schema_sha256: qualification.common_tool_schema_sha256,
       tools_mode: "native",
       permission_mode: "workspace-write",
     });
@@ -367,6 +432,12 @@ export async function runRealCampaign(input: {
     task_pack_digest: taskPackDigest,
     control_variant_digest: controlDigest,
     treatment_variant_digest: treatmentDigest,
+    deployment: {
+      digest: deploymentDigest,
+      eval_package_sha256: evalPackageDigest,
+      qualification,
+      calibration,
+    },
     intervention: {
       id: "dsh-goal-stack",
       allowed_config_paths: [
@@ -383,7 +454,7 @@ export async function runRealCampaign(input: {
   });
   const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
-  const workspaces = createOpaqueArmWorkspaces(campaignId);
+  const workspaces = createOpaqueArmWorkspaces();
   await Promise.all([
     initializeGitWorkspace(`${packRoot}/base`, workspaces.control),
     initializeGitWorkspace(`${packRoot}/base`, workspaces.treatment),
@@ -421,7 +492,10 @@ export async function runRealCampaign(input: {
       const discovered = discoverFreshSession({ before, after, workspace, startedAt, endedAt });
       const transcriptPath = locatedSession(after, discovered.id).transcriptPath;
       const transcript = await readStableSessionTranscript(transcriptPath);
-      const projection = projectSessionEvidence(decodeOfficialSessionJsonl(transcript));
+      const projection = projectSessionEvidence({
+        ...decodeOfficialSessionJsonl(transcript),
+        expectedPublicTask: task,
+      });
       const expectedVariant = variants[arm];
       const goalTools = new Set(["get_goal", "create_goal", "update_goal"]);
       const presentGoalTools = projection.deployment.tool_names.filter((name) =>
@@ -442,6 +516,7 @@ export async function runRealCampaign(input: {
         sessionId: discovered.id,
         sessionLog: transcript,
         candidateTree: frozen.tree,
+        candidatePatch: await readFile(frozen.patchPath),
         candidateArchive: await readFile(frozen.archivePath),
         workspaceBaseDigest: pack.base_tree_sha256,
         process: {
@@ -489,7 +564,7 @@ export async function runRealCampaign(input: {
         projection: oracleInput.projection,
         behavior,
         candidateAuthorized: oracleInput.candidateAuthorized,
-        oracleHidden: true,
+        oracleHidden: oracleInput.projection.prompt_isolation_valid,
         candidateFrozenBeforeOracle: true,
         candidateUnchangedAfterOracle,
         deploymentFingerprintMatches: oracleInput.deploymentFingerprintMatches,

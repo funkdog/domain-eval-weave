@@ -125,3 +125,22 @@ export async function fingerprintPackageClosure(root: string): Promise<string> {
   );
   return sha256Hex(canonicalJson(packages));
 }
+
+export interface EvalDeploymentFingerprintInput {
+  readonly control: string;
+  readonly treatment: string;
+  readonly task_pack: string;
+  readonly model: {
+    readonly provider: "openai-codex";
+    readonly model: "gpt-5.6-sol";
+    readonly effort: "xhigh";
+  };
+  readonly dsh_package_tree: string;
+  readonly codex_connect_package: string;
+  readonly eval_package: string;
+  readonly common_patch: string;
+}
+
+export function fingerprintEvalDeployment(input: EvalDeploymentFingerprintInput): string {
+  return sha256Hex(canonicalJson(input));
+}

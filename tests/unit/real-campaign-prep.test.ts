@@ -26,10 +26,10 @@ test("real Campaign preparation creates nested fresh Git workspaces with opaque 
     );
     await assert.rejects(initializeGitWorkspace(source, destination));
 
-    const workspaces = createOpaqueArmWorkspaces("campaign-opaque");
+    const workspaces = createOpaqueArmWorkspaces();
     assert.notEqual(workspaces.control, workspaces.treatment);
-    assert.equal(/control|treatment/.test(workspaces.control), false);
-    assert.equal(/control|treatment/.test(workspaces.treatment), false);
+    assert.equal(/campaign|control|treatment|undefined/.test(workspaces.control), false);
+    assert.equal(/campaign|control|treatment|undefined/.test(workspaces.treatment), false);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

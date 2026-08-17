@@ -162,8 +162,33 @@ let stateFile;
 
 const checks = {
   async basic_reservation() {
+    for (const invalidCapacity of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      assert.equal(
+        await rejects(() =>
+          withDriver(candidate, (driver) =>
+            driver.call("open", {
+              file: `${stateFile}.invalid-capacity-${String(invalidCapacity)}`,
+              capacity: invalidCapacity,
+            }),
+          ),
+        ),
+        true,
+      );
+    }
     await withDriver(candidate, async (driver) => {
       await driver.call("open", { file: stateFile, capacity: 10 });
+      const empty = await driver.call("snapshot");
+      for (const invalidUnits of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+        assert.equal(
+          await rejects(() =>
+            driver.call("reserve", {
+              request: { requestId: opaque(`invalid-${String(invalidUnits)}`), key: "alpha", units: invalidUnits },
+            }),
+          ),
+          true,
+        );
+        assert.deepEqual(await driver.call("snapshot"), empty);
+      }
       const reservation = await driver.call("reserve", {
         request: { requestId: opaque("basic"), key: "alpha", units: 3 },
       });
@@ -249,6 +274,15 @@ const checks = {
       true,
     );
     assert.equal(await readFile(stateFile, "utf8"), before);
+    const unknownVersion = JSON.stringify({ version: 999, capacity: 10, reservations: [] });
+    await writeFile(stateFile, unknownVersion, "utf8");
+    assert.equal(
+      await rejects(() =>
+        withDriver(candidate, (driver) => driver.call("open", { file: stateFile, capacity: 10 })),
+      ),
+      true,
+    );
+    assert.equal(await readFile(stateFile, "utf8"), unknownVersion);
   },
   async deterministic_snapshot() {
     await withDriver(candidate, async (driver) => {

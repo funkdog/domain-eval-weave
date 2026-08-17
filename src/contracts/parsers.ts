@@ -32,6 +32,10 @@ const artifactRefSchema = z.string().transform((value, context) => {
     return z.NEVER;
   }
 });
+const artifactPointerSchema = z.strictObject({
+  ref: artifactRefSchema,
+  sha256: sha256Schema,
+});
 const dateTimeSchema = z.iso.datetime({ offset: true });
 
 const uniqueArtifactRefsSchema = z
@@ -69,6 +73,33 @@ const armOrderSchema = z.union([
   z.tuple([z.literal("treatment"), z.literal("control")]),
 ]);
 
+const behaviorStatusSchema = z.enum(["pass", "fail", "error"]);
+
+export const qualificationEvidenceSchema = z.strictObject({
+  schema_version: z.literal(1),
+  ready: z.literal(true),
+  deployment_digest: sha256Schema,
+  session_id: idSchema,
+  common_tool_schema_sha256: sha256Schema,
+});
+
+export const calibrationEvidenceSchema = z.strictObject({
+  schema_version: z.literal(1),
+  ready: z.literal(true),
+  task_pack_digest: sha256Schema,
+  calibration_digest: sha256Schema,
+  eval_package_sha256: sha256Schema,
+  candidates: z.strictObject({
+    red: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
+    gold: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
+    no_lock_failures: z.tuple([z.literal("no_oversubscription_concurrent")]),
+    no_persistence_failures: z.tuple([z.literal("restart_recovery")]),
+    corrupt_resets_failures: z.tuple([z.literal("corrupt_state_fail_closed")]),
+  }),
+  repeatable: z.literal(true),
+  seed_stable: z.literal(true),
+});
+
 export const experimentSpecSchema = z.strictObject({
   schema_version: z.literal(1),
   campaign_id: idSchema,
@@ -78,6 +109,12 @@ export const experimentSpecSchema = z.strictObject({
   task_pack_digest: sha256Schema,
   control_variant_digest: sha256Schema,
   treatment_variant_digest: sha256Schema,
+  deployment: z.strictObject({
+    digest: sha256Schema,
+    eval_package_sha256: sha256Schema,
+    qualification: qualificationEvidenceSchema,
+    calibration: calibrationEvidenceSchema,
+  }),
   intervention: z.strictObject({
     id: z.literal("dsh-goal-stack"),
     allowed_config_paths: allowedConfigPathsSchema,
@@ -102,6 +139,7 @@ export const variantSpecSchema = z
     }),
     dsh_package_tree_sha256: sha256Schema,
     codex_connect_package_sha256: sha256Schema,
+    eval_package_sha256: sha256Schema,
     model_route: z.strictObject({
       provider: z.literal("openai-codex"),
       model: z.literal("gpt-5.6-sol"),
@@ -120,30 +158,21 @@ export const variantSpecSchema = z
     "VariantSpec Goal rows must all match its frozen variant id",
   );
 
-const evidenceSchema = z
-  .strictObject({
-    session_log_ref: artifactRefSchema.optional(),
-    session_log_sha256: sha256Schema.optional(),
-    candidate_tree: z.string().regex(GIT_TREE_PATTERN).optional(),
-    candidate_archive_ref: artifactRefSchema.optional(),
-    candidate_archive_sha256: sha256Schema.optional(),
-  })
-  .superRefine((evidence, context) => {
-    const pairedFields = [
-      ["session_log_ref", "session_log_sha256"],
-      ["candidate_archive_ref", "candidate_archive_sha256"],
-    ] as const;
-
-    for (const [refField, digestField] of pairedFields) {
-      if ((evidence[refField] === undefined) !== (evidence[digestField] === undefined)) {
-        context.addIssue({
-          code: "custom",
-          path: [refField],
-          message: `${refField} and ${digestField} must be present together`,
-        });
-      }
-    }
-  });
+const evidenceSchema = z.strictObject({
+  session_log_ref: artifactRefSchema,
+  session_log_sha256: sha256Schema,
+  candidate_tree: z.string().regex(GIT_TREE_PATTERN),
+  candidate_tree_ref: artifactRefSchema,
+  candidate_tree_sha256: sha256Schema,
+  candidate_patch_ref: artifactRefSchema,
+  candidate_patch_sha256: sha256Schema,
+  candidate_archive_ref: artifactRefSchema,
+  candidate_archive_sha256: sha256Schema,
+  stdout_ref: artifactRefSchema,
+  stdout_sha256: sha256Schema,
+  stderr_ref: artifactRefSchema,
+  stderr_sha256: sha256Schema,
+});
 
 export const episodeRecordSchema = z.strictObject({
   schema_version: z.literal(1),
@@ -241,11 +270,6 @@ export const evaluationResultSchema = z
     }
   });
 
-const artifactPointerSchema = z.strictObject({
-  ref: artifactRefSchema,
-  sha256: sha256Schema,
-});
-
 const costDeltaSchema = z.strictObject({
   elapsed_ms: z.number().finite().int().nullable(),
   input_tokens: z.number().finite().int().nullable(),
@@ -305,6 +329,8 @@ export const pairedImpactReportSchema = z.strictObject({
 
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
 export type MeasurementValidity = z.infer<typeof measurementValiditySchema>;
+export type QualificationEvidence = z.infer<typeof qualificationEvidenceSchema>;
+export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
 export type ExperimentSpec = z.infer<typeof experimentSpecSchema>;
 export type VariantSpec = z.infer<typeof variantSpecSchema>;
 export type EpisodeRecord = z.infer<typeof episodeRecordSchema>;
@@ -314,6 +340,14 @@ export type PairedImpactReport = z.infer<typeof pairedImpactReportSchema>;
 
 export function parseExperimentSpec(input: unknown): ExperimentSpec {
   return experimentSpecSchema.parse(input);
+}
+
+export function parseQualificationEvidence(input: unknown): QualificationEvidence {
+  return qualificationEvidenceSchema.parse(input);
+}
+
+export function parseCalibrationEvidence(input: unknown): CalibrationEvidence {
+  return calibrationEvidenceSchema.parse(input);
 }
 
 export function parseVariantSpec(input: unknown): VariantSpec {
