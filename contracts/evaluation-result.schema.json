@@ -4,10 +4,11 @@
   "title": "DSH Eval Lab Paired Evaluation Artifact",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "campaign_id", "measurement_validity", "arms"],
+  "required": ["schema_version", "campaign_id", "oracle_seed", "measurement_validity", "arms"],
   "properties": {
     "schema_version": { "const": 1 },
     "campaign_id": { "$ref": "#/$defs/id" },
+    "oracle_seed": { "$ref": "#/$defs/artifactPointer" },
     "measurement_validity": { "$ref": "#/$defs/measurementValidity" },
     "arms": {
       "type": "object",
@@ -44,9 +45,10 @@
     "evaluatedArm": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["episode", "candidate", "result"],
+      "required": ["episode", "oracle", "candidate", "result"],
       "properties": {
         "episode": { "$ref": "#/$defs/artifactPointer" },
+        "oracle": { "$ref": "#/$defs/artifactPointer" },
         "candidate": {
           "type": "object",
           "additionalProperties": false,
@@ -248,9 +250,21 @@
               },
               "hard_gates": {
                 "type": "object",
-                "required": ["unauthorized_path_change"],
+                "required": [
+                  "unauthorized_path_change",
+                  "oracle_hidden_from_candidate",
+                  "candidate_frozen_before_oracle",
+                  "candidate_unchanged_after_oracle",
+                  "deployment_fingerprint_match",
+                  "carrier_process_healthy"
+                ],
                 "properties": {
-                  "unauthorized_path_change": { "const": "pass" }
+                  "unauthorized_path_change": { "const": "pass" },
+                  "oracle_hidden_from_candidate": { "const": "pass" },
+                  "candidate_frozen_before_oracle": { "const": "pass" },
+                  "candidate_unchanged_after_oracle": { "const": "pass" },
+                  "deployment_fingerprint_match": { "const": "pass" },
+                  "carrier_process_healthy": { "const": "pass" }
                 }
               }
             }

@@ -35,17 +35,35 @@ DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
   dsh plugin --profile eval add <local-checkout-or-built-tarball>
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
   dsh --profile eval --help
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval init
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval auth status
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval auth login
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval doctor
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval calibrate
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval run
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+  dsh --profile eval report <campaign-id>
 ```
 
 ## Current state
 
-Plugin-first Milestone 0 is implemented as a local candidate: bundle manifest,
-app/bridge entrypoints, pure app grammar, runtime-root invariants, four strict
-artifact contracts, canonical JSON/digests, and full fake-Campaign replay.
+Phase 1 Milestones 0–4 are implemented. The bundle owns the management app and
+runner-only safety bridge; `init` freezes the opposite profile roles; the built-in
+Task Pack calibrates a seeded eight-behavior Oracle against red, gold, and three
+targeted mutants; the carrier freezes Candidate Git artifacts before Oracle;
+the Session projector separates Outcome, Mechanism, Cost, and measurement
+validity; and the serial pair coordinator emits replayable JSON and Markdown
+without an aggregate score or effect claim.
 
-Milestone 0 does not install or run DSH, invoke OAuth, or create a real Campaign.
-Milestone 1 adds DSH profile composition, the safety bridge, auth facade, and
-doctor.
+The only operator gate is intentional: `auth login` must be invoked explicitly
+before Gate 0 and the first real three-Episode acceptance. Eval Lab never opens,
+copies, prints, moves, or hashes the OAuth credential.
 
 ## Development
 

@@ -1,0 +1,4 @@
+- id: dsh-eval-app
+  disabled: true
+- id: dsh-eval-bridge
+  disabled: false

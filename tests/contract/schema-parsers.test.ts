@@ -12,6 +12,7 @@ import {
   parseExperimentSpec,
   parsePairedEvaluationArtifact,
   parsePairedImpactReport,
+  parseVariantSpec,
 } from "../../src/contracts/parsers.js";
 import {
   validEpisode,
@@ -19,6 +20,7 @@ import {
   validExperiment,
   validPairedEvaluation,
   validReport,
+  validVariant,
 } from "../helpers/fixtures.js";
 
 const addFormats = (addFormatsModule.default ?? addFormatsModule) as unknown as FormatsPlugin;
@@ -79,6 +81,28 @@ test("ExperimentSpec rejects unknown fields", async () => {
   };
   assert.throws(() => parseExperimentSpec(invalid));
   await assertSchemaRejects("experiment.schema.json", invalid);
+});
+
+test("VariantSpec freezes the exact Phase 1 deployment face and rejects drift", () => {
+  assert.deepEqual(parseVariantSpec(validVariant), validVariant);
+  assert.throws(() =>
+    parseVariantSpec({
+      ...validVariant,
+      tools_mode: "compatibility",
+    }),
+  );
+  assert.throws(() =>
+    parseVariantSpec({
+      ...validVariant,
+      undeclared_fallback: true,
+    }),
+  );
+  assert.throws(() =>
+    parseVariantSpec({
+      ...validVariant,
+      expected_goal_rows: { ...validVariant.expected_goal_rows, goal: true },
+    }),
+  );
 });
 
 test("ExperimentSpec schema and parser reject impossible calendar dates", async () => {

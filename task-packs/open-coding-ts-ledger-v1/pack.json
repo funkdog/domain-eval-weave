@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "task_id": "open-coding-ts-ledger-v1",
+  "eval_pack_id": "open-coding-delivery-v1",
+  "base_tree_sha256": "c3627bf66ad2d3df607d2264728b6b1f0409857b714a37dbffd13b71772ddbd5",
+  "public_task_ref": "public-task.md",
+  "allowed_candidate_globs": ["src/**"],
+  "forbidden_entry_types": ["symlink", "submodule"],
+  "public_test_command": ["node", "--test", "test/public/*.test.ts"],
+  "oracle_version": "ledger-oracle-v1",
+  "calibration_digest": "9cfb83911ed2468c67d0cf59072c0ffd033988661044b74b33c388a5a3d918fe"
+}

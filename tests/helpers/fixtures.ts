@@ -1,7 +1,69 @@
+import { canonicalJson, sha256Hex } from "../../src/contracts/canonical-json.js";
+
 export const DIGEST_A = "a".repeat(64);
 export const DIGEST_B = "b".repeat(64);
 export const DIGEST_C = "c".repeat(64);
 export const DIGEST_D = "d".repeat(64);
+
+export const validControlVariant = {
+  schema_version: 1,
+  variant_id: "goal-off",
+  common_patch_sha256: DIGEST_A,
+  arm_patch_sha256: DIGEST_B,
+  expected_goal_rows: {
+    goal: false,
+    goal_round_driver: false,
+    command_goal: false,
+    tool_goal: false,
+  },
+  dsh_package_tree_sha256: DIGEST_C,
+  codex_connect_package_sha256: DIGEST_D,
+  model_route: {
+    provider: "openai-codex",
+    model: "gpt-5.6-sol",
+    reasoning_effort: "xhigh",
+  },
+  resolved_config_sha256: DIGEST_A,
+  tool_schema_sha256: DIGEST_B,
+  tools_mode: "native",
+  permission_mode: "workspace-write",
+} as const;
+
+export const validTreatmentVariant = {
+  ...validControlVariant,
+  variant_id: "goal-on",
+  arm_patch_sha256: DIGEST_C,
+  expected_goal_rows: {
+    goal: true,
+    goal_round_driver: true,
+    command_goal: true,
+    tool_goal: true,
+  },
+  resolved_config_sha256: DIGEST_D,
+} as const;
+
+export const validVariant = validControlVariant;
+export const CONTROL_VARIANT_DIGEST = sha256Hex(canonicalJson(validControlVariant));
+export const TREATMENT_VARIANT_DIGEST = sha256Hex(canonicalJson(validTreatmentVariant));
+
+export const validTaskPackIdentity = {
+  schema_version: 1,
+  pack: {
+    schema_version: 1,
+    task_id: "open-coding-ts-ledger-v1",
+    eval_pack_id: "open-coding-delivery-v1",
+    base_tree_sha256: DIGEST_A,
+    public_task_ref: "public-task.md",
+    allowed_candidate_globs: ["src/**"],
+    forbidden_entry_types: ["symlink", "submodule"],
+    public_test_command: ["node", "--test", "test/public/*.test.ts"],
+    oracle_version: "ledger-oracle-v1",
+    calibration_digest: DIGEST_B,
+  },
+  public_task_sha256: DIGEST_C,
+  oracle_runner_sha256: DIGEST_D,
+} as const;
+export const TASK_PACK_DIGEST = sha256Hex(canonicalJson(validTaskPackIdentity));
 
 export const validExperiment = {
   schema_version: 1,
@@ -9,9 +71,9 @@ export const validExperiment = {
   created_at: "2026-08-17T08:00:00.000Z",
   domain: "open-coding-delivery",
   eval_pack_id: "open-coding-delivery-v1",
-  task_pack_digest: DIGEST_A,
-  control_variant_digest: DIGEST_B,
-  treatment_variant_digest: DIGEST_C,
+  task_pack_digest: TASK_PACK_DIGEST,
+  control_variant_digest: CONTROL_VARIANT_DIGEST,
+  treatment_variant_digest: TREATMENT_VARIANT_DIGEST,
   intervention: {
     id: "dsh-goal-stack",
     allowed_config_paths: [
@@ -32,8 +94,8 @@ export const validEpisode = {
   episode_id: "episode-control-m0",
   campaign_id: "campaign-m0",
   arm: "control",
-  variant_digest: DIGEST_B,
-  workspace_base_digest: DIGEST_A,
+  variant_digest: CONTROL_VARIANT_DIGEST,
+  workspace_base_digest: validTaskPackIdentity.pack.base_tree_sha256,
   session_id: "session-control-m0",
   process: {
     started_at: "2026-08-17T08:00:00.000Z",
@@ -56,7 +118,7 @@ export const validTreatmentEpisode = {
   ...validEpisode,
   episode_id: "episode-treatment-m0",
   arm: "treatment",
-  variant_digest: DIGEST_C,
+  variant_digest: TREATMENT_VARIANT_DIGEST,
   session_id: "session-treatment-m0",
   evidence: {
     ...validEpisode.evidence,
@@ -110,6 +172,9 @@ export const validEvaluation = {
     unauthorized_path_change: "pass",
     oracle_hidden_from_candidate: "pass",
     candidate_frozen_before_oracle: "pass",
+    candidate_unchanged_after_oracle: "pass",
+    deployment_fingerprint_match: "pass",
+    carrier_process_healthy: "pass",
   },
   claim_strength: "diagnostic",
   effect_claim_eligible: false,
@@ -135,12 +200,20 @@ export const validTreatmentEvaluation = {
 export const validPairedEvaluation = {
   schema_version: 1,
   campaign_id: "campaign-m0",
+  oracle_seed: {
+    ref: "artifact://campaign/oracle/seed.json",
+    sha256: DIGEST_A,
+  },
   measurement_validity: validEvaluation.measurement_validity,
   arms: {
     control: {
       episode: {
         ref: "artifact://campaign/arms/control/episode.json",
         sha256: DIGEST_B,
+      },
+      oracle: {
+        ref: "artifact://campaign/oracle/control/behavior.json",
+        sha256: DIGEST_C,
       },
       candidate: {
         tree: validEpisode.evidence.candidate_tree,
@@ -155,6 +228,10 @@ export const validPairedEvaluation = {
       episode: {
         ref: "artifact://campaign/arms/treatment/episode.json",
         sha256: DIGEST_C,
+      },
+      oracle: {
+        ref: "artifact://campaign/oracle/treatment/behavior.json",
+        sha256: DIGEST_D,
       },
       candidate: {
         tree: validTreatmentEpisode.evidence.candidate_tree,

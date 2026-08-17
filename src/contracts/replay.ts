@@ -1,6 +1,8 @@
+import { parseTaskPackIdentity, type TaskPackIdentity } from "../task-pack/loader.js";
 import {
   ArtifactIntegrityError,
   type ArtifactPointer,
+  parseArtifactRef,
   readArtifactBytes,
   readJsonArtifact,
 } from "./artifacts.js";
@@ -15,6 +17,8 @@ import {
   parseExperimentSpec,
   parsePairedEvaluationArtifact,
   parsePairedImpactReport,
+  parseVariantSpec,
+  type VariantSpec,
 } from "./parsers.js";
 
 export interface ReplayedPairedImpactReport {
@@ -23,10 +27,53 @@ export interface ReplayedPairedImpactReport {
   readonly control_episode: EpisodeRecord;
   readonly treatment_episode: EpisodeRecord;
   readonly evaluation: PairedEvaluationArtifact;
+  readonly control_variant: VariantSpec;
+  readonly treatment_variant: VariantSpec;
+  readonly task_pack: TaskPackIdentity;
 }
 
 function crossReferenceFailure(message: string): never {
   throw new ArtifactIntegrityError("ARTIFACT_CROSS_REFERENCE_INVALID", message);
+}
+
+function recordValue(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    crossReferenceFailure("Oracle artifact is not an object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function parseOracleSeed(value: unknown): Record<string, unknown> {
+  const record = recordValue(value);
+  if (
+    Object.keys(record).sort().join(",") !== "oracle_version,schema_version,seed" ||
+    record.schema_version !== 1 ||
+    !Number.isSafeInteger(record.seed) ||
+    (record.seed as number) < 0 ||
+    typeof record.oracle_version !== "string" ||
+    record.oracle_version.length === 0
+  ) {
+    crossReferenceFailure("Oracle seed artifact is invalid");
+  }
+  return record;
+}
+
+function parseOracleBehavior(value: unknown): Record<string, unknown> {
+  const record = recordValue(value);
+  const behavior = record.behavior;
+  if (
+    Object.keys(record).sort().join(",") !== "behavior,schema_version" ||
+    record.schema_version !== 1 ||
+    typeof behavior !== "object" ||
+    behavior === null ||
+    Array.isArray(behavior) ||
+    Object.values(behavior).some(
+      (status) => status !== "pass" && status !== "fail" && status !== "error",
+    )
+  ) {
+    crossReferenceFailure("Oracle behavior artifact is invalid");
+  }
+  return behavior as Record<string, unknown>;
 }
 
 function rawCostDelta(
@@ -73,6 +120,32 @@ export async function replayPairedImpactReport(
     readJsonArtifact(campaignRoot, report.evidence.treatment_episode, parseEpisodeRecord),
     readJsonArtifact(campaignRoot, report.evidence.evaluation, parsePairedEvaluationArtifact),
   ]);
+  const [controlVariant, treatmentVariant, taskPack] = await Promise.all([
+    readJsonArtifact(
+      campaignRoot,
+      {
+        ref: parseArtifactRef("artifact://campaign/variants/control.json"),
+        sha256: experiment.control_variant_digest,
+      },
+      parseVariantSpec,
+    ),
+    readJsonArtifact(
+      campaignRoot,
+      {
+        ref: parseArtifactRef("artifact://campaign/variants/treatment.json"),
+        sha256: experiment.treatment_variant_digest,
+      },
+      parseVariantSpec,
+    ),
+    readJsonArtifact(
+      campaignRoot,
+      {
+        ref: parseArtifactRef("artifact://campaign/task-pack/identity.json"),
+        sha256: experiment.task_pack_digest,
+      },
+      parseTaskPackIdentity,
+    ),
+  ]);
 
   if (report.experiment_digest !== report.evidence.experiment.sha256) {
     crossReferenceFailure("report experiment digest does not match its evidence pointer");
@@ -88,11 +161,36 @@ export async function replayPairedImpactReport(
   if (controlEpisode.arm !== "control" || treatmentEpisode.arm !== "treatment") {
     crossReferenceFailure("episode evidence is bound to the wrong arm");
   }
+  if (controlVariant.variant_id !== "goal-off" || treatmentVariant.variant_id !== "goal-on") {
+    crossReferenceFailure("VariantSpec artifacts are bound to the wrong arms");
+  }
+  const commonVariantFace = (variant: VariantSpec) => ({
+    common_patch_sha256: variant.common_patch_sha256,
+    dsh_package_tree_sha256: variant.dsh_package_tree_sha256,
+    codex_connect_package_sha256: variant.codex_connect_package_sha256,
+    model_route: variant.model_route,
+    tool_schema_sha256: variant.tool_schema_sha256,
+    tools_mode: variant.tools_mode,
+    permission_mode: variant.permission_mode,
+  });
+  if (
+    canonicalJson(commonVariantFace(controlVariant)) !==
+    canonicalJson(commonVariantFace(treatmentVariant))
+  ) {
+    crossReferenceFailure("VariantSpecs differ outside the frozen Goal intervention face");
+  }
   if (
     controlEpisode.variant_digest !== experiment.control_variant_digest ||
     treatmentEpisode.variant_digest !== experiment.treatment_variant_digest
   ) {
     crossReferenceFailure("episode variant digests do not match the experiment");
+  }
+  if (
+    taskPack.pack.eval_pack_id !== experiment.eval_pack_id ||
+    controlEpisode.workspace_base_digest !== taskPack.pack.base_tree_sha256 ||
+    treatmentEpisode.workspace_base_digest !== taskPack.pack.base_tree_sha256
+  ) {
+    crossReferenceFailure("Task Pack identity does not bind the Experiment and workspace bases");
   }
   if (
     canonicalJson(report.arms.control) !== canonicalJson(evaluation.arms.control.result) ||
@@ -111,6 +209,20 @@ export async function replayPairedImpactReport(
   );
   if (canonicalJson(report.cost_delta) !== canonicalJson(expectedCostDelta)) {
     crossReferenceFailure("report cost delta is not derived from evaluation evidence");
+  }
+  const [oracleSeed, controlBehavior, treatmentBehavior] = await Promise.all([
+    readJsonArtifact(campaignRoot, evaluation.oracle_seed, parseOracleSeed),
+    readJsonArtifact(campaignRoot, evaluation.arms.control.oracle, parseOracleBehavior),
+    readJsonArtifact(campaignRoot, evaluation.arms.treatment.oracle, parseOracleBehavior),
+  ]);
+  if (
+    canonicalJson(controlBehavior) !==
+      canonicalJson(evaluation.arms.control.result.outcome.behavior_vector) ||
+    canonicalJson(treatmentBehavior) !==
+      canonicalJson(evaluation.arms.treatment.result.outcome.behavior_vector) ||
+    oracleSeed.oracle_version !== taskPack.pack.oracle_version
+  ) {
+    crossReferenceFailure("Oracle evidence does not bind the evaluated behavior vectors");
   }
 
   assertArmEvaluationBinding(
@@ -150,5 +262,8 @@ export async function replayPairedImpactReport(
     control_episode: controlEpisode,
     treatment_episode: treatmentEpisode,
     evaluation,
+    control_variant: controlVariant,
+    treatment_variant: treatmentVariant,
+    task_pack: taskPack,
   };
 }

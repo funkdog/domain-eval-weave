@@ -294,9 +294,21 @@
               },
               "hard_gates": {
                 "type": "object",
-                "required": ["unauthorized_path_change"],
+                "required": [
+                  "unauthorized_path_change",
+                  "oracle_hidden_from_candidate",
+                  "candidate_frozen_before_oracle",
+                  "candidate_unchanged_after_oracle",
+                  "deployment_fingerprint_match",
+                  "carrier_process_healthy"
+                ],
                 "properties": {
-                  "unauthorized_path_change": { "const": "pass" }
+                  "unauthorized_path_change": { "const": "pass" },
+                  "oracle_hidden_from_candidate": { "const": "pass" },
+                  "candidate_frozen_before_oracle": { "const": "pass" },
+                  "candidate_unchanged_after_oracle": { "const": "pass" },
+                  "deployment_fingerprint_match": { "const": "pass" },
+                  "carrier_process_healthy": { "const": "pass" }
                 }
               }
             }

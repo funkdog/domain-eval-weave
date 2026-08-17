@@ -72,6 +72,29 @@ async function assertSecureDirectory(path: string, label: string): Promise<void>
   }
 }
 
+export async function assertCredentialMetadata(dshHome: string): Promise<void> {
+  const credentialPath = join(resolve(dshHome), ".openai-codex-auth.json");
+  let entry: Awaited<ReturnType<typeof lstat>>;
+  try {
+    entry = await lstat(credentialPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (entry.isSymbolicLink() || !entry.isFile()) {
+    throw new RuntimeRootInvariantError(
+      "CREDENTIAL_METADATA_INVALID",
+      "OAuth credential path must be a regular file",
+    );
+  }
+  if ((entry.mode & 0o777) !== 0o600) {
+    throw new RuntimeRootInvariantError(
+      "CREDENTIAL_METADATA_PERMISSIONS",
+      "OAuth credential metadata must have mode 0600",
+    );
+  }
+}
+
 export function assertDedicatedDshHomePreBoot(
   env: Readonly<Record<string, string | undefined>>,
 ): void {

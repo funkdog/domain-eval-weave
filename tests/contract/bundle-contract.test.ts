@@ -34,8 +34,12 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
 test("bundle defaults to management app enabled and runner bridge disabled", async () => {
   const source = await readFile(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
   assert.deepEqual(parse(source), [
-    { id: "dsh-eval-app", name: "dsh-eval-lab/app", disabled: false },
-    { id: "dsh-eval-bridge", name: "dsh-eval-lab/bridge", disabled: true },
+    {
+      insert: [
+        { id: "dsh-eval-app", name: "dsh-eval-lab/app", disabled: false },
+        { id: "dsh-eval-bridge", name: "dsh-eval-lab/bridge", disabled: true },
+      ],
+    },
   ]);
 });
 
@@ -75,6 +79,9 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as Record<string, unknown>;
     assert.equal("bin" in packedManifest, false);
+    await execFileAsync(process.execPath, [pnpmCli, "install", "--ignore-scripts"], {
+      cwd: packageRoot,
+    });
 
     const [app, bridge] = await Promise.all([
       import(pathToFileURL(join(packageRoot, "dist/app/index.js")).href),
@@ -84,16 +91,22 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     assert.equal(typeof bridge.default, "function");
 
     let provided: unknown;
-    app.default(
+    const exits: number[] = [];
+    await app.default(
       {
         cmdlineArgs: { get: () => ["doctor"] },
+        appExit: (code: number) => exits.push(code),
         provide: (_name: "dshEvalApp", invocation: unknown) => {
           provided = invocation;
         },
       },
-      { DSH_HOME: DEDICATED_DSH_HOME },
+      {
+        env: { DSH_HOME: DEDICATED_DSH_HOME },
+        executor: { execute: async () => 0 },
+      },
     );
     assert.deepEqual(provided, { kind: "doctor" });
+    assert.deepEqual(exits, [0]);
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -103,6 +116,7 @@ test("app plugin enforces DSH_HOME before consuming immutable app arguments", as
   const app = await import("../../src/app/index.js");
   let argsRead = false;
   let provided: unknown;
+  const exits: number[] = [];
   const context = {
     cmdlineArgs: {
       get: () => {
@@ -110,15 +124,51 @@ test("app plugin enforces DSH_HOME before consuming immutable app arguments", as
         return ["doctor"];
       },
     },
+    appExit: (code: number) => exits.push(code),
     provide: (_name: "dshEvalApp", invocation: unknown) => {
       provided = invocation;
     },
   };
 
-  assert.throws(() => app.default(context, {}), /DSH_HOME/);
+  assert.throws(
+    () => app.default(context, { env: {}, executor: { execute: async () => 0 } }),
+    /DSH_HOME/,
+  );
   assert.equal(argsRead, false);
 
-  app.default(context, { DSH_HOME: DEDICATED_DSH_HOME });
+  await app.default(context, {
+    env: { DSH_HOME: DEDICATED_DSH_HOME },
+    executor: { execute: async () => 0 },
+  });
   assert.equal(argsRead, true);
   assert.deepEqual(provided, { kind: "doctor" });
+  assert.deepEqual(exits, [0]);
+});
+
+test("app plugin turns invalid immutable arguments into exit 2 before execution", async () => {
+  const app = await import("../../src/app/index.js");
+  const exits: number[] = [];
+  let provided = false;
+  let executed = false;
+  await app.default(
+    {
+      cmdlineArgs: { get: () => ["run", "--runtime-root", "/tmp/forbidden"] },
+      appExit: (code: number) => exits.push(code),
+      provide: () => {
+        provided = true;
+      },
+    },
+    {
+      env: { DSH_HOME: DEDICATED_DSH_HOME },
+      executor: {
+        execute: async () => {
+          executed = true;
+          return 0;
+        },
+      },
+    },
+  );
+  assert.deepEqual(exits, [2]);
+  assert.equal(provided, false);
+  assert.equal(executed, false);
 });

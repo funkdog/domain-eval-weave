@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { AppUsageError, EXIT_CODE, parseAppArguments } from "../../src/app/args.js";
+import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 
 test("app grammar normalizes every Phase 1 command", () => {
   assert.deepEqual(parseAppArguments([]), { kind: "help" });
@@ -26,6 +27,16 @@ test("app grammar normalizes every Phase 1 command", () => {
     kind: "report",
     campaignId: "campaign-m0",
   });
+});
+
+test("artifact-only report failures use the frozen integrity exit family", async () => {
+  let stderr = "";
+  const executor = new DefaultAppExecutor({ stderr: (text) => (stderr += text) });
+  assert.equal(
+    await executor.execute({ kind: "report", campaignId: "campaign-that-does-not-exist" }),
+    EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+  );
+  assert.match(stderr, /ARTIFACT_INTEGRITY_FAILURE/);
 });
 
 test("usage failures use the stable exit code and reject runtime-root overrides", () => {

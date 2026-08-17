@@ -1,0 +1,18 @@
+{
+  "name": "dsh-profile-eval-runner-template",
+  "private": true,
+  "dependencies": {
+    "dsh-codex-connect": "0.1.0-alpha.4.7",
+    "dsh-eval-lab": "__EXACT_PACKAGE_SPEC__"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless",
+        "dsh-codex-connect",
+        "dsh-eval-lab"
+      ]
+    }
+  }
+}

@@ -88,6 +88,38 @@ export const experimentSpecSchema = z.strictObject({
   effect_claim_eligible: z.literal(false),
 });
 
+export const variantSpecSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    variant_id: z.enum(["goal-off", "goal-on"]),
+    common_patch_sha256: sha256Schema,
+    arm_patch_sha256: sha256Schema,
+    expected_goal_rows: z.strictObject({
+      goal: z.boolean(),
+      goal_round_driver: z.boolean(),
+      command_goal: z.boolean(),
+      tool_goal: z.boolean(),
+    }),
+    dsh_package_tree_sha256: sha256Schema,
+    codex_connect_package_sha256: sha256Schema,
+    model_route: z.strictObject({
+      provider: z.literal("openai-codex"),
+      model: z.literal("gpt-5.6-sol"),
+      reasoning_effort: z.literal("xhigh"),
+    }),
+    resolved_config_sha256: sha256Schema,
+    tool_schema_sha256: sha256Schema,
+    tools_mode: z.literal("native"),
+    permission_mode: z.literal("workspace-write"),
+  })
+  .refine(
+    (variant) =>
+      Object.values(variant.expected_goal_rows).every(
+        (enabled) => enabled === (variant.variant_id === "goal-on"),
+      ),
+    "VariantSpec Goal rows must all match its frozen variant id",
+  );
+
 const evidenceSchema = z
   .strictObject({
     session_log_ref: artifactRefSchema.optional(),
@@ -191,12 +223,21 @@ export const evaluationResultSchema = z
       });
     }
 
-    if (result.hard_gates.unauthorized_path_change !== "pass") {
-      context.addIssue({
-        code: "custom",
-        path: ["hard_gates", "unauthorized_path_change"],
-        message: "verified completion requires the unauthorized path change gate to pass",
-      });
+    for (const gate of [
+      "unauthorized_path_change",
+      "oracle_hidden_from_candidate",
+      "candidate_frozen_before_oracle",
+      "candidate_unchanged_after_oracle",
+      "deployment_fingerprint_match",
+      "carrier_process_healthy",
+    ]) {
+      if (result.hard_gates[gate] !== "pass") {
+        context.addIssue({
+          code: "custom",
+          path: ["hard_gates", gate],
+          message: `verified completion requires ${gate} to pass`,
+        });
+      }
     }
   });
 
@@ -215,6 +256,7 @@ const costDeltaSchema = z.strictObject({
 
 const evaluatedArmSchema = z.strictObject({
   episode: artifactPointerSchema,
+  oracle: artifactPointerSchema,
   candidate: z.strictObject({
     tree: z.string().regex(GIT_TREE_PATTERN),
     archive: artifactPointerSchema,
@@ -225,6 +267,7 @@ const evaluatedArmSchema = z.strictObject({
 export const pairedEvaluationArtifactSchema = z.strictObject({
   schema_version: z.literal(1),
   campaign_id: idSchema,
+  oracle_seed: artifactPointerSchema,
   measurement_validity: measurementValiditySchema,
   arms: z.strictObject({
     control: evaluatedArmSchema,
@@ -263,6 +306,7 @@ export const pairedImpactReportSchema = z.strictObject({
 export type Diagnostic = z.infer<typeof diagnosticSchema>;
 export type MeasurementValidity = z.infer<typeof measurementValiditySchema>;
 export type ExperimentSpec = z.infer<typeof experimentSpecSchema>;
+export type VariantSpec = z.infer<typeof variantSpecSchema>;
 export type EpisodeRecord = z.infer<typeof episodeRecordSchema>;
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;
 export type PairedEvaluationArtifact = z.infer<typeof pairedEvaluationArtifactSchema>;
@@ -270,6 +314,10 @@ export type PairedImpactReport = z.infer<typeof pairedImpactReportSchema>;
 
 export function parseExperimentSpec(input: unknown): ExperimentSpec {
   return experimentSpecSchema.parse(input);
+}
+
+export function parseVariantSpec(input: unknown): VariantSpec {
+  return variantSpecSchema.parse(input);
 }
 
 export function parseEpisodeRecord(input: unknown): EpisodeRecord {

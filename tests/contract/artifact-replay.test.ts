@@ -16,11 +16,16 @@ import { parseExperimentSpec } from "../../src/contracts/parsers.js";
 import { replayPairedImpactReport } from "../../src/contracts/replay.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import {
+  validControlVariant,
   validEpisode,
+  validEvaluation,
   validExperiment,
   validPairedEvaluation,
   validReport,
+  validTaskPackIdentity,
   validTreatmentEpisode,
+  validTreatmentEvaluation,
+  validTreatmentVariant,
 } from "../helpers/fixtures.js";
 
 test("artifact refs are portable campaign refs, not cwd-relative or host-absolute paths", () => {
@@ -37,6 +42,23 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
   const campaignRoot = await mkdtemp(`${scratchParent}/campaign-m0-`);
 
   try {
+    await Promise.all([
+      writeCanonicalJsonArtifact(
+        campaignRoot,
+        "artifact://campaign/variants/control.json",
+        validControlVariant,
+      ),
+      writeCanonicalJsonArtifact(
+        campaignRoot,
+        "artifact://campaign/variants/treatment.json",
+        validTreatmentVariant,
+      ),
+      writeCanonicalJsonArtifact(
+        campaignRoot,
+        "artifact://campaign/task-pack/identity.json",
+        validTaskPackIdentity,
+      ),
+    ]);
     const controlSession = await writeArtifactBytes(
       campaignRoot,
       "artifact://campaign/arms/control/session.jsonl",
@@ -92,12 +114,33 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
       "artifact://campaign/arms/treatment/episode.json",
       treatmentEpisode,
     );
+    const [oracleSeedPointer, controlBehaviorPointer, treatmentBehaviorPointer] = await Promise.all(
+      [
+        writeCanonicalJsonArtifact(campaignRoot, "artifact://campaign/oracle/seed.json", {
+          schema_version: 1,
+          seed: 1729,
+          oracle_version: "ledger-oracle-v1",
+        }),
+        writeCanonicalJsonArtifact(
+          campaignRoot,
+          "artifact://campaign/oracle/control/behavior.json",
+          { schema_version: 1, behavior: validEvaluation.outcome.behavior_vector },
+        ),
+        writeCanonicalJsonArtifact(
+          campaignRoot,
+          "artifact://campaign/oracle/treatment/behavior.json",
+          { schema_version: 1, behavior: validTreatmentEvaluation.outcome.behavior_vector },
+        ),
+      ],
+    );
     const pairedEvaluation = {
       ...validPairedEvaluation,
+      oracle_seed: oracleSeedPointer,
       arms: {
         control: {
           ...validPairedEvaluation.arms.control,
           episode: episodePointer,
+          oracle: controlBehaviorPointer,
           candidate: {
             tree: controlEpisode.evidence.candidate_tree,
             archive: controlArchive,
@@ -106,6 +149,7 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         treatment: {
           ...validPairedEvaluation.arms.treatment,
           episode: treatmentEpisodePointer,
+          oracle: treatmentBehaviorPointer,
           candidate: {
             tree: treatmentEpisode.evidence.candidate_tree,
             archive: treatmentArchive,
@@ -174,6 +218,43 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
     );
     await assert.rejects(
       replayPairedImpactReport(campaignRoot, wrongValidityReportPointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError &&
+        error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",
+    );
+
+    const wrongBehaviorPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/oracle/control/behavior-wrong.json",
+      {
+        schema_version: 1,
+        behavior: {
+          ...validEvaluation.outcome.behavior_vector,
+          basic_reservation: "fail",
+        },
+      },
+    );
+    const wrongBehaviorEvaluationPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/evaluation-wrong-behavior.json",
+      {
+        ...pairedEvaluation,
+        arms: {
+          ...pairedEvaluation.arms,
+          control: { ...pairedEvaluation.arms.control, oracle: wrongBehaviorPointer },
+        },
+      },
+    );
+    const wrongBehaviorReportPointer = await writeCanonicalJsonArtifact(
+      campaignRoot,
+      "artifact://campaign/report-wrong-behavior.json",
+      {
+        ...report,
+        evidence: { ...report.evidence, evaluation: wrongBehaviorEvaluationPointer },
+      },
+    );
+    await assert.rejects(
+      replayPairedImpactReport(campaignRoot, wrongBehaviorReportPointer),
       (error: unknown) =>
         error instanceof ArtifactIntegrityError &&
         error.code === "ARTIFACT_CROSS_REFERENCE_INVALID",

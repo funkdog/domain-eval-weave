@@ -1,0 +1,567 @@
+import { execFile, spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { type AuthExecutionInput, AuthFacade } from "../auth/facade.js";
+import { createWorkspaceToolGuard } from "../bridge/guard.js";
+import { createWorkspaceTestDefinition } from "../bridge/workspace-test.js";
+import { type CampaignPointers, rebuildCampaignReport } from "../campaign/coordinator.js";
+import {
+  CarrierQualificationError,
+  dshLaunch,
+  dumpProfileRows,
+  runRealCampaign,
+} from "../campaign/real.js";
+import {
+  ArtifactIntegrityError,
+  type ArtifactPointer,
+  parseArtifactRef,
+  readJsonArtifact,
+  resolveArtifactRef,
+} from "../contracts/artifacts.js";
+import { sha256Hex } from "../contracts/canonical-json.js";
+import { parsePairedImpactReport } from "../contracts/parsers.js";
+import { runDoctor } from "../doctor/index.js";
+import {
+  findPackageRoot,
+  fingerprintPackageClosure,
+  fingerprintPackageContent,
+} from "../fingerprint/deployment.js";
+import {
+  assertExactGoalIntervention,
+  type ComposedRow,
+  VariantCompositionError,
+} from "../fingerprint/variants.js";
+import { calibrateLedgerPack } from "../oracle/calibration.js";
+import { LedgerOracle } from "../oracle/ledger.js";
+import { StrictProcessRunner } from "../process/strict-runner.js";
+import {
+  assertProfileRoles,
+  materializeFrozenFiles,
+  runnerProfileFiles,
+  verifyFrozenFiles,
+} from "../runtime-profile/init.js";
+import {
+  assertCredentialMetadata,
+  assertDedicatedDshHomePreBoot,
+  assertRuntimeLayoutInvariant,
+  DEDICATED_DSH_HOME,
+  DEDICATED_RUNTIME_ROOT,
+  OAUTH_REFERENCE_ROOT,
+} from "../runtime-root.js";
+import { digestTaskPack, loadTaskPack } from "../task-pack/loader.js";
+import { type AppInvocation, EXIT_CODE, type ExitCode } from "./args.js";
+import type { DshEvalCommandExecutor } from "./startup.js";
+
+const execFileAsync = promisify(execFile);
+const SOURCE_ROOT = "/Users/slipshod/AIBuild/dsh-eval-lab";
+
+function composedRow(rows: readonly ComposedRow[], id: string): ComposedRow {
+  const row = rows.find((candidate) => candidate.id === id);
+  if (row === undefined) throw new Error(`composed config is missing ${id}`);
+  return row;
+}
+
+function objectValue(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("expected an object value");
+  }
+  return value as Record<string, unknown>;
+}
+
+async function assertToolchainVersions(): Promise<void> {
+  const [node, pnpm, git] = await Promise.all([
+    execFileAsync(process.execPath, ["--version"]),
+    execFileAsync("pnpm", ["--version"], { env: childEnvironment() }),
+    execFileAsync("git", ["--version"], { env: childEnvironment() }),
+  ]);
+  if (!/^v24\./.test(node.stdout.trim())) throw new Error("Node 24 is required");
+  if (pnpm.stdout.trim() !== "11.7.0") throw new Error("pnpm 11.7.0 is required");
+  if (!/^git version \d+\./.test(git.stdout.trim())) throw new Error("Git is unavailable");
+}
+
+async function assertInstalledPackages(packageSpec: string): Promise<void> {
+  await verifyFrozenFiles(runnerProfileRoot(), runnerProfileFiles(packageSpec));
+  const dshRoot = await findPackageRoot(dshLaunch().launcherArgs[0] ?? "", "@deepseek-ai/dsh");
+  const [managementManifest, runnerEvalManifest, codexManifest, dshManifest, lockfile] =
+    await Promise.all([
+      readFile(`${packageRoot()}/package.json`, "utf8").then(JSON.parse),
+      readFile(`${runnerProfileRoot()}/node_modules/dsh-eval-lab/package.json`, "utf8").then(
+        JSON.parse,
+      ),
+      readFile(`${runnerProfileRoot()}/node_modules/dsh-codex-connect/package.json`, "utf8").then(
+        JSON.parse,
+      ),
+      readFile(`${dshRoot}/package.json`, "utf8").then(JSON.parse),
+      readFile(`${runnerProfileRoot()}/pnpm-lock.yaml`, "utf8"),
+    ]);
+  if (
+    managementManifest.name !== "dsh-eval-lab" ||
+    runnerEvalManifest.name !== "dsh-eval-lab" ||
+    managementManifest.version !== runnerEvalManifest.version ||
+    codexManifest.name !== "dsh-codex-connect" ||
+    codexManifest.version !== "0.1.0-alpha.4.7" ||
+    dshManifest.name !== "@deepseek-ai/dsh" ||
+    dshManifest.version !== "0.1.0-rc.6" ||
+    !lockfile.includes("dsh-codex-connect@0.1.0-alpha.4.7") ||
+    !lockfile.includes(packageSpec)
+  ) {
+    throw new Error("installed package versions or lockfile drifted");
+  }
+  const [managementDigest, runnerDigest] = await Promise.all([
+    fingerprintPackageContent(packageRoot()),
+    fingerprintPackageContent(`${runnerProfileRoot()}/node_modules/dsh-eval-lab`),
+  ]);
+  await fingerprintPackageClosure(dshRoot);
+  if (managementDigest !== runnerDigest) {
+    throw new Error("management and runner Eval Lab package bytes differ");
+  }
+}
+
+function assertBridgeConformance(): void {
+  const guard = createWorkspaceToolGuard({ workspaceRoot: packageRoot() });
+  if (guard({ name: "get_goal", arguments: {} }) !== undefined) {
+    throw new Error("Goal tools are not admitted by the runner guard");
+  }
+  if (
+    guard({ name: "create_goal", arguments: { objective: "probe", max_goal_rounds: 9 } }) ===
+    undefined
+  ) {
+    throw new Error("Goal round cap is not enforced");
+  }
+  const tool = createWorkspaceTestDefinition({
+    workspaceRoot: packageRoot(),
+    runner: {
+      run: async () => ({ exitCode: 0, signal: null, stdout: "", stderr: "", timedOut: false }),
+    },
+  });
+  if (
+    tool.name !== "workspace_test" ||
+    tool.parameters.additionalProperties !== false ||
+    Object.keys(tool.parameters.properties).length !== 0
+  ) {
+    throw new Error("workspace_test schema drifted");
+  }
+}
+
+function assertRunnerRows(rows: readonly ComposedRow[]): void {
+  assertProfileRoles(rows, "runner");
+  const persistence = objectValue(composedRow(rows, "session-persistence-jsonl").config);
+  if (
+    persistence.root !== `${DEDICATED_DSH_HOME}/sessions` ||
+    persistence.compression !== "none" ||
+    persistence.packChunks !== false
+  ) {
+    throw new Error("Session persistence is not frozen raw JSONL");
+  }
+  const approval = objectValue(composedRow(rows, "approval").config);
+  const permission = objectValue(composedRow(rows, "permission").config);
+  const presets = objectValue(permission.presets);
+  const workspaceWrite = objectValue(presets["workspace-write"]);
+  if (approval.policy !== "never" || workspaceWrite.approval !== "never") {
+    throw new Error("headless approval policy is not frozen to never");
+  }
+  for (const id of [
+    "tool-bash",
+    "tool-pwsh",
+    "tool-jobs",
+    "tool-str-replace-editor",
+    "tool-web",
+    "tool-skill",
+    "tool-subagent-control",
+    "tool-subagent-list-agents",
+    "tool-subagent",
+    "tool-subagent-fork",
+    "tool-subagent-report",
+    "tool-workflow",
+    "tool-ralph",
+    "plan-mode",
+  ]) {
+    if (composedRow(rows, id).disabled !== true) throw new Error(`${id} must be disabled`);
+  }
+}
+
+function packageRoot(): string {
+  return fileURLToPath(new URL("../..", import.meta.url));
+}
+
+function runnerProfileRoot(): string {
+  return `${DEDICATED_DSH_HOME}/profiles/eval-runner`;
+}
+
+function childEnvironment(): NodeJS.ProcessEnv {
+  return {
+    PATH: process.env.PATH ?? "/usr/bin:/bin",
+    LANG: "C",
+    LC_ALL: "C",
+    DSH_HOME: DEDICATED_DSH_HOME,
+  };
+}
+
+async function managementPackageSpec(): Promise<string> {
+  const manifest = JSON.parse(
+    await readFile(`${DEDICATED_DSH_HOME}/profiles/eval/package.json`, "utf8"),
+  ) as { dependencies?: Record<string, unknown> };
+  const spec = manifest.dependencies?.["dsh-eval-lab"];
+  if (typeof spec !== "string" || spec.length === 0) {
+    throw new Error("management profile does not declare an exact dsh-eval-lab package spec");
+  }
+  return spec;
+}
+
+async function executeAuth(input: AuthExecutionInput) {
+  if (input.stdio === "inherit") {
+    const exitCode = await new Promise<number | null>((resolveExit, reject) => {
+      const child = spawn(input.executable, [...input.args], {
+        env: { ...input.env },
+        stdio: "inherit",
+      });
+      child.once("error", reject);
+      child.once("close", resolveExit);
+    });
+    return { exitCode, stdout: "", stderr: "" };
+  }
+  try {
+    const result = await execFileAsync(input.executable, [...input.args], {
+      env: { ...input.env },
+      maxBuffer: 1024 * 1024,
+    });
+    return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
+  } catch (error) {
+    const failed = error as { code?: unknown; stdout?: unknown; stderr?: unknown };
+    return {
+      exitCode: typeof failed.code === "number" ? failed.code : null,
+      stdout: typeof failed.stdout === "string" ? failed.stdout : "",
+      stderr: typeof failed.stderr === "string" ? failed.stderr : "",
+    };
+  }
+}
+
+function authFacade(): AuthFacade {
+  return new AuthFacade({
+    executable: `${runnerProfileRoot()}/node_modules/.bin/dsh-codex-connect`,
+    execute: executeAuth,
+    env: childEnvironment() as Readonly<Record<string, string>>,
+  });
+}
+
+async function confirmCampaign(summary: string): Promise<boolean> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
+  const terminal = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    return (await terminal.question(`${summary} Type RUN to continue: `)).trim() === "RUN";
+  } finally {
+    terminal.close();
+  }
+}
+
+async function initializeRuntime(): Promise<void> {
+  await assertRuntimeLayoutInvariant({
+    sourceRoot: SOURCE_ROOT,
+    runtimeRoot: DEDICATED_RUNTIME_ROOT,
+    dshHome: DEDICATED_DSH_HOME,
+    oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
+  });
+  const files = runnerProfileFiles(await managementPackageSpec());
+  await materializeFrozenFiles(runnerProfileRoot(), files);
+  await materializeFrozenFiles(
+    DEDICATED_DSH_HOME,
+    new Map([
+      [
+        "settings.yaml",
+        [
+          "agent-default-model:",
+          "  provider: openai-codex",
+          "  model: gpt-5.6-sol",
+          "  reasoningEffort: xhigh",
+          "",
+        ].join("\n"),
+      ],
+    ]),
+  );
+  await execFileAsync(
+    "pnpm",
+    ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],
+    {
+      cwd: runnerProfileRoot(),
+      env: childEnvironment(),
+    },
+  );
+  await execFileAsync(
+    "pnpm",
+    ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
+    {
+      cwd: runnerProfileRoot(),
+      env: childEnvironment(),
+    },
+  );
+}
+
+async function calibrationPath(): Promise<string> {
+  const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
+  await loadTaskPack(packRoot);
+  return `${DEDICATED_RUNTIME_ROOT}/calibration/${await digestTaskPack(packRoot)}.json`;
+}
+
+async function runCalibration(): Promise<{ readonly ready: boolean; readonly path: string }> {
+  const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
+  const pack = await loadTaskPack(packRoot);
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/calibration/tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/run-`);
+  try {
+    const oracle = new LedgerOracle({
+      runner: new StrictProcessRunner(),
+      oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
+    });
+    const result = await calibrateLedgerPack({
+      oracle,
+      packRoot,
+      scratchRoot: scratch,
+      seed: 1729,
+    });
+    const taskPackDigest = await digestTaskPack(packRoot);
+    const path = `${DEDICATED_RUNTIME_ROOT}/calibration/${taskPackDigest}.json`;
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    const bytes = `${JSON.stringify({ ...result, task_pack_digest: taskPackDigest, calibration_digest: pack.calibration_digest })}\n`;
+    try {
+      await writeFile(path, bytes, { flag: "wx", mode: 0o600 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if ((await readFile(path, "utf8")) !== bytes) throw new Error("calibration artifact drift");
+    }
+    return { ready: result.ready, path };
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+}
+
+async function pointerFor(campaignRoot: string, ref: string): Promise<ArtifactPointer> {
+  const bytes = await readFile(resolveArtifactRef(campaignRoot, ref));
+  return { ref: parseArtifactRef(ref), sha256: sha256Hex(bytes) };
+}
+
+async function campaignPointers(campaignRoot: string): Promise<CampaignPointers> {
+  const [report, markdown] = await Promise.all([
+    pointerFor(campaignRoot, "artifact://campaign/report.json"),
+    pointerFor(campaignRoot, "artifact://campaign/report.md"),
+  ]);
+  const frozenReport = await readJsonArtifact(campaignRoot, report, parsePairedImpactReport);
+  return {
+    experiment: frozenReport.evidence.experiment,
+    controlEpisode: frozenReport.evidence.control_episode,
+    treatmentEpisode: frozenReport.evidence.treatment_episode,
+    evaluation: frozenReport.evidence.evaluation,
+    report,
+    markdown,
+  };
+}
+
+async function runProductDoctor() {
+  const packageSpec = await managementPackageSpec();
+  const launch = dshLaunch();
+  const commonPatch = `${packageRoot()}/variants/common.patch.yml`;
+  const controlPatch = `${packageRoot()}/variants/goal-off.patch.yml`;
+  const treatmentPatch = `${packageRoot()}/variants/goal-on.patch.yml`;
+  let managementRows: Promise<readonly ComposedRow[]> | undefined;
+  let runnerRows: Promise<readonly ComposedRow[]> | undefined;
+  let controlRows: Promise<readonly ComposedRow[]> | undefined;
+  let treatmentRows: Promise<readonly ComposedRow[]> | undefined;
+  const management = () => (managementRows ??= dumpProfileRows(launch, "eval", []));
+  const runner = () => (runnerRows ??= dumpProfileRows(launch, "eval-runner", []));
+  const control = () =>
+    (controlRows ??= dumpProfileRows(launch, "eval-runner", [commonPatch, controlPatch]));
+  const treatment = () =>
+    (treatmentRows ??= dumpProfileRows(launch, "eval-runner", [commonPatch, treatmentPatch]));
+  return runDoctor([
+    { id: "toolchain-versions", run: assertToolchainVersions },
+    {
+      id: "root-separation",
+      run: () =>
+        assertRuntimeLayoutInvariant({
+          sourceRoot: SOURCE_ROOT,
+          runtimeRoot: DEDICATED_RUNTIME_ROOT,
+          dshHome: DEDICATED_DSH_HOME,
+          oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
+        }),
+    },
+    {
+      id: "dedicated-home-metadata",
+      run: async () => {
+        assertDedicatedDshHomePreBoot(process.env);
+        await assertCredentialMetadata(DEDICATED_DSH_HOME);
+      },
+    },
+    { id: "package-lock-and-bytes", run: () => assertInstalledPackages(packageSpec) },
+    {
+      id: "profile-roles",
+      run: async () => {
+        assertProfileRoles(await management(), "management");
+        assertProfileRoles(await runner(), "runner");
+      },
+    },
+    {
+      id: "auth",
+      run: async () => {
+        if ((await authFacade().status()).status !== "signed-in") throw new Error("signed out");
+      },
+    },
+    {
+      id: "patch-dump-config",
+      run: async () => {
+        await dumpProfileRows(launch, "eval-runner", [commonPatch]);
+        await control();
+        await treatment();
+      },
+    },
+    {
+      id: "variant-exact-diff",
+      run: async () => void assertExactGoalIntervention(await control(), await treatment()),
+    },
+    { id: "bridge-conformance", run: async () => void assertBridgeConformance() },
+    {
+      id: "runner-safety-composition",
+      run: async () => {
+        assertRunnerRows(await control());
+        assertRunnerRows(await treatment());
+      },
+    },
+    {
+      id: "task-pack",
+      run: async () =>
+        void (await loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-ledger-v1`)),
+    },
+    {
+      id: "calibration",
+      run: async () => {
+        const path = await calibrationPath();
+        const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+        const packRoot = `${packageRoot()}/task-packs/open-coding-ts-ledger-v1`;
+        const pack = await loadTaskPack(packRoot);
+        if (
+          value.ready !== true ||
+          value.task_pack_digest !== (await digestTaskPack(packRoot)) ||
+          value.calibration_digest !== pack.calibration_digest
+        ) {
+          throw new Error("calibration artifact is stale or not ready");
+        }
+      },
+    },
+  ]);
+}
+
+export class DefaultAppExecutor implements DshEvalCommandExecutor {
+  readonly #stdout: (text: string) => void;
+  readonly #stderr: (text: string) => void;
+
+  constructor(
+    input: {
+      readonly stdout?: (text: string) => void;
+      readonly stderr?: (text: string) => void;
+    } = {},
+  ) {
+    this.#stdout = input.stdout ?? ((text) => void process.stdout.write(text));
+    this.#stderr = input.stderr ?? ((text) => void process.stderr.write(text));
+  }
+
+  async execute(invocation: AppInvocation): Promise<ExitCode> {
+    try {
+      switch (invocation.kind) {
+        case "help":
+          this.#stdout(
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | run | report <campaign-id>\n",
+          );
+          return EXIT_CODE.OK;
+        case "version":
+          this.#stdout(
+            `dsh-eval-lab ${String(JSON.parse(await readFile(`${packageRoot()}/package.json`, "utf8")).version)}\n`,
+          );
+          return EXIT_CODE.OK;
+        case "init":
+          await initializeRuntime();
+          this.#stdout(
+            "Eval Lab runner profile initialized. Next: auth status, then explicit auth login.\n",
+          );
+          return EXIT_CODE.OK;
+        case "auth-status": {
+          const status = await authFacade().status();
+          this.#stdout(`${JSON.stringify(status)}\n`);
+          return status.status === "signed-in" ? EXIT_CODE.OK : EXIT_CODE.RUNTIME_NOT_READY;
+        }
+        case "auth-login":
+          return (await authFacade().login()).signedIn ? EXIT_CODE.OK : EXIT_CODE.RUNTIME_NOT_READY;
+        case "doctor": {
+          const report = await runProductDoctor();
+          this.#stdout(`${JSON.stringify(report)}\n`);
+          return report.ready ? EXIT_CODE.OK : EXIT_CODE.RUNTIME_NOT_READY;
+        }
+        case "calibrate": {
+          const result = await runCalibration();
+          this.#stdout(`${JSON.stringify(result)}\n`);
+          return result.ready ? EXIT_CODE.OK : EXIT_CODE.CALIBRATION_NOT_READY;
+        }
+        case "run": {
+          const doctor = await runProductDoctor();
+          if (!doctor.ready) {
+            this.#stderr("Runtime doctor is not ready; run `doctor` for the check matrix.\n");
+            return EXIT_CODE.RUNTIME_NOT_READY;
+          }
+          const result = await runRealCampaign({
+            packageRoot: packageRoot(),
+            timeoutMs: invocation.timeoutMs,
+            confirm: confirmCampaign,
+          });
+          this.#stdout(
+            `Campaign ${result.campaignId} completed. Run report ${result.campaignId}.\n`,
+          );
+          return EXIT_CODE.OK;
+        }
+        case "report": {
+          const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${invocation.campaignId}`;
+          const pointers = await campaignPointers(campaignRoot);
+          const rebuilt = await rebuildCampaignReport({
+            campaignRoot,
+            pointers,
+          });
+          this.#stdout(
+            await readFile(resolveArtifactRef(campaignRoot, rebuilt.markdownPointer.ref), "utf8"),
+          );
+          return EXIT_CODE.OK;
+        }
+      }
+    } catch (error) {
+      let exitCode: ExitCode = EXIT_CODE.CAMPAIGN_INFRASTRUCTURE_INVALID;
+      let code = "CAMPAIGN_INFRASTRUCTURE_INVALID";
+      if (error instanceof ArtifactIntegrityError || invocation.kind === "report") {
+        exitCode = EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
+        code = "ARTIFACT_INTEGRITY_FAILURE";
+      } else if (error instanceof CarrierQualificationError) {
+        exitCode = EXIT_CODE.CARRIER_QUALIFICATION_FAILED;
+        code = "CARRIER_QUALIFICATION_FAILED";
+      } else if (error instanceof VariantCompositionError) {
+        exitCode = EXIT_CODE.VARIANT_COMPOSITION_INVALID;
+        code = "VARIANT_COMPOSITION_INVALID";
+      } else if (invocation.kind === "calibrate") {
+        exitCode = EXIT_CODE.CALIBRATION_NOT_READY;
+        code = "CALIBRATION_NOT_READY";
+      } else if (
+        invocation.kind === "init" ||
+        invocation.kind === "doctor" ||
+        invocation.kind === "auth-status" ||
+        invocation.kind === "auth-login"
+      ) {
+        exitCode = EXIT_CODE.RUNTIME_NOT_READY;
+        code = "RUNTIME_NOT_READY";
+      }
+      this.#stderr(`DSH Eval Lab command failed (${code}).\n`);
+      return exitCode;
+    }
+  }
+}
+
+export function createDefaultAppExecutor(): DshEvalCommandExecutor {
+  return new DefaultAppExecutor();
+}

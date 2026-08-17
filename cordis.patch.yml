@@ -1,6 +1,7 @@
-- id: dsh-eval-app
-  name: dsh-eval-lab/app
-  disabled: false
-- id: dsh-eval-bridge
-  name: dsh-eval-lab/bridge
-  disabled: true
+- insert:
+    - id: dsh-eval-app
+      name: dsh-eval-lab/app
+      disabled: false
+    - id: dsh-eval-bridge
+      name: dsh-eval-lab/bridge
+      disabled: true

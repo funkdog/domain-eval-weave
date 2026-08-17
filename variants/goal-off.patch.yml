@@ -1,0 +1,8 @@
+- id: goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: tool-goal
+  disabled: true
