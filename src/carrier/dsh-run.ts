@@ -10,6 +10,7 @@ export interface DshRunInput {
   readonly armPatch: string;
   readonly task: string;
   readonly timeoutMs: number;
+  readonly postOutputExitGraceMs?: number;
 }
 
 export interface DshRunOutput {
@@ -22,9 +23,14 @@ export interface DshRunOutput {
 }
 
 const MAX_OUTPUT_BYTES = 1024 * 1024;
+const POST_OUTPUT_EXIT_GRACE_MS = 5_000;
 
 export class DshRunCarrier {
   async runEpisode(input: DshRunInput): Promise<DshRunOutput> {
+    const postOutputExitGraceMs = input.postOutputExitGraceMs ?? POST_OUTPUT_EXIT_GRACE_MS;
+    if (!Number.isFinite(postOutputExitGraceMs) || postOutputExitGraceMs <= 0) {
+      throw new RangeError("post-output exit grace must be positive and finite");
+    }
     const child = spawn(
       input.executable,
       [
@@ -55,12 +61,18 @@ export class DshRunCarrier {
     let outputBytes = 0;
     let outputLimitExceeded = false;
     let killTimer: NodeJS.Timeout | undefined;
+    let postOutputExitTimer: NodeJS.Timeout | undefined;
     const terminate = () => {
       child.kill("SIGTERM");
       killTimer ??= setTimeout(() => child.kill("SIGKILL"), 2_000);
       killTimer.unref();
     };
-    const capture = (target: Buffer[]) => (chunk: Buffer) => {
+    const armPostOutputExit = () => {
+      if (postOutputExitTimer !== undefined) clearTimeout(postOutputExitTimer);
+      postOutputExitTimer = setTimeout(terminate, postOutputExitGraceMs);
+      postOutputExitTimer.unref();
+    };
+    const capture = (target: Buffer[], onData?: () => void) => (chunk: Buffer) => {
       const remaining = Math.max(0, MAX_OUTPUT_BYTES - outputBytes);
       if (remaining > 0) {
         const retained = chunk.subarray(0, remaining);
@@ -71,8 +83,12 @@ export class DshRunCarrier {
         outputLimitExceeded = true;
         terminate();
       }
+      if (!outputLimitExceeded) onData?.();
     };
-    child.stdout.on("data", capture(stdout));
+    // Pinned DSH headless writes stdout only after the Session is flushed, then requests appExit.
+    // rc.6 can retain an active handle after that request, so close the already-complete process
+    // through its bounded SIGTERM shutdown path if it does not exit naturally.
+    child.stdout.on("data", capture(stdout, armPostOutputExit));
     child.stderr.on("data", capture(stderr));
     let timedOut = false;
     const timeout = setTimeout(() => {
@@ -85,6 +101,7 @@ export class DshRunCarrier {
       child.once("close", (exitCode, signal) => {
         clearTimeout(timeout);
         if (killTimer !== undefined) clearTimeout(killTimer);
+        if (postOutputExitTimer !== undefined) clearTimeout(postOutputExitTimer);
         resolveOutput({
           exitCode,
           signal,

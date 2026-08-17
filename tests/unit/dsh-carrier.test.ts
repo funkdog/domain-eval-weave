@@ -74,3 +74,36 @@ test("DSH carrier terminates output floods at the frozen byte cap", async () => 
     await rm(workspace, { recursive: true, force: true });
   }
 });
+
+test("DSH carrier closes a completed headless run that retains an active handle", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const workspace = await mkdtemp(`${parent}/carrier-headless-exit-`);
+  try {
+    const result = await new DshRunCarrier().runEpisode({
+      executable: process.execPath,
+      launcherArgs: [
+        "-e",
+        [
+          "process.on('SIGTERM',()=>process.exit(0))",
+          "process.stdout.write('completed\\n')",
+          "setInterval(()=>{},1000)",
+        ].join(";"),
+        "--",
+      ],
+      workspace,
+      commonPatch: "/frozen/common.patch.yml",
+      armPatch: "/frozen/goal-off.patch.yml",
+      task: "synthetic public task",
+      timeoutMs: 500,
+      postOutputExitGraceMs: 25,
+    });
+    assert.equal(result.stdout, "completed\n");
+    assert.equal(result.exitCode, 0);
+    assert.equal(result.signal, null);
+    assert.equal(result.timedOut, false);
+    assert.equal(result.outputLimitExceeded, false);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});

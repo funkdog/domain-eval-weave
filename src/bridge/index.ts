@@ -33,10 +33,7 @@ function strictWorkspaceTestRunner(workspaceRoot: string): WorkspaceTestRunner {
   };
 }
 
-export default function applyDshEvalBridge(
-  context: DshEvalBridgeContext,
-  config: DshEvalBridgeConfig = {},
-): void {
+function applyDshEvalBridge(context: DshEvalBridgeContext, config: DshEvalBridgeConfig = {}): void {
   const workspaceRoot = config.workspaceRoot ?? process.cwd();
   context.tools.guard(createWorkspaceToolGuard({ workspaceRoot }));
   context.tools.register(
@@ -46,6 +43,8 @@ export default function applyDshEvalBridge(
     }),
   );
 }
+
+export default Object.assign(applyDshEvalBridge, { inject });
 
 export { createWorkspaceToolGuard } from "./guard.js";
 export { createWorkspaceTestDefinition } from "./workspace-test.js";

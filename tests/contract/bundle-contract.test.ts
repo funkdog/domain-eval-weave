@@ -50,6 +50,11 @@ test("both DSH entrypoints default-export side-effect-free plugin functions", as
   ]);
   assert.equal(typeof app.default, "function");
   assert.equal(typeof bridge.default, "function");
+  assert.deepEqual(
+    (bridge.default as typeof bridge.default & { readonly inject?: readonly string[] }).inject,
+    bridge.inject,
+    "the Cordis loader unwraps the default export, so bridge injection metadata must live on it",
+  );
 });
 
 test("clean packed artifact contains importable DSH entrypoints", async () => {
@@ -89,6 +94,10 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     ]);
     assert.equal(typeof app.default, "function");
     assert.equal(typeof bridge.default, "function");
+    assert.deepEqual(
+      (bridge.default as typeof bridge.default & { readonly inject?: readonly string[] }).inject,
+      bridge.inject,
+    );
 
     let provided: unknown;
     const exits: number[] = [];
