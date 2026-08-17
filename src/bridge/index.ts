@@ -1,4 +1,4 @@
-import { resolvePhase2Instance } from "../instance.js";
+import { assertPhase2InstanceLayout, resolvePhase2Instance } from "../instance.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { createWorkspaceToolGuard, type GuardedToolExecution } from "./guard.js";
 import { createWorkspaceTestDefinition, type WorkspaceTestRunner } from "./workspace-test.js";
@@ -35,8 +35,12 @@ function strictWorkspaceTestRunner(workspaceRoot: string): WorkspaceTestRunner {
   };
 }
 
-function applyDshEvalBridge(context: DshEvalBridgeContext, config: DshEvalBridgeConfig = {}): void {
+async function applyDshEvalBridge(
+  context: DshEvalBridgeContext,
+  config: DshEvalBridgeConfig = {},
+): Promise<void> {
   resolvePhase2Instance(config.env ?? process.env);
+  await assertPhase2InstanceLayout();
   const workspaceRoot = config.workspaceRoot ?? process.cwd();
   context.tools.guard(createWorkspaceToolGuard({ workspaceRoot }));
   context.tools.register(

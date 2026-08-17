@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import test from "node:test";
 
-import { PHASE2_INSTANCE, Phase2InstanceError, resolvePhase2Instance } from "../../src/instance.js";
+import {
+  assertContainedPhase2Directory,
+  PHASE2_INSTANCE,
+  Phase2InstanceError,
+  resolvePhase2Instance,
+} from "../../src/instance.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 test("Phase 2 instance freezes profile and artifact namespaces without changing DSH_HOME", () => {
@@ -31,5 +37,28 @@ test("Phase 2 instance rejects missing, unknown, and alternate-home inputs", () 
       () => resolvePhase2Instance(env),
       (error: unknown) => error instanceof Phase2InstanceError,
     );
+  }
+});
+
+test("Phase 2 layout revalidation rejects a post-init symlink swap", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${parent}/phase2-layout-`);
+  const root = `${scratch}/root`;
+  const target = `${root}/one/two`;
+  const outside = `${scratch}/outside`;
+  await mkdir(target, { recursive: true, mode: 0o700 });
+  await mkdir(outside, { mode: 0o700 });
+  try {
+    await assertContainedPhase2Directory(root, target);
+    await rm(target, { recursive: true });
+    await symlink(outside, target);
+    await assert.rejects(
+      assertContainedPhase2Directory(root, target),
+      (error: unknown) =>
+        error instanceof Phase2InstanceError && error.code === "PHASE2_PATH_INVALID",
+    );
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
   }
 });

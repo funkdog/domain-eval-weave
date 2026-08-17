@@ -47,7 +47,11 @@ export function resolvePhase2Instance(
   return PHASE2_INSTANCE;
 }
 
-async function ensureContainedDirectory(root: string, target: string): Promise<void> {
+async function validateContainedDirectory(
+  root: string,
+  target: string,
+  createMissing: boolean,
+): Promise<void> {
   const absoluteRoot = resolve(root);
   const relation = relative(absoluteRoot, resolve(target));
   if (relation === "" || relation.startsWith("..") || isAbsolute(relation)) {
@@ -59,12 +63,23 @@ async function ensureContainedDirectory(root: string, target: string): Promise<v
   let current = absoluteRoot;
   for (const segment of relation.split("/")) {
     current = resolve(current, segment);
-    try {
-      await mkdir(current, { mode: 0o700 });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    if (createMissing) {
+      try {
+        await mkdir(current, { mode: 0o700 });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
     }
-    const stat = await lstat(current);
+    let stat: Awaited<ReturnType<typeof lstat>>;
+    try {
+      stat = await lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      throw new Phase2InstanceError(
+        "PHASE2_PATH_INVALID",
+        `Phase 2 directory is missing: ${current}`,
+      );
+    }
     if (
       stat.isSymbolicLink() ||
       !stat.isDirectory() ||
@@ -79,23 +94,38 @@ async function ensureContainedDirectory(root: string, target: string): Promise<v
   }
 }
 
-export async function ensurePhase2InstanceLayout(): Promise<void> {
+export async function assertContainedPhase2Directory(root: string, target: string): Promise<void> {
+  await validateContainedDirectory(root, target, false);
+}
+
+const INSTANCE_SUBDIRECTORIES = [
+  "calibration",
+  "campaigns",
+  "exposures",
+  "oracle-tmp",
+  "qualification",
+  "suites",
+  "workspaces",
+] as const;
+
+async function validatePhase2InstanceLayout(createMissing: boolean): Promise<void> {
   await Promise.all([
-    ensureContainedDirectory(DEDICATED_RUNTIME_ROOT, PHASE2_INSTANCE.instanceRoot),
-    ensureContainedDirectory(DEDICATED_DSH_HOME, PHASE2_INSTANCE.sessionsRoot),
+    validateContainedDirectory(DEDICATED_RUNTIME_ROOT, PHASE2_INSTANCE.instanceRoot, createMissing),
+    validateContainedDirectory(DEDICATED_DSH_HOME, PHASE2_INSTANCE.sessionsRoot, createMissing),
   ]);
-  for (const name of [
-    "calibration",
-    "campaigns",
-    "exposures",
-    "oracle-tmp",
-    "qualification",
-    "suites",
-    "workspaces",
-  ]) {
-    await ensureContainedDirectory(
+  for (const name of INSTANCE_SUBDIRECTORIES) {
+    await validateContainedDirectory(
       PHASE2_INSTANCE.instanceRoot,
       `${PHASE2_INSTANCE.instanceRoot}/${name}`,
+      createMissing,
     );
   }
+}
+
+export async function ensurePhase2InstanceLayout(): Promise<void> {
+  await validatePhase2InstanceLayout(true);
+}
+
+export async function assertPhase2InstanceLayout(): Promise<void> {
+  await validatePhase2InstanceLayout(false);
 }

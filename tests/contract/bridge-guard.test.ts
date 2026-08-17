@@ -103,7 +103,7 @@ test("default bridge runner executes public tests inside workspace/tmp", async (
   );
   let definition: ReturnType<typeof createWorkspaceTestDefinition> | undefined;
   try {
-    applyDshEvalBridge(
+    await applyDshEvalBridge(
       {
         tools: {
           guard: () => undefined,

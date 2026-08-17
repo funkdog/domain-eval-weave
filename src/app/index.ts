@@ -1,4 +1,4 @@
-import { resolvePhase2Instance } from "../instance.js";
+import { assertPhase2InstanceLayout, resolvePhase2Instance } from "../instance.js";
 import { type AppInvocation, AppUsageError, EXIT_CODE, parseAppArguments } from "./args.js";
 import { createDefaultAppExecutor } from "./default-executor.js";
 import type { DshEvalCommandExecutor } from "./startup.js";
@@ -31,8 +31,10 @@ export default function applyDshEvalApp(
     return Promise.resolve();
   }
   context.provide("dshEvalApp", invocation);
-  return (config.executor ?? createDefaultAppExecutor())
-    .execute(invocation)
+  const requiresExistingLayout = !["help", "version", "init"].includes(invocation.kind);
+  const layoutReady = requiresExistingLayout ? assertPhase2InstanceLayout() : Promise.resolve();
+  return layoutReady
+    .then(() => (config.executor ?? createDefaultAppExecutor()).execute(invocation))
     .then((exitCode) => context.appExit(exitCode));
 }
 
