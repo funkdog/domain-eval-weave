@@ -40,7 +40,11 @@ export async function runRealPhase2Suite(input: {
   const ledger = new ExposureLedger(PHASE2_INSTANCE.instanceRoot);
   const holdout = binding.tasks.find((task) => task.bucket === "holdout");
   if (holdout === undefined) throw new Error("Phase 2 holdout Task is missing");
-  await ledger.assertHoldoutUnexposed(holdout.task_id);
+  await ledger.assertHoldoutUnexposed({
+    task_id: holdout.task_id,
+    public_task_sha256: holdout.public_task_sha256,
+    effective_base_sha256: holdout.effective_base_sha256,
+  });
 
   const identities = new Map<string, TaskPackIdentity>();
   const taskDigests = new Map<string, string>();

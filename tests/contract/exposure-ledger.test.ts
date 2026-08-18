@@ -70,29 +70,55 @@ test("read-only exposure replay never creates a missing ledger root", async () =
 test("holdout freshness is checked before a model is exposed", async () => {
   const scratch = await scratchRoot("phase2-holdout");
   const ledger = new ExposureLedger(`${scratch}/instance`);
+  const identity = {
+    task_id: "ledger-restart-recovery-v1",
+    public_task_sha256: "9".repeat(64),
+    effective_base_sha256: "a".repeat(64),
+  } as const;
   try {
-    await ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1");
+    await ledger.assertHoldoutUnexposed(identity);
     await ledger.write({
       ...validExposureRecord,
       exposure_id: phase2ExposureId("suite-1", "ledger-full-v1", "control"),
     });
-    await ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1");
+    await ledger.assertHoldoutUnexposed(identity);
+
+    await assert.rejects(
+      ledger.assertHoldoutUnexposed({
+        ...identity,
+        task_id: "renamed-public-task",
+        public_task_sha256: validExposureRecord.public_task_sha256,
+      }),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_EXPOSED",
+    );
+    await assert.rejects(
+      ledger.assertHoldoutUnexposed({
+        ...identity,
+        task_id: "renamed-base-task",
+        effective_base_sha256: validExposureRecord.effective_base_sha256,
+      }),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_EXPOSED",
+    );
 
     const holdout = {
       ...validExposureRecord,
       exposure_id: phase2ExposureId("suite-1", "ledger-restart-recovery-v1", "control"),
       task_id: "ledger-restart-recovery-v1",
       bucket: "holdout" as const,
+      public_task_sha256: identity.public_task_sha256,
+      effective_base_sha256: identity.effective_base_sha256,
     };
     await assert.rejects(
       ledger.write(holdout),
       (error: unknown) =>
         error instanceof ExposureLedgerError && error.code === "HOLDOUT_RESERVATION_MISSING",
     );
-    await ledger.reserveHoldout("ledger-restart-recovery-v1", "suite-1");
+    await ledger.reserveHoldout(identity, "suite-1");
     await ledger.write(holdout);
     await assert.rejects(
-      ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1"),
+      ledger.assertHoldoutUnexposed(identity),
       (error: unknown) =>
         error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_EXPOSED",
     );
@@ -104,11 +130,14 @@ test("holdout freshness is checked before a model is exposed", async () => {
 test("concurrent Suites atomically reserve the one allowed holdout exposure", async () => {
   const scratch = await scratchRoot("phase2-holdout-reservation");
   const ledger = new ExposureLedger(`${scratch}/instance`);
+  const identity = {
+    task_id: "ledger-restart-recovery-v1",
+    public_task_sha256: "9".repeat(64),
+    effective_base_sha256: "a".repeat(64),
+  } as const;
   try {
     const attempts = await Promise.allSettled(
-      Array.from({ length: 32 }, (_, index) =>
-        ledger.reserveHoldout("ledger-restart-recovery-v1", `suite-${index}`),
-      ),
+      Array.from({ length: 32 }, (_, index) => ledger.reserveHoldout(identity, `suite-${index}`)),
     );
     assert.equal(attempts.filter((attempt) => attempt.status === "fulfilled").length, 1);
     assert.equal(attempts.filter((attempt) => attempt.status === "rejected").length, 31);
@@ -117,6 +146,37 @@ test("concurrent Suites atomically reserve the one allowed holdout exposure", as
       assert.equal(attempt.reason instanceof ExposureLedgerError, true);
       assert.equal((attempt.reason as ExposureLedgerError).code, "HOLDOUT_ALREADY_RESERVED");
     }
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("holdout reservations cannot be bypassed by relabeling frozen evidence", async () => {
+  const scratch = await scratchRoot("phase2-holdout-alias-reservation");
+  const ledger = new ExposureLedger(`${scratch}/instance`);
+  const identity = {
+    task_id: "ledger-restart-recovery-v1",
+    public_task_sha256: "9".repeat(64),
+    effective_base_sha256: "a".repeat(64),
+  } as const;
+  try {
+    await ledger.reserveHoldout(identity, "suite-1");
+    await assert.rejects(
+      ledger.reserveHoldout(
+        { ...identity, task_id: "renamed-public-task", effective_base_sha256: "b".repeat(64) },
+        "suite-2",
+      ),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_RESERVED",
+    );
+    await assert.rejects(
+      ledger.reserveHoldout(
+        { ...identity, task_id: "renamed-base-task", public_task_sha256: "c".repeat(64) },
+        "suite-3",
+      ),
+      (error: unknown) =>
+        error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_RESERVED",
+    );
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

@@ -7,6 +7,7 @@ import { type ExposureRecord, parseExposureRecord } from "../contracts/phase2.js
 import { DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export class ExposureLedgerError extends Error {
   readonly code: string;
@@ -23,10 +24,36 @@ export interface ExposureWrite {
   readonly sha256: string;
 }
 
-interface HoldoutReservation {
-  readonly schema_version: 1;
+export interface HoldoutIdentity {
   readonly task_id: string;
+  readonly public_task_sha256: string;
+  readonly effective_base_sha256: string;
+}
+
+interface HoldoutReservation extends HoldoutIdentity {
+  readonly schema_version: 2;
   readonly suite_id: string;
+}
+
+function assertHoldoutIdentity(identity: HoldoutIdentity): void {
+  if (
+    !ID_PATTERN.test(identity.task_id) ||
+    !SHA256_PATTERN.test(identity.public_task_sha256) ||
+    !SHA256_PATTERN.test(identity.effective_base_sha256)
+  ) {
+    throw new ExposureLedgerError(
+      "HOLDOUT_IDENTITY_INVALID",
+      "holdout Task id and frozen evidence digests must be normalized",
+    );
+  }
+}
+
+function reservationPaths(root: string, identity: HoldoutIdentity): readonly string[] {
+  return [
+    resolve(root, `task--${identity.task_id}.json`),
+    resolve(root, `public--${identity.public_task_sha256}.json`),
+    resolve(root, `base--${identity.effective_base_sha256}.json`),
+  ];
 }
 
 function isPathInside(root: string, candidate: string): boolean {
@@ -156,7 +183,8 @@ async function readReservation(path: string): Promise<HoldoutReservation> {
     typeof decoded !== "object" ||
     decoded === null ||
     Array.isArray(decoded) ||
-    Object.keys(decoded).sort().join(",") !== "schema_version,suite_id,task_id"
+    Object.keys(decoded).sort().join(",") !==
+      "effective_base_sha256,public_task_sha256,schema_version,suite_id,task_id"
   ) {
     throw new ExposureLedgerError(
       "HOLDOUT_RESERVATION_INVALID",
@@ -165,9 +193,13 @@ async function readReservation(path: string): Promise<HoldoutReservation> {
   }
   const record = decoded as Record<string, unknown>;
   if (
-    record.schema_version !== 1 ||
+    record.schema_version !== 2 ||
     typeof record.task_id !== "string" ||
     !ID_PATTERN.test(record.task_id) ||
+    typeof record.public_task_sha256 !== "string" ||
+    !SHA256_PATTERN.test(record.public_task_sha256) ||
+    typeof record.effective_base_sha256 !== "string" ||
+    !SHA256_PATTERN.test(record.effective_base_sha256) ||
     typeof record.suite_id !== "string" ||
     !ID_PATTERN.test(record.suite_id) ||
     canonicalJson(record) !== text
@@ -221,21 +253,33 @@ export class ExposureLedger {
   async #assertHoldoutReservation(record: ExposureRecord): Promise<void> {
     if (record.bucket !== "holdout") return;
     const root = await this.#reservationRoot();
-    let reservation: HoldoutReservation;
-    try {
-      reservation = await readReservation(resolve(root, `${record.task_id}.json`));
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      throw new ExposureLedgerError(
-        "HOLDOUT_RESERVATION_MISSING",
-        "holdout exposure requires an atomic Suite reservation",
-      );
-    }
-    if (reservation.task_id !== record.task_id || reservation.suite_id !== record.suite_id) {
-      throw new ExposureLedgerError(
-        "HOLDOUT_RESERVATION_MISMATCH",
-        "holdout exposure is not owned by the reserving Suite",
-      );
+    const identity = {
+      task_id: record.task_id,
+      public_task_sha256: record.public_task_sha256,
+      effective_base_sha256: record.effective_base_sha256,
+    };
+    for (const path of reservationPaths(root, identity)) {
+      let reservation: HoldoutReservation;
+      try {
+        reservation = await readReservation(path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        throw new ExposureLedgerError(
+          "HOLDOUT_RESERVATION_MISSING",
+          "holdout exposure requires a complete atomic Suite reservation",
+        );
+      }
+      if (
+        reservation.task_id !== record.task_id ||
+        reservation.public_task_sha256 !== record.public_task_sha256 ||
+        reservation.effective_base_sha256 !== record.effective_base_sha256 ||
+        reservation.suite_id !== record.suite_id
+      ) {
+        throw new ExposureLedgerError(
+          "HOLDOUT_RESERVATION_MISMATCH",
+          "holdout exposure is not owned by the reserving Suite and frozen evidence",
+        );
+      }
     }
   }
 
@@ -317,53 +361,57 @@ export class ExposureLedger {
     return records;
   }
 
-  async assertHoldoutUnexposed(taskId: string): Promise<void> {
-    if (!ID_PATTERN.test(taskId)) {
-      throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "holdout Task id is invalid");
-    }
-    if ((await this.list()).some((record) => record.task_id === taskId)) {
+  async assertHoldoutUnexposed(identity: HoldoutIdentity): Promise<void> {
+    assertHoldoutIdentity(identity);
+    if (
+      (await this.list()).some(
+        (record) =>
+          record.task_id === identity.task_id ||
+          record.public_task_sha256 === identity.public_task_sha256 ||
+          record.effective_base_sha256 === identity.effective_base_sha256,
+      )
+    ) {
       throw new ExposureLedgerError(
         "HOLDOUT_ALREADY_EXPOSED",
-        `holdout Task has an existing model exposure: ${taskId}`,
+        `holdout Task or its frozen evidence has an existing model exposure: ${identity.task_id}`,
       );
     }
   }
 
-  async reserveHoldout(taskId: string, suiteId: string): Promise<void> {
-    if (!ID_PATTERN.test(taskId) || !ID_PATTERN.test(suiteId)) {
-      throw new ExposureLedgerError(
-        "EXPOSURE_ID_INVALID",
-        "holdout Task and Suite ids must be normalized",
-      );
+  async reserveHoldout(identity: HoldoutIdentity, suiteId: string): Promise<void> {
+    assertHoldoutIdentity(identity);
+    if (!ID_PATTERN.test(suiteId)) {
+      throw new ExposureLedgerError("EXPOSURE_ID_INVALID", "holdout Suite id must be normalized");
     }
-    await this.assertHoldoutUnexposed(taskId);
+    await this.assertHoldoutUnexposed(identity);
     const root = await this.#reservationRoot();
-    const path = resolve(root, `${taskId}.json`);
-    if (!isPathInside(root, path)) {
-      throw new ExposureLedgerError(
-        "HOLDOUT_RESERVATION_PATH_ESCAPE",
-        "holdout reservation escapes its root",
-      );
-    }
     const reservation: HoldoutReservation = {
-      schema_version: 1,
-      task_id: taskId,
+      schema_version: 2,
+      ...identity,
       suite_id: suiteId,
     };
     const bytes = Buffer.from(canonicalJson(reservation), "utf8");
-    const temporary = resolve(root, `.${taskId}.tmp-${randomUUID()}`);
+    const temporary = resolve(root, `.${identity.task_id}.tmp-${randomUUID()}`);
     try {
       await writeFile(temporary, bytes, { flag: "wx", mode: 0o600 });
-      try {
-        await link(temporary, path);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-        const existing = await readReservation(path);
-        if (canonicalJson(existing) !== bytes.toString("utf8")) {
+      for (const path of reservationPaths(root, identity)) {
+        if (!isPathInside(root, path)) {
           throw new ExposureLedgerError(
-            "HOLDOUT_ALREADY_RESERVED",
-            `holdout Task is already reserved by another Suite: ${taskId}`,
+            "HOLDOUT_RESERVATION_PATH_ESCAPE",
+            "holdout reservation escapes its root",
           );
+        }
+        try {
+          await link(temporary, path);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+          const existing = await readReservation(path);
+          if (canonicalJson(existing) !== bytes.toString("utf8")) {
+            throw new ExposureLedgerError(
+              "HOLDOUT_ALREADY_RESERVED",
+              `holdout Task or its frozen evidence is already reserved: ${identity.task_id}`,
+            );
+          }
         }
       }
     } finally {

@@ -186,7 +186,9 @@ started/ended timestamp 与前置 registry/binding digest。`exposure-id` 由 su
 
 Exposure 在 Session 与 Candidate freeze 后、Oracle 前写入。失败不能伪造完整 exposure；此时 Suite measurement invalid。
 
-Holdout 在 Suite 开始前必须没有任何既存 model exposure。永久 reservation 只能在 operator 确认与 qualification 成功后、
+Holdout 在 Suite 开始前必须没有任何既存 model exposure；freshness 同时按 `task_id`、`public_task_sha256` 与
+`effective_base_sha256` fail-closed，禁止通过改名或重标复用已暴露题面/基线。永久 reservation 对这三重身份分别使用
+exclusive-create 索引，只能在 operator 确认与 qualification 成功后、
 首个 Candidate Episode 前原子写入；拒绝或 qualification 失败不得消耗 holdout。Suite artifact replay 不产生新 exposure；
 新的模型运行若重复使用已暴露 holdout，必须在调用模型前拒绝。Trigger/non-trigger 可重复运行，但报告列出 exposure count。
 

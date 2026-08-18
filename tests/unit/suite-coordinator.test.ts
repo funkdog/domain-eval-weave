@@ -24,8 +24,8 @@ test("Suite freezes all Campaign ids and task order before executing without ada
       return `campaign-${task.task_id}`;
     },
     holdoutGate: {
-      reserveHoldout: async (taskId, suiteId) => {
-        events.push(`gate:${taskId}:${suiteId}`);
+      reserveHoldout: async (identity, suiteId) => {
+        events.push(`gate:${identity.task_id}:${suiteId}`);
       },
     },
     freezeManifest: async (manifest) => {

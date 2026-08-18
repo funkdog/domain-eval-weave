@@ -1,5 +1,6 @@
 import type { SuiteManifest, TaskEntry } from "../contracts/phase2.js";
 import { assertSuiteManifestSemantics, parseSuiteManifest } from "../contracts/phase2.js";
+import type { HoldoutIdentity } from "../exposure/ledger.js";
 import type { StaticEvalBinding } from "../registry/loader.js";
 
 export interface PlannedSuiteTask {
@@ -30,7 +31,7 @@ export async function executePlannedSuite<T>(input: {
   readonly triggerFirst: boolean;
   readonly campaignIdForTask: (task: TaskEntry) => string;
   readonly holdoutGate: {
-    readonly reserveHoldout: (taskId: string, suiteId: string) => Promise<void>;
+    readonly reserveHoldout: (identity: HoldoutIdentity, suiteId: string) => Promise<void>;
   };
   readonly freezeManifest: (manifest: SuiteManifest) => Promise<void>;
   readonly beforeTasks?: (manifest: SuiteManifest) => Promise<void>;
@@ -75,7 +76,14 @@ export async function executePlannedSuite<T>(input: {
   const manifest = deepFreeze(parsedManifest);
   await input.freezeManifest(manifest);
   await input.beforeTasks?.(manifest);
-  await input.holdoutGate.reserveHoldout(holdout.task_id, input.suiteId);
+  await input.holdoutGate.reserveHoldout(
+    {
+      task_id: holdout.task_id,
+      public_task_sha256: holdout.public_task_sha256,
+      effective_base_sha256: holdout.effective_base_sha256,
+    },
+    input.suiteId,
+  );
 
   const results: { plan: PlannedSuiteTask; result: T }[] = [];
   for (const plan of plans) {
