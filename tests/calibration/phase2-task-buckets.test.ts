@@ -42,10 +42,10 @@ test("all three Registry buckets calibrate in their frozen directions", async ()
       true,
     );
     assert.deepEqual(
-      Object.entries(vectors["ledger-concurrency-v1"] ?? {})
+      Object.entries(vectors["ledger-restart-recovery-v1"] ?? {})
         .filter(([, status]) => status !== "pass")
         .map(([behavior]) => behavior),
-      ["no_oversubscription_concurrent"],
+      ["restart_recovery"],
     );
     assert.equal(Object.values(vectors).flatMap(Object.values).includes("error"), false);
   } finally {

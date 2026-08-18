@@ -71,17 +71,17 @@ test("holdout freshness is checked before a model is exposed", async () => {
   const scratch = await scratchRoot("phase2-holdout");
   const ledger = new ExposureLedger(`${scratch}/instance`);
   try {
-    await ledger.assertHoldoutUnexposed("ledger-concurrency-v1");
+    await ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1");
     await ledger.write({
       ...validExposureRecord,
       exposure_id: phase2ExposureId("suite-1", "ledger-full-v1", "control"),
     });
-    await ledger.assertHoldoutUnexposed("ledger-concurrency-v1");
+    await ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1");
 
     const holdout = {
       ...validExposureRecord,
-      exposure_id: phase2ExposureId("suite-1", "ledger-concurrency-v1", "control"),
-      task_id: "ledger-concurrency-v1",
+      exposure_id: phase2ExposureId("suite-1", "ledger-restart-recovery-v1", "control"),
+      task_id: "ledger-restart-recovery-v1",
       bucket: "holdout" as const,
     };
     await assert.rejects(
@@ -89,10 +89,10 @@ test("holdout freshness is checked before a model is exposed", async () => {
       (error: unknown) =>
         error instanceof ExposureLedgerError && error.code === "HOLDOUT_RESERVATION_MISSING",
     );
-    await ledger.reserveHoldout("ledger-concurrency-v1", "suite-1");
+    await ledger.reserveHoldout("ledger-restart-recovery-v1", "suite-1");
     await ledger.write(holdout);
     await assert.rejects(
-      ledger.assertHoldoutUnexposed("ledger-concurrency-v1"),
+      ledger.assertHoldoutUnexposed("ledger-restart-recovery-v1"),
       (error: unknown) =>
         error instanceof ExposureLedgerError && error.code === "HOLDOUT_ALREADY_EXPOSED",
     );
@@ -107,7 +107,7 @@ test("concurrent Suites atomically reserve the one allowed holdout exposure", as
   try {
     const attempts = await Promise.allSettled(
       Array.from({ length: 32 }, (_, index) =>
-        ledger.reserveHoldout("ledger-concurrency-v1", `suite-${index}`),
+        ledger.reserveHoldout("ledger-restart-recovery-v1", `suite-${index}`),
       ),
     );
     assert.equal(attempts.filter((attempt) => attempt.status === "fulfilled").length, 1);

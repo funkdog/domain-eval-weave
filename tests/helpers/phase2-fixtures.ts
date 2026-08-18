@@ -63,11 +63,11 @@ export const validEvalPack = {
   eval_pack_id: "open-coding-goal-v1",
   domain: "open-coding-delivery",
   harness_id: "dsh-goal-stack",
-  task_ids: ["ledger-full-v1", "ledger-audit-v1", "ledger-concurrency-v1"],
+  task_ids: ["ledger-full-v1", "ledger-audit-v1", "ledger-restart-recovery-v1"],
   buckets: {
     trigger: ["ledger-full-v1"],
     non_trigger: ["ledger-audit-v1"],
-    holdout: ["ledger-concurrency-v1"],
+    holdout: ["ledger-restart-recovery-v1"],
   },
   claim_strength: "multi_task_diagnostic",
   effect_claim_eligible: false,
@@ -87,8 +87,8 @@ export const validRegistry = {
     { id: "ledger-full-v1", ref: "registry/tasks/ledger-full-v1.json", sha256: digest("f") },
     { id: "ledger-audit-v1", ref: "registry/tasks/ledger-audit-v1.json", sha256: digest("1") },
     {
-      id: "ledger-concurrency-v1",
-      ref: "registry/tasks/ledger-concurrency-v1.json",
+      id: "ledger-restart-recovery-v1",
+      ref: "registry/tasks/ledger-restart-recovery-v1.json",
       sha256: digest("2"),
     },
   ],
@@ -150,12 +150,12 @@ export const validSuiteManifest = {
   registry_digest: digest("7"),
   eval_pack_digest: digest("e"),
   deployment_digest: digest("9"),
-  task_order: ["ledger-audit-v1", "ledger-full-v1", "ledger-concurrency-v1"],
+  task_order: ["ledger-audit-v1", "ledger-full-v1", "ledger-restart-recovery-v1"],
   tasks: [
     { task_id: "ledger-audit-v1", bucket: "non-trigger", campaign_id: "campaign-audit" },
     { task_id: "ledger-full-v1", bucket: "trigger", campaign_id: "campaign-full" },
     {
-      task_id: "ledger-concurrency-v1",
+      task_id: "ledger-restart-recovery-v1",
       bucket: "holdout",
       campaign_id: "campaign-concurrency",
     },
@@ -176,7 +176,7 @@ const snapshotTasks = [
   },
   {
     ...validTaskEntry,
-    task_id: "ledger-concurrency-v1",
+    task_id: "ledger-restart-recovery-v1",
     bucket: "holdout",
     overlays: [
       { source_ref: "eval-packs/open-coding-goal-v1/overlays/concurrency", target_ref: "src" },
@@ -284,7 +284,7 @@ const taskEvaluation = (
 const validSuiteTasks = [
   taskEvaluation("ledger-full-v1", "trigger", "campaign-full", true),
   taskEvaluation("ledger-audit-v1", "non-trigger", "campaign-audit", false),
-  taskEvaluation("ledger-concurrency-v1", "holdout", "campaign-concurrency", false),
+  taskEvaluation("ledger-restart-recovery-v1", "holdout", "campaign-restart-recovery", false),
 ];
 
 export const validSuiteEvaluation = {

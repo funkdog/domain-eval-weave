@@ -19,7 +19,7 @@ test("static binding closes Harness, Registry, Eval Pack, and three Task digests
     [
       ["ledger-full-v1", "trigger"],
       ["ledger-audit-v1", "non-trigger"],
-      ["ledger-concurrency-v1", "holdout"],
+      ["ledger-restart-recovery-v1", "holdout"],
     ],
   );
   assert.deepEqual(
