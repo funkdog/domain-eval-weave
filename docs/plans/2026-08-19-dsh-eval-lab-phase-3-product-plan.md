@@ -151,7 +151,6 @@ Skill 可以读取 Domain Knowledge Pack 提醒常见风险，但必须把“知
 domain-eval/
 ├── interviews/<session-id>.json
 ├── evidence-cards/<card-id>/r<revision>.json
-├── confirmations/<confirmation-id>.json
 ├── decision-questions/<question-id>/r<revision>.json
 ├── contracts/<contract-id>/v<version>.json
 ├── requirements/<requirement-id>/v<version>.json
@@ -165,7 +164,8 @@ domain-eval/
 使用的 exact pointers。Phase 3A 不新增开放式远端 Domain Registry；所有 artifact 默认持久化，无 TTL 或自动 cleanup。
 
 Owner confirmation 不是 Skill 输出。Skill 只能生成 draft/candidate artifact；本地 operator 必须从独立 management profile
-显式调用 `domain confirm/reject/withdraw`，由模型不可调用的确定性 surface 写入 OwnerConfirmationEvent 与下一 revision。
+显式调用 `domain confirm/reject/withdraw`。确定性 surface 把 OwnerConfirmationEvent exclusive-create 到隔离 runtime 的
+永久 `domain-confirmations/` ledger，再把不可伪造的 id+digest receipt 写入下一 revision。Author/Candidate workspace 无权写 ledger。
 
 ## 6. Authoring plane 与 Evaluation plane
 

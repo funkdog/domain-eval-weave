@@ -168,6 +168,11 @@ interface DomainArtifactPointer {
   readonly sha256: string // canonical JSON digest of the complete target artifact
 }
 
+interface OwnerConfirmationPointer {
+  readonly confirmation_id: string
+  readonly sha256: string
+}
+
 interface ClaimRef {
   readonly claim_id: string
   readonly contract_version: number
@@ -196,6 +201,8 @@ interface ClaimConflict {
 
 `DomainArtifactPointer` 只能解析到当前 pack root 内的 physical regular file，逐段拒绝 symlink。Pointer digest 与
 SourceRef digest 不同：Pointer 总是绑定完整 canonical artifact；SourceRef 可以按下一节绑定 locator value。
+`OwnerConfirmationPointer` 不含 workspace ref；它只解析到
+`<instance-root>/domain-confirmations/<confirmation-id>.json` 的 immutable 0600 ledger record。
 
 可演进对象使用 immutable path：
 
@@ -270,7 +277,7 @@ interface OwnerConfirmationEvent {
 - DecisionQuestion：除 `status/resolution_confirmation` 外的全部字段；
 - Claim transition：Claim identity、当前/前任 version、transition kind 与 statement projection。
 
-最终对象保存 `confirmation: DomainArtifactPointer`；replay 同时验证 event bytes、actor authority scope、target identity/version、
+最终对象保存 `confirmation: OwnerConfirmationPointer`；replay 同时验证隔离 ledger event bytes、actor authority scope、target identity/version、
 projection digest、decision 与 external origin。`actor_id` 来自 operator command 参数，scope 由 target artifact 推导后写入，
 不能由 Skill 提供；management CLI 的 app row 在 author/runner profile 都 disabled。单用户 Phase 3A 只冻结本机 operator gesture，
 不新增 RBAC。
@@ -330,7 +337,7 @@ interface DecisionQuestion {
   readonly risk: 'low' | 'medium' | 'high' | 'critical'
   readonly blocking: boolean
   readonly status: 'open' | 'resolved' | 'withdrawn'
-  readonly resolution_confirmation?: DomainArtifactPointer
+  readonly resolution_confirmation?: OwnerConfirmationPointer
 }
 ```
 
@@ -363,7 +370,7 @@ interface DomainEvidenceCard {
   readonly observation_ref_ids: readonly string[]
   readonly false_accept_risk: 'low' | 'medium' | 'high' | 'critical'
   readonly false_reject_risk: 'low' | 'medium' | 'high' | 'critical'
-  readonly confirmation?: DomainArtifactPointer
+  readonly confirmation?: OwnerConfirmationPointer
   readonly conflict?: { readonly source_ref_ids: readonly string[]; readonly reason: string }
 }
 ```
@@ -385,7 +392,7 @@ interface ProductDomainContract {
   readonly version: number
   readonly predecessor?: DomainArtifactPointer
   readonly state: 'issued' | 'withdrawn'
-  readonly confirmation: DomainArtifactPointer
+  readonly confirmation: OwnerConfirmationPointer
   readonly decided_by: string
   readonly decided_at: string
   readonly source_snapshot_digest: string
@@ -409,7 +416,7 @@ interface ProductDomainClaim {
   readonly transition?: {
     readonly kind: 'supersedes' | 'retires'
     readonly predecessor: ClaimRef
-    readonly confirmation: DomainArtifactPointer
+    readonly confirmation: OwnerConfirmationPointer
   }
 }
 ```
@@ -447,7 +454,7 @@ interface RequirementChangeSet {
   }
   readonly decision_question_refs: readonly DomainArtifactPointer[]
   readonly status: 'draft' | 'owner_confirmed' | 'withdrawn'
-  readonly confirmation?: DomainArtifactPointer
+  readonly confirmation?: OwnerConfirmationPointer
 }
 ```
 
@@ -519,7 +526,7 @@ interface DomainPackManifest {
   readonly contract: DomainArtifactPointer
   readonly interviews: readonly DomainArtifactPointer[]
   readonly evidence_cards: readonly DomainArtifactPointer[]
-  readonly confirmations: readonly DomainArtifactPointer[]
+  readonly confirmations: readonly OwnerConfirmationPointer[]
   readonly decision_questions: readonly DomainArtifactPointer[]
   readonly requirements: readonly DomainArtifactPointer[]
   readonly graph: DomainArtifactPointer
@@ -575,7 +582,8 @@ dsh --profile eval-clowder domain impact <pack-root> <manifest-ref> <claim-id>
 
 - pack/manifest/target path 相对 invocation cwd，realpath containment，不接受 absolute/traversal/symlink；
 - confirmation command 只能由 `eval-clowder` app 接受；author profile 禁用 app 与 shell/process 工具，Candidate runner
-  同样禁用，故 Skill/模型不能调用；command 从 target 推导 object identity/scope/projection，exclusive-create event 与下一 revision；
+  同样禁用，故 Skill/模型不能调用；command 从 target 推导 object identity/scope/projection，先 exclusive-create runtime ledger
+  event，再写带 receipt 的下一 immutable revision；validator 必须同时核 pack receipt 与 ledger，workspace 内伪造 event 无效；
 - `validate` 解析所有 primary artifacts、重建 graph/readiness 并比较 frozen bytes；
 - `impact` 只在 validate 通过后输出依赖 Requirement/Claim IDs；
 - 不调用模型、不读取 live Candidate/Suite/Profile/Session、OAuth 或 ambient home；
