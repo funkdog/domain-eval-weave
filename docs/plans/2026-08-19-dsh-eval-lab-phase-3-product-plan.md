@@ -150,17 +150,22 @@ Skill 可以读取 Domain Knowledge Pack 提醒常见风险，但必须把“知
 ```text
 domain-eval/
 ├── interviews/<session-id>.json
-├── evidence-cards/<card-id>.json
+├── evidence-cards/<card-id>/r<revision>.json
 ├── confirmations/<confirmation-id>.json
-├── decision-questions/<question-id>.json
-├── product-domain-contract.json
-├── requirements/<requirement-id>.json
-├── readiness-request.json
-├── claim-graph.json
-└── readiness-report.json
+├── decision-questions/<question-id>/r<revision>.json
+├── contracts/<contract-id>/v<version>.json
+├── requirements/<requirement-id>/v<version>.json
+├── graphs/<graph-id>.json
+├── readiness/requests/<request-id>.json
+├── readiness/reports/<report-id>.json
+└── manifests/<snapshot-id>.json
 ```
 
-Phase 3A 使用显式 pack path，不新增开放式远端 Domain Registry。所有 artifact 默认持久化，无 TTL 或自动 cleanup。
+所有路径都是 immutable：状态变化写新 revision/version/snapshot，不覆盖旧 bytes。Snapshot manifest 固定本次 validation
+使用的 exact pointers。Phase 3A 不新增开放式远端 Domain Registry；所有 artifact 默认持久化，无 TTL 或自动 cleanup。
+
+Owner confirmation 不是 Skill 输出。Skill 只能生成 draft/candidate artifact；本地 operator 必须从独立 management profile
+显式调用 `domain confirm/reject/withdraw`，由模型不可调用的确定性 surface 写入 OwnerConfirmationEvent 与下一 revision。
 
 ## 6. Authoring plane 与 Evaluation plane
 
@@ -236,7 +241,8 @@ delta 访谈，并证明：
 2. 一个 Requirement 同时引用两个以上 domain slice；
 3. 修改共享 Claim 产生确定的反向影响集合；
 4. `proposed/unresolved/conflicted/observability_gap` 无法进入已签发 Contract；
-5. 每次 Card/Contract/Requirement confirmation 都绑定独立 OwnerConfirmationEvent，而不是对象内自填 actor 字符串；
+5. 每次 Card/Contract/Requirement confirmation 都由 Skill 不可调用的 management surface 写 OwnerConfirmationEvent，
+   而不是对象内自填 actor 字符串；
 6. Claim 的 supersede/retire 与 DecisionQuestion 的 resolve/withdraw 都能从 primary artifact 重放；
 7. delta 模式不会重新询问无关且未受影响的 confirmed Claims；
 8. 所有 artifact 可经 schema + semantic replay 验证；
