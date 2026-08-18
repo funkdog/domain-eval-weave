@@ -1,3 +1,21 @@
+# DSH Eval Lab Provider Entry
+
+Before any work, read and follow `AGENTS.md` in full. Its repository-specific
+truth sources, safety boundaries, phase limits, and persistence requirements
+override the generic managed block below. If `AGENTS.md` is unavailable, stop
+rather than infer its contents.
+
+Non-negotiable summary:
+
+- Use synthetic fixtures only; keep runtime state under
+  `/Users/slipshod/AIBuild/dsh-eval-lab-runtime` and out of this source tree.
+- Never read OAuth credentials, `~/.codex/auth.json`, `~/.dsh`, Clowder
+  Redis/SQLite, the Clowder API, or Clowder localhost ports.
+- Treat `dsh-codex-oauth-lab` as read-only and persist Campaign/Session artifacts
+  by default without automatic TTL or cleanup.
+- Read the product boundary and the implementation contract for the phase in
+  scope before implementation.
+
 <!-- CAT-CAFE-GOVERNANCE-START -->
 > Pack version: 1.4.1 | Provider: kimi
 
@@ -14,7 +32,7 @@
 - Vision Guardian: Read original requirements before starting. AC completion ≠ feature complete.
 - Review flow: quality-gate → [fresh-context-review] → request-review → receive-review → merge-gate
 - Skills are available via symlinked cat-cafe-skills/ — load the relevant skill before each workflow step
-- Shared rules: See cat-cafe-skills/refs/shared-rules.md for full collaboration contract
+- Shared rules: See `.kimi/skills/co-creation-docs/../refs/shared-rules.md` for the full collaboration contract
 
 ### Quality Discipline (overrides "try simplest approach first")
 - **Bug: find root cause before fixing**. No guess-and-patch. Steps: reproduce → logs → call chain → confirm root cause → fix
