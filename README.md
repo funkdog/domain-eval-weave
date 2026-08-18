@@ -77,14 +77,14 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 1 Milestones 0–4 are complete. The Phase 2 rc.2 candidate implements the
+Phase 1 Milestones 0–4 are complete. The Phase 2 rc.3 candidate implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
 immutable exposure records, holdout first-exposure enforcement, blind six-Episode
 Suite execution, Suite-scoped qualification provenance, and artifact-only
 semantic Suite replay against frozen Sessions plus the immutable exposure ledger. The report preserves
 per-task Outcome, Mechanism, Cost, and validity; it has no aggregate score,
-effect claim, or automatic lifecycle action. The rc.2 Registry replaces the already exposed
+effect claim, or automatic lifecycle action. The rc.3 Registry replaces the already exposed
 `ledger-concurrency-v1` slot with the new `ledger-restart-recovery-v1` holdout without deleting,
 renaming, or reusing prior exposure evidence. Release acceptance requires an exact reviewed package
 to run one real qualification and six fresh Candidate Episodes, then pass artifact-only Suite replay.

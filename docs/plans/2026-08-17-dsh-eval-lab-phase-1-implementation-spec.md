@@ -1077,7 +1077,7 @@ message 禁止包含 credential、OAuth URL/code、account id、完整 user home
 ### 17.3 Calibration
 
 - red fail、gold pass；
-- three mutants each caught by intended behavior；
+- five Oracle-v3 mutants each caught by the intended behavior；
 - same seed repeatability；
 - distinct seed behavior stability；
 - Oracle self-error classified invalid rather than candidate fail。
@@ -1183,7 +1183,7 @@ secret/source/oracle paths 不可由工具读取，两个 arms 只差四个 Goal
 | AC-8 | error taxonomy + fake E2E classification matrix |
 | AC-9 | report schema/snapshots + hard claim fields |
 | AC-10 | artifact resolver + canonical rebuild digest |
-| AC-11 | red/gold/three-mutant calibration |
+| AC-11 | red/gold/five-mutant Oracle-v3 calibration |
 | AC-12 | runtime doctor + ambient-home sentinel + forbidden integration tests + no external effects |
 | AC-13 | source/runtime/reference-lab root invariants + exact pre-boot `DSH_HOME` env capture + secret scanner |
 | AC-14 | dedicated-home built package install test、app command E2E、management/runner role gate、runner request/tool surface absence proof |
