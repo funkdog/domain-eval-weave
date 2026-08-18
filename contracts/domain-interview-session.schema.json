@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/domain-interview-session.schema.json",
+  "title": "DSH Eval Lab Domain Interview Session",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "interview_id",
+    "mode",
+    "product_id",
+    "domain_ids",
+    "source_snapshot",
+    "turns",
+    "evidence_card_refs",
+    "decision_packet",
+    "status",
+    "started_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "interview_id": { "$ref": "#/$defs/id" },
+    "mode": { "enum": ["onboard", "delta", "audit"] },
+    "product_id": { "$ref": "#/$defs/id" },
+    "domain_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "base_contract": { "$ref": "#/$defs/pointer" },
+    "requirement_ref": { "$ref": "#/$defs/sourceRef" },
+    "source_snapshot": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sourceRef" }
+    },
+    "turns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "turn_id",
+          "question_id",
+          "question",
+          "reason",
+          "source_ref_ids",
+          "blocked_claim_ids",
+          "status"
+        ],
+        "properties": {
+          "turn_id": { "$ref": "#/$defs/id" },
+          "question_id": { "$ref": "#/$defs/id" },
+          "question": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "source_ref_ids": { "$ref": "#/$defs/idArray" },
+          "blocked_claim_ids": { "$ref": "#/$defs/idArray" },
+          "answer_ref_id": { "$ref": "#/$defs/id" },
+          "status": { "enum": ["asked", "answered", "skipped"] }
+        }
+      }
+    },
+    "evidence_card_refs": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "decision_packet": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question_id",
+          "question",
+          "reason",
+          "blocked_claim_ids",
+          "risk",
+          "blocking",
+          "status"
+        ],
+        "properties": {
+          "question_id": { "$ref": "#/$defs/id" },
+          "question": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "blocked_claim_ids": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/id" }
+          },
+          "risk": { "$ref": "#/$defs/risk" },
+          "blocking": { "type": "boolean" },
+          "status": { "enum": ["open", "answered"] }
+        }
+      }
+    },
+    "status": { "enum": ["draft", "awaiting_owner", "completed", "aborted"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "idArray": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "kind", "artifact_ref", "digest"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "owner_statement",
+            "requirement",
+            "product_doc",
+            "external_contract",
+            "code",
+            "test",
+            "runtime_observation",
+            "domain_knowledge"
+          ]
+        },
+        "artifact_ref": { "$ref": "#/$defs/packRef" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  }
+}

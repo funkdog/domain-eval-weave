@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/domain-truth-readiness.schema.json",
+  "title": "DSH Eval Lab Domain Truth Readiness Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "product_id",
+    "contract",
+    "requirements",
+    "graph",
+    "dimensions",
+    "overall",
+    "claim_strength",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "product_id": { "$ref": "#/$defs/id" },
+    "contract": { "$ref": "#/$defs/pointer" },
+    "requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "graph": { "$ref": "#/$defs/pointer" },
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_integrity",
+        "owner_confirmation",
+        "conflict_state",
+        "observability",
+        "requirement_binding",
+        "impact_closure",
+        "artifact_replay"
+      ],
+      "properties": {
+        "source_integrity": { "$ref": "#/$defs/dimension" },
+        "owner_confirmation": { "$ref": "#/$defs/dimension" },
+        "conflict_state": { "$ref": "#/$defs/dimension" },
+        "observability": { "$ref": "#/$defs/dimension" },
+        "requirement_binding": { "$ref": "#/$defs/dimension" },
+        "impact_closure": { "$ref": "#/$defs/dimension" },
+        "artifact_replay": { "$ref": "#/$defs/dimension" }
+      }
+    },
+    "overall": { "enum": ["green", "yellow", "red"] },
+    "claim_strength": { "const": "domain_truth_ready" },
+    "generated_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "artifact_refs"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "type": "string", "minLength": 1 },
+        "artifact_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/packRef" }
+        }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasons"],
+      "properties": {
+        "status": { "enum": ["pass", "warning", "fail"] },
+        "reasons": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/reason" }
+        }
+      }
+    }
+  }
+}
