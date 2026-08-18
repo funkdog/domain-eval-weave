@@ -149,7 +149,7 @@ Skill 可以读取 Domain Knowledge Pack 提醒常见风险，但必须把“知
 
 ```text
 domain-eval/
-├── interviews/<session-id>.json
+├── interviews/<session-id>/r<revision>.json
 ├── evidence-cards/<card-id>/r<revision>.json
 ├── decision-questions/<question-id>/r<revision>.json
 ├── contracts/<contract-id>/v<version>.json

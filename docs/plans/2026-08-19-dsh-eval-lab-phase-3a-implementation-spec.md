@@ -209,6 +209,7 @@ SourceRef digest 不同：Pointer 总是绑定完整 canonical artifact；Source
 ```text
 EvidenceCard       evidence-cards/<card-id>/r<revision>.json
 DecisionQuestion   decision-questions/<question-id>/r<revision>.json
+InterviewSession   interviews/<interview-id>/r<revision>.json
 DomainContract     contracts/<contract-id>/v<version>.json
 Requirement        requirements/<requirement-id>/v<version>.json
 Graph              graphs/<graph-id>.json
@@ -288,6 +289,8 @@ projection digest、decision 与 external origin。`actor_id` 来自 operator co
 interface DomainInterviewSession {
   readonly schema_version: 1
   readonly interview_id: string
+  readonly revision: number
+  readonly predecessor?: DomainArtifactPointer
   readonly mode: 'onboard' | 'delta' | 'audit'
   readonly product_id: string
   readonly domain_ids: readonly string[]
@@ -317,7 +320,8 @@ interface InterviewTurn {
 }
 ```
 
-每个问题保留输入来源、owner answer 正文与 answer ref。不得只保存最终摘要。
+每个问题保留输入来源、owner answer 正文与 answer ref。每轮问题/回答/状态变化 exclusive-create 下一 revision，manifest
+始终 pin exact revision；不得只在结尾保存摘要或覆盖先前 Session bytes。
 
 ### 4.4 DecisionQuestion
 
@@ -479,10 +483,10 @@ interface ClaimDependencyGraph {
 
 ```ts
 interface ClaimGraphNode {
-  readonly node_id: string // claim:<version>:<id> | proposal:<requirement>:<id> | requirement:<id>
+  readonly node_id: string // claim:<version>:<id> | proposal:<requirement-version>:<requirement>:<id> | requirement:<version>:<id>
   readonly kind: 'contract_claim' | 'historical_claim' | 'proposed_claim' | 'requirement'
   readonly object_id: string
-  readonly object_version?: number
+  readonly object_version: number
   readonly domain_id?: string
 }
 
@@ -495,7 +499,8 @@ interface ClaimGraphEdge {
 ```
 
 Graph builder 必须检测重复边、missing node、invalid contract version、非法 Claim dependency cycle，并证明 reverse index
-可由 edges 重新生成。Claim transition 必须投影为 `supersedes/retires` edge，不能只留在运行时约定。
+可由 edges 重新生成。Requirement/Proposal node identity 必须包含 pinned Requirement version；同一 snapshot 不允许两个
+pointer 声明相同 requirement_id+version。Claim transition 必须投影为 `supersedes/retires` edge，不能只留在运行时约定。
 
 ### 4.9 DomainReadinessRequest and DomainTruthReadinessReport
 
