@@ -31,6 +31,7 @@ Phase 3A 交付一个 authoring-plane 纵向闭环：
 
 1. Domain Knowledge Pack 只有建议权，没有产品真相权威。
 2. 只有 `confirmed` Evidence Card 可以晋升为已签发 Product Domain Contract Claim。
+   `confirmed` 必须由独立、digest-bound 的 OwnerConfirmationEvent 证明，不能靠对象内 actor 字符串自证。
 3. Domain Contract 与 Requirement ChangeSet 是不同生命周期、不同版本对象。
 4. `introduces/modifies/deprecates` 只形成 requirement-scoped proposal，不自动修改 Contract。
 5. Authoring Skill、owner answers、Domain Pack、Gold/mutants 和 readiness 不进入 Candidate runner。
@@ -47,9 +48,12 @@ Phase 3A 交付一个 authoring-plane 纵向闭环：
 contracts/
 ├── domain-evidence-card.schema.json
 ├── domain-interview-session.schema.json
+├── owner-confirmation.schema.json
+├── domain-decision-question.schema.json
 ├── product-domain-contract.schema.json
 ├── requirement-change-set.schema.json
 ├── claim-dependency-graph.schema.json
+├── domain-readiness-request.schema.json
 └── domain-truth-readiness.schema.json
 
 skills/design-domain-grader/
@@ -149,6 +153,47 @@ Skill 不得自行签发 Contract；它只生成 candidate artifacts，Domain Ow
 所有 schema 使用 `schema_version: 1`、strict object、canonical JSON 与 SHA-256。拒绝未知字段、重复 id、绝对路径、
 反斜杠、`..`、空 segment、非有限数字和不认识的 enum。时间必须是规范 UTC ISO-8601。
 
+### 4.0 Shared nested types and domain pointer protocol
+
+Phase 3A 不复用 `artifact://campaign/` 或 `artifact://suite/` pointer。它使用独立的 pack-root-relative协议：
+
+```ts
+type DomainPackRef = string // normalized relative ref; no scheme/absolute/../backslash//
+
+interface DomainArtifactPointer {
+  readonly ref: DomainPackRef
+  readonly sha256: string // canonical JSON digest of the complete target artifact
+}
+
+interface ClaimRef {
+  readonly claim_id: string
+  readonly contract_version: number
+}
+
+interface ProposedClaim {
+  readonly claim_id: string
+  readonly domain_id: string
+  readonly statement: string
+  readonly applicability: string
+  readonly source_ref_ids: readonly string[]
+}
+
+interface ClaimModification {
+  readonly claim: ClaimRef
+  readonly proposed: ProposedClaim
+  readonly reason: string
+}
+
+interface ClaimConflict {
+  readonly claim: ClaimRef
+  readonly reason: string
+  readonly source_ref_ids: readonly string[]
+}
+```
+
+`DomainArtifactPointer` 只能解析到当前 pack root 内的 physical regular file，逐段拒绝 symlink。Pointer digest 与
+SourceRef digest 不同：Pointer 总是绑定完整 canonical artifact；SourceRef 可以按下一节绑定 locator value。
+
 ### 4.1 SourceRef
 
 ```ts
@@ -162,10 +207,49 @@ interface SourceRef {
 }
 ```
 
-`artifact_ref` 是 pack-root-relative portable ref。`locator` 只允许文档 anchor、JSON pointer 或代码 symbol，不能包含
-host absolute path。`domain_knowledge` 永远不能单独支持 promotion。
+`artifact_ref` 是 pack-root-relative portable ref。无 `locator` 时，`digest` 绑定整份 source artifact bytes；存在 JSON
+pointer `locator` 时，`digest` 绑定该 pointer 所指 canonical JSON value，避免 owner answer 引用其 InterviewSession 时形成
+自引用 digest。其他 locator 只作 anchor/symbol 定位，digest 仍绑定整文件。`locator` 不能包含 host absolute path，
+`domain_knowledge` 永远不能单独支持 promotion。
 
-### 4.2 DomainInterviewSession
+### 4.2 OwnerConfirmationEvent
+
+Owner confirmation 是独立 primary artifact：
+
+```ts
+interface OwnerConfirmationEvent {
+  readonly schema_version: 1
+  readonly confirmation_id: string
+  readonly actor_id: string
+  readonly authority_scope: {
+    readonly product_id: string
+    readonly domain_ids: readonly string[]
+  }
+  readonly target: {
+    readonly kind: 'evidence_card' | 'product_domain_contract' |
+      'requirement_change_set' | 'decision_question' | 'claim_transition'
+    readonly object_id: string
+    readonly object_version?: number
+    readonly projection_sha256: string
+  }
+  readonly decision: 'confirm' | 'reject' | 'withdraw'
+  readonly source_ref: SourceRef // owner statement or equivalent authoritative event
+  readonly occurred_at: string
+}
+```
+
+`projection_sha256` 不绑定包含 confirmation pointer 的最终对象，以避免循环；它绑定该 target 的冻结确认投影：
+
+- Evidence Card：除 `status/confirmation` 外的全部字段；
+- Product Domain Contract：除 `state/confirmation/issued_by/issued_at` 外的 identity、version、predecessor、source snapshot 与 Claims；
+- Requirement ChangeSet：除 `status/confirmation` 外的全部字段；
+- DecisionQuestion：除 `status/resolution_confirmation` 外的全部字段；
+- Claim transition：Claim identity、当前/前任 version、transition kind 与 statement projection。
+
+最终对象保存 `confirmation: DomainArtifactPointer`；replay 同时验证 event bytes、actor authority scope、target identity/version、
+projection digest、decision 与 source event。单用户 Phase 3A 只冻结证据，不新增 RBAC。
+
+### 4.3 DomainInterviewSession
 
 ```ts
 interface DomainInterviewSession {
@@ -174,21 +258,58 @@ interface DomainInterviewSession {
   readonly mode: 'onboard' | 'delta' | 'audit'
   readonly product_id: string
   readonly domain_ids: readonly string[]
-  readonly base_contract?: ArtifactPointer
+  readonly base_contract?: DomainArtifactPointer
   readonly requirement_ref?: SourceRef
   readonly source_snapshot: readonly SourceRef[]
   readonly turns: readonly InterviewTurn[]
-  readonly evidence_card_refs: readonly ArtifactPointer[]
-  readonly decision_packet: readonly DecisionQuestion[]
+  readonly evidence_card_refs: readonly DomainArtifactPointer[]
+  readonly decision_question_refs: readonly DomainArtifactPointer[]
   readonly status: 'draft' | 'awaiting_owner' | 'completed' | 'aborted'
   readonly started_at: string
   readonly ended_at?: string
 }
 ```
 
-每个问题保留 `question_id`、`reason`、`blocked_claim_ids`、输入来源与 owner answer ref。不得只保存最终摘要。
+```ts
+interface InterviewTurn {
+  readonly turn_id: string
+  readonly question_id: string
+  readonly question: string
+  readonly reason: string
+  readonly source_ref_ids: readonly string[]
+  readonly blocked_claim_ids: readonly string[]
+  readonly answer?: string
+  readonly answer_ref_id?: string
+  readonly status: 'asked' | 'answered' | 'skipped'
+}
+```
 
-### 4.3 DomainEvidenceCard
+每个问题保留输入来源、owner answer 正文与 answer ref。不得只保存最终摘要。
+
+### 4.4 DecisionQuestion
+
+DecisionQuestion 是独立 primary artifact，不只保存一个裸 ID：
+
+```ts
+interface DecisionQuestion {
+  readonly schema_version: 1
+  readonly question_id: string
+  readonly product_id: string
+  readonly requirement_id?: string
+  readonly question: string
+  readonly reason: string
+  readonly blocked_claim_ids: readonly string[]
+  readonly risk: 'low' | 'medium' | 'high' | 'critical'
+  readonly blocking: boolean
+  readonly status: 'open' | 'resolved' | 'withdrawn'
+  readonly resolution_confirmation?: DomainArtifactPointer
+}
+```
+
+`open` 禁止 resolution pointer；`resolved/withdrawn` 必须绑定对应 OwnerConfirmationEvent。Requirement 与 InterviewSession
+都引用 question pointer。Readiness 只把 requested closure 中 `blocking=true && status=open` 的问题判为 red。
+
+### 4.5 DomainEvidenceCard
 
 ```ts
 type EvidenceStatus =
@@ -212,20 +333,19 @@ interface DomainEvidenceCard {
   readonly observation_ref_ids: readonly string[]
   readonly false_accept_risk: 'low' | 'medium' | 'high' | 'critical'
   readonly false_reject_risk: 'low' | 'medium' | 'high' | 'critical'
-  readonly confirmed_by?: string
-  readonly confirmed_at?: string
+  readonly confirmation?: DomainArtifactPointer
   readonly conflict?: { readonly source_ref_ids: readonly string[]; readonly reason: string }
 }
 ```
 
 Semantic validator 强制：
 
-- `confirmed` 必须有 `confirmed_by/at`、至少一个 authority ref，且不能只有 `domain_knowledge`；
+- `confirmed` 必须有一个验证通过的 `decision=confirm` OwnerConfirmationEvent、至少一个 authority ref，且不能只有 `domain_knowledge`；
 - `conflicted` 必须列出至少两个不同 source ref；
 - `observability_gap` 的 observation refs 必须为空或显式指向不可用观察；
-- 其他状态不得携带 owner confirmation。
+- 其他状态不得携带 confirmation pointer。
 
-### 4.4 ProductDomainContract
+### 4.6 ProductDomainContract and Claim lifecycle
 
 ```ts
 interface ProductDomainContract {
@@ -233,18 +353,50 @@ interface ProductDomainContract {
   readonly contract_id: string
   readonly product_id: string
   readonly version: number
-  readonly predecessor?: ArtifactPointer
-  readonly issued_by: string
-  readonly issued_at: string
+  readonly predecessor?: DomainArtifactPointer
+  readonly state: 'draft' | 'issued' | 'withdrawn'
+  readonly confirmation?: DomainArtifactPointer
+  readonly issued_by?: string
+  readonly issued_at?: string
   readonly source_snapshot_digest: string
   readonly claims: readonly ProductDomainClaim[]
 }
 ```
 
-每个 `ProductDomainClaim` 必须回指一个 confirmed Evidence Card digest。Claim ID 在 Contract 版本间稳定；同一版本
-ID 唯一。新版本不得静默删除 Claim，只能以显式 supersede/retire relation 表达。
+```ts
+interface ProductDomainClaim {
+  readonly claim_id: string
+  readonly domain_id: string
+  readonly statement: string
+  readonly applicability: string
+  readonly evidence_card: DomainArtifactPointer
+  readonly authority_refs: readonly SourceRef[]
+  readonly observation_refs: readonly SourceRef[]
+  readonly false_accept_risk: 'low' | 'medium' | 'high' | 'critical'
+  readonly false_reject_risk: 'low' | 'medium' | 'high' | 'critical'
+  readonly dependencies: readonly ClaimRef[]
+  readonly lifecycle: 'active' | 'retired'
+  readonly transition?: {
+    readonly kind: 'supersedes' | 'retires'
+    readonly predecessor: ClaimRef
+    readonly confirmation: DomainArtifactPointer
+  }
+}
+```
 
-### 4.5 RequirementChangeSet
+每个 `ProductDomainClaim` 必须回指一个 confirmed Evidence Card digest。Claim ID 在 Contract 版本间稳定；同一版本
+ID 唯一。`state=issued` 必须绑定 Contract OwnerConfirmationEvent，`issued_by/at` 必须等于 event actor/time；draft 不得用于
+Requirement base。新版本不得静默删除 Claim，只能保留 Claim 并以 transition 表达：`supersedes → lifecycle=active`，
+`retires → lifecycle=retired`；transition confirmation 必须验证。Version 迁移状态机：
+
+```text
+draft --confirm--> issued --withdraw--> withdrawn
+active@vN --supersedes--> active@vN+1
+active@vN --retires-----> retired@vN+1
+retired --(no implicit transition)--> retired
+```
+
+### 4.7 RequirementChangeSet
 
 ```ts
 interface RequirementChangeSet {
@@ -253,7 +405,7 @@ interface RequirementChangeSet {
   readonly version: number
   readonly product_id: string
   readonly requirement_refs: readonly SourceRef[]
-  readonly base_contract: ArtifactPointer
+  readonly base_contract: DomainArtifactPointer
   readonly effects: {
     readonly uses: readonly ClaimRef[]
     readonly preserves: readonly ClaimRef[]
@@ -262,16 +414,16 @@ interface RequirementChangeSet {
     readonly deprecates: readonly ClaimRef[]
     readonly conflicts_with: readonly ClaimConflict[]
   }
-  readonly decision_question_ids: readonly string[]
+  readonly decision_question_refs: readonly DomainArtifactPointer[]
   readonly status: 'draft' | 'owner_confirmed' | 'withdrawn'
-  readonly confirmed_by?: string
-  readonly confirmed_at?: string
+  readonly confirmation?: DomainArtifactPointer
 }
 ```
 
-`owner_confirmed` 要求零 blocking decision question；它仍不修改 ProductDomainContract。
+`owner_confirmed` 要求 validation scope 中零 open blocking DecisionQuestion，并绑定 target projection 一致的
+OwnerConfirmationEvent；它仍不修改 ProductDomainContract。`withdrawn` 同样需要 `decision=withdraw` event。
 
-### 4.6 ClaimDependencyGraph
+### 4.8 ClaimDependencyGraph
 
 Graph 是上述 primary artifact 的派生 snapshot：
 
@@ -279,23 +431,60 @@ Graph 是上述 primary artifact 的派生 snapshot：
 interface ClaimDependencyGraph {
   readonly schema_version: 1
   readonly product_id: string
-  readonly contract: ArtifactPointer
-  readonly requirements: readonly ArtifactPointer[]
+  readonly contract: DomainArtifactPointer
+  readonly requirements: readonly DomainArtifactPointer[]
   readonly nodes: readonly ClaimGraphNode[]
   readonly edges: readonly ClaimGraphEdge[]
   readonly reverse_index: Readonly<Record<string, readonly string[]>>
 }
 ```
 
-Edges 只允许 `depends_on/uses/preserves/introduces/modifies/deprecates/conflicts_with`。Graph builder 必须检测重复边、
-missing node、invalid contract version、非法 Claim dependency cycle，并证明 reverse index 可由 edges 重新生成。
+```ts
+interface ClaimGraphNode {
+  readonly node_id: string // claim:<version>:<id> | proposal:<requirement>:<id> | requirement:<id>
+  readonly kind: 'contract_claim' | 'historical_claim' | 'proposed_claim' | 'requirement'
+  readonly object_id: string
+  readonly object_version?: number
+  readonly domain_id?: string
+}
+
+interface ClaimGraphEdge {
+  readonly from: string
+  readonly to: string
+  readonly kind: 'depends_on' | 'uses' | 'preserves' | 'introduces' | 'modifies' |
+    'deprecates' | 'conflicts_with' | 'supersedes' | 'retires'
+}
+```
+
+Graph builder 必须检测重复边、missing node、invalid contract version、非法 Claim dependency cycle，并证明 reverse index
+可由 edges 重新生成。Claim transition 必须投影为 `supersedes/retires` edge，不能只留在运行时约定。
+
+### 4.9 DomainReadinessRequest and DomainTruthReadinessReport
+
+```ts
+interface DomainReadinessRequest {
+  readonly schema_version: 1
+  readonly request_id: string
+  readonly product_id: string
+  readonly requirement_ids: readonly string[]
+  readonly requested_by: string
+  readonly requested_at: string
+  readonly source_ref: SourceRef
+}
+```
+
+Readiness report 必须绑定 `request: DomainArtifactPointer`，并保存从这些 Requirement 经过 uses/preserves/modified Claim
+与 dependency/reverse-impact 得出的 `requested_closure_node_ids`。只有该 closure 中的 open blocking question、conflict、
+observability gap 才是 red；closure 外的低/中风险未决项是 yellow audit warning。相同 primary bytes + ReadinessRequest
+必须唯一重建相同 dimensions/overall。
 
 ## 5. Promotion 与 readiness
 
-Promotion 是纯函数：输入 verified Evidence Cards + owner confirmation event，输出下一候选 Contract。它不得读取 Session
-自由文本、当前模型上下文或 mutable global state。
+Promotion 分两步且均为纯函数：先从 Cards 生成 Contract draft projection；再输入 verified Evidence Cards +
+OwnerConfirmationEvents（Card confirmations、Contract issuance、必要的 Claim transitions），输出 issued Contract。它不得读取
+Session 自由文本、当前模型上下文或 mutable global state。
 
-`DomainTruthReadinessReport` 保存多维状态：
+`DomainTruthReadinessReport` 绑定一个 DomainReadinessRequest，并保存多维状态：
 
 ```text
 source_integrity
@@ -311,7 +500,7 @@ overall = green | yellow | red
 `overall` 是规则化 gate，不是加权总分：
 
 - 任一 artifact/digest/graph invalid → red；
-- blocking conflict/unresolved/observability gap → red；
+- requested closure 内的 open blocking question/conflict/observability gap → red；
 - 非 blocking unresolved 或未来 audit warning → yellow；
 - 当前 requested closure 全部 confirmed、可追踪且可重放 → green。
 
@@ -350,7 +539,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 ### Milestone 0 — Truth source and schemas
 
 - Phase 2/Phase 3 canonical docs and AGENTS routing；
-- 六个 JSON Schema + Zod parser parity；
+- 九个 JSON Schema + Zod parser parity；
 - SourceRef/path/time/id/status failure tests；
 - no Phase 1/2 schema regression。
 
@@ -359,6 +548,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - Evidence Card semantic validation；
 - confirmed-only promotion；
 - stable Claim IDs and predecessor binding；
+- digest-bound OwnerConfirmationEvent and target projections；
 - proposed/conflicted/observability-gap red tests。
 
 ### Milestone 2 — Requirement binding and impact graph
@@ -367,6 +557,8 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - cross-domain requirement；
 - same Claim reused by two requirements；
 - reverse impact closure and deterministic graph replay；
+- supersede/retire transition edges and migration state machine；
+- DecisionQuestion resolve/withdraw + requested-closure replay；
 - missing node/cycle/alias rejection。
 
 ### Milestone 3 — Skill and authoring profile
@@ -391,12 +583,12 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 ## 8. Acceptance criteria
 
 - **P3A-AC1** Skill supports onboard/delta/audit and persists every question/answer/evidence transition.
-- **P3A-AC2** Only owner-confirmed, provenance-bound Evidence Cards enter ProductDomainContract.
+- **P3A-AC2** Only Evidence Cards backed by verified OwnerConfirmationEvents enter an issued ProductDomainContract.
 - **P3A-AC3** ProductDomainContract and RequirementChangeSet retain independent versions/lifecycles.
 - **P3A-AC4** All six requirement edge kinds validate, and requirement-scoped proposals do not mutate the base Contract.
 - **P3A-AC5** One confirmed Claim is referenced by at least two Requirements without duplication.
 - **P3A-AC6** One Requirement spans at least two domain slices and produces deterministic impact closure.
-- **P3A-AC7** Graph/reverse index/readiness can be rebuilt from frozen primary artifact and detect drift.
+- **P3A-AC7** Confirmation targets, Claim lifecycle edges, DecisionQuestion resolution, Graph/reverse index and requested-closure readiness can be rebuilt from frozen primary artifact and detect drift.
 - **P3A-AC8** delta mode does not ask about unrelated unchanged confirmed Claims.
 - **P3A-AC9** Candidate runner cannot discover Skill, owner answer, Domain Pack or authoring artifacts.
 - **P3A-AC10** Phase 1/2 Campaign/Suite/replay/holdout tests remain green and their semantics unchanged.

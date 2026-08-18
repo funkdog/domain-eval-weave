@@ -151,8 +151,11 @@ Skill 可以读取 Domain Knowledge Pack 提醒常见风险，但必须把“知
 domain-eval/
 ├── interviews/<session-id>.json
 ├── evidence-cards/<card-id>.json
+├── confirmations/<confirmation-id>.json
+├── decision-questions/<question-id>.json
 ├── product-domain-contract.json
 ├── requirements/<requirement-id>.json
+├── readiness-request.json
 ├── claim-graph.json
 └── readiness-report.json
 ```
@@ -233,10 +236,12 @@ delta 访谈，并证明：
 2. 一个 Requirement 同时引用两个以上 domain slice；
 3. 修改共享 Claim 产生确定的反向影响集合；
 4. `proposed/unresolved/conflicted/observability_gap` 无法进入已签发 Contract；
-5. delta 模式不会重新询问无关且未受影响的 confirmed Claims；
-6. 所有 artifact 可经 schema + semantic replay 验证；
-7. Skill、owner answer 与 authoring artifact 不出现在 Candidate runner surface；
-8. readiness 是规则化多维结论，不是总分，也不声称 Grader 已经 admission-ready。
+5. 每次 Card/Contract/Requirement confirmation 都绑定独立 OwnerConfirmationEvent，而不是对象内自填 actor 字符串；
+6. Claim 的 supersede/retire 与 DecisionQuestion 的 resolve/withdraw 都能从 primary artifact 重放；
+7. delta 模式不会重新询问无关且未受影响的 confirmed Claims；
+8. 所有 artifact 可经 schema + semantic replay 验证；
+9. Skill、owner answer 与 authoring artifact 不出现在 Candidate runner surface；
+10. readiness 由持久 ReadinessRequest 的 requested closure 唯一推导，不是总分，也不声称 Grader 已经 admission-ready。
 
 ## 11. Phase 3A measurement contract
 
@@ -245,15 +250,15 @@ Candidate 隔离和 artifact replay 任一失败都直接 fail closed。
 
 Skill forward evaluation 只保留两个带出生证的诊断指标，不生成综合分：
 
-### 11.1 Unauthorized truth promotion rate
+### 11.1 Unauthorized truth classification/attempt rate
 
 ```yaml
-utility_claim: 比率下降代表 Skill 更少把未获权威确认的政策冒充产品真相
-estimator: synthetic ambiguity fixtures 中，被独立标注为 proposed/unresolved/conflicted/observability_gap 却进入已签发 Contract 的 Claim 数 / eligible Claim 数
-validity_bounds: 只适用于冻结 fixture、Skill/model/prompt 版本；标注集或 Domain Owner policy 变化后失效
-consumer: Phase 3A release gate；任何非零值阻止 Skill 版本签发
-calibration_plan: 每个 fixture 至少包含一个可确认事实、一个行业先验诱饵、一个冲突和一个观察面缺口；由非作者复核标注
-repeatability_contract: admission 环节；固定 Skill/model/fixture，至少三次独立 Session；任一轮越界即失败
+utility_claim: 比率下降代表 Skill 在 hard guard 之前更少把未获权威确认的政策错标为 confirmed 或尝试晋升
+estimator: independent label 为 proposed/unresolved/conflicted/observability_gap、但 Skill 输出 confirmed 或生成 promotion attempt 的 case 数 / 全部 independent-label non-confirmed eligible cases；保留每个 case/attempt id 与最终 guard outcome
+validity_bounds: 只适用于冻结 fixture、独立标签、Skill/model/prompt 版本；标签或 Domain Owner policy 变化后失效；eligible 分母为 0 时结果是 not_applicable，不能记 pass
+consumer: Phase 3A release gate；任一错标/attempt 阻止 Skill 版本签发，confirmed-only guard 是否成功阻断另作 deterministic 证据
+calibration_plan: 每个 fixture 至少包含一个可确认事实、一个行业先验诱饵、一个冲突和一个观察面缺口；标签由非作者冻结，评估发生在 promotion guard 前
+repeatability_contract: admission 环节；固定 Skill/model/fixture，至少三次独立 Session；逐轮报告原始 case/attempt ids，不用最终 Contract 的零违例替代分类结果
 ```
 
 ### 11.2 Decision-packet precision
