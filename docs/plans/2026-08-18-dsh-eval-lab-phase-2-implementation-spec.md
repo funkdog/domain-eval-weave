@@ -142,7 +142,7 @@ Phase 2 Eval Pack 精确包含三个 task entry，每桶一个：
 |---|---|---|
 | trigger | `ledger-full-v1` | 多步骤实现，Goal 有明确 activation opportunity |
 | non-trigger | `ledger-audit-v1` | 已满足确定性行为的短审计任务，Goal 激活视为不必要开销 |
-| holdout | `ledger-restart-recovery-v1` | 未参与 trigger/non-trigger binding 判定、且无既存模型 exposure 的聚焦重启持久化修复 |
+| holdout | `ledger-release-recovery-v1` | 未参与 trigger/non-trigger binding 判定、且无既存模型 exposure 的聚焦 release 终态持久化修复 |
 
 Task entry 绑定 public task、effective base layers、allowed paths、Oracle、behavior keys、calibration evidence 与 bucket。
 Candidate workspace 只收到 materialized effective base 与 public task；看不到 registry、bucket、Oracle、calibration、arm label、
@@ -150,16 +150,19 @@ Suite path 或其他 task。
 
 ### 5.1 Holdout renewal record
 
-`ledger-concurrency-v1` 已在 rc.1 真实 Suite 中产生 immutable exposure，因此 rc.2 不删除、改名、重标或复用该证据，
-而是冻结新的 `ledger-restart-recovery-v1`。它使用未发生模型 exposure 的 restart/durability effective base 与新 public-task
-bytes；旧 exposure 继续保留在 instance ledger 中，但不再属于当前 Registry。
+`ledger-concurrency-v1` 已在 rc.1 真实 Suite 中产生 immutable exposure，因此 rc.2 没有删除、改名、重标或复用该证据，
+而是冻结了 `ledger-restart-recovery-v1`。随后真实 Suite `suite-20260818043229-d8fbf109` 在 holdout Episode 前因主机
+clamshell sleep fail-closed；该 holdout 没有模型 exposure，但 task/public/base 三重永久 reservation 已绑定失败 Suite，不能释放、
+重写或换标签复用。rc.4 因此冻结 genuinely new 的 `ledger-release-recovery-v1`：新 task id、新 public-task bytes，以及以
+release-not-persisted 缺陷为有效基线的新 effective-base bytes。两代旧 reservation/exposure 继续保留在 instance ledger，
+但不再属于当前 Registry。
 
 ```yaml
-utility_claim: 在未见过的聚焦持久化修复 Task 上，Goal treatment 的激活、外部结果与成本向量能补充三桶 binding 的本地诊断证据
+utility_claim: 在未见过的聚焦 release 终态持久化修复 Task 上，Goal treatment 的激活、外部结果与成本向量能补充三桶 binding 的本地诊断证据
 estimator: 同 Task、同 Oracle seed 的 control/treatment 配对；ledger-oracle-v3 八维行为向量（terminal 同时覆盖 commit/release，restart 同时覆盖 committed/released 状态与 used/capacity）+ typed Goal activation + raw cost delta
-validity_bounds: exact task/public/base/registry/binding 任一 digest 漂移；该 Task 已有模型 exposure；Candidate 可见 bucket/Oracle/arm；任何 adaptive feedback
+validity_bounds: exact task/public/base/registry/binding 任一 digest 漂移；当前或旧 task/public/base 身份已有 exposure/reservation；Candidate 可见 bucket/Oracle/arm；任何 adaptive feedback
 consumer: Phase 2 operator 只据此判断当前 binding 是 keep、iterate_binding、keep_baseline 或 run_more，不产生总体 effect claim
-calibration_plan: effective base 在 deterministic calibration 中仅 restart_recovery 失败；gold 等价实现八维全过；broken-release 在 terminal/restart 失败，release-not-persisted 仅在 restart 失败；Oracle protocol 保持不变、语义版本升级为 ledger-oracle-v3
+calibration_plan: effective base 使用 release-not-persisted 缺陷，在 deterministic calibration 中仅 restart_recovery 失败；gold 等价实现八维全过；broken-release 在 terminal/restart 失败；Oracle protocol 与 ledger-oracle-v3 五 mutant 证据保持不变
 repeatability_contract: acceptance；只允许一个 Suite 取得该 holdout reservation，两个 fresh arms 共享 seed；artifact replay 不产生 exposure，禁止第二次模型运行
 ```
 

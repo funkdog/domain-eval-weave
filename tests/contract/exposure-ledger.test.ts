@@ -71,7 +71,7 @@ test("holdout freshness is checked before a model is exposed", async () => {
   const scratch = await scratchRoot("phase2-holdout");
   const ledger = new ExposureLedger(`${scratch}/instance`);
   const identity = {
-    task_id: "ledger-restart-recovery-v1",
+    task_id: "ledger-release-recovery-v1",
     public_task_sha256: "9".repeat(64),
     effective_base_sha256: "a".repeat(64),
   } as const;
@@ -104,8 +104,8 @@ test("holdout freshness is checked before a model is exposed", async () => {
 
     const holdout = {
       ...validExposureRecord,
-      exposure_id: phase2ExposureId("suite-1", "ledger-restart-recovery-v1", "control"),
-      task_id: "ledger-restart-recovery-v1",
+      exposure_id: phase2ExposureId("suite-1", "ledger-release-recovery-v1", "control"),
+      task_id: "ledger-release-recovery-v1",
       bucket: "holdout" as const,
       public_task_sha256: identity.public_task_sha256,
       effective_base_sha256: identity.effective_base_sha256,
@@ -131,7 +131,7 @@ test("concurrent Suites atomically reserve the one allowed holdout exposure", as
   const scratch = await scratchRoot("phase2-holdout-reservation");
   const ledger = new ExposureLedger(`${scratch}/instance`);
   const identity = {
-    task_id: "ledger-restart-recovery-v1",
+    task_id: "ledger-release-recovery-v1",
     public_task_sha256: "9".repeat(64),
     effective_base_sha256: "a".repeat(64),
   } as const;
@@ -155,7 +155,7 @@ test("holdout reservations cannot be bypassed by relabeling frozen evidence", as
   const scratch = await scratchRoot("phase2-holdout-alias-reservation");
   const ledger = new ExposureLedger(`${scratch}/instance`);
   const identity = {
-    task_id: "ledger-restart-recovery-v1",
+    task_id: "ledger-release-recovery-v1",
     public_task_sha256: "9".repeat(64),
     effective_base_sha256: "a".repeat(64),
   } as const;

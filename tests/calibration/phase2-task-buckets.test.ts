@@ -42,7 +42,7 @@ test("all three Registry buckets calibrate in their frozen directions", async ()
       true,
     );
     assert.deepEqual(
-      Object.entries(vectors["ledger-restart-recovery-v1"] ?? {})
+      Object.entries(vectors["ledger-release-recovery-v1"] ?? {})
         .filter(([, status]) => status !== "pass")
         .map(([behavior]) => behavior),
       ["restart_recovery"],

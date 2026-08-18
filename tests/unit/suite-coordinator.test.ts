@@ -49,25 +49,25 @@ test("Suite freezes all Campaign ids and task order before executing without ada
   assert.deepEqual(result.manifest.task_order, [
     "ledger-audit-v1",
     "ledger-full-v1",
-    "ledger-restart-recovery-v1",
+    "ledger-release-recovery-v1",
   ]);
   assert.deepEqual(events, [
     "plan:ledger-audit-v1",
     "plan:ledger-full-v1",
-    "plan:ledger-restart-recovery-v1",
+    "plan:ledger-release-recovery-v1",
     "freeze",
     "prepare",
-    "gate:ledger-restart-recovery-v1:suite-fixed",
+    "gate:ledger-release-recovery-v1:suite-fixed",
     "run:ledger-audit-v1",
     "run:ledger-full-v1",
-    "run:ledger-restart-recovery-v1",
+    "run:ledger-release-recovery-v1",
   ]);
   assert.deepEqual(
     result.results.map((entry) => entry.result),
     [
       { taskId: "ledger-audit-v1" },
       { taskId: "ledger-full-v1" },
-      { taskId: "ledger-restart-recovery-v1" },
+      { taskId: "ledger-release-recovery-v1" },
     ],
   );
 });
@@ -109,7 +109,7 @@ test("holdout is reserved after confirmation and qualification but before model 
   assert.deepEqual(events, [
     "plan:ledger-full-v1",
     "plan:ledger-audit-v1",
-    "plan:ledger-restart-recovery-v1",
+    "plan:ledger-release-recovery-v1",
     "freeze",
     "prepare",
     "gate",

@@ -32,6 +32,21 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   );
 });
 
+test("release package, Harness, and Registry versions advance together", async () => {
+  const [manifestSource, harnessSource, registrySource] = await Promise.all([
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../../harnesses/dsh-goal-stack/harness.json", import.meta.url), "utf8"),
+    readFile(new URL("../../registry/registry.json", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource) as Record<string, unknown>;
+  const harness = JSON.parse(harnessSource) as Record<string, unknown>;
+  const registry = JSON.parse(registrySource) as Record<string, unknown>;
+
+  assert.equal(manifest.version, "0.2.0-rc.4");
+  assert.equal(harness.harness_version, manifest.version);
+  assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
+});
+
 test("bundle defaults to management app enabled and runner bridge disabled", async () => {
   const source = await readFile(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
   assert.deepEqual(parse(source), [
