@@ -166,6 +166,8 @@ domain-eval/
 Owner confirmation 不是 Skill 输出。Skill 只能生成 draft/candidate artifact；本地 operator 必须从独立 management profile
 显式调用 `domain confirm/reject/withdraw`。确定性 surface 把 OwnerConfirmationEvent exclusive-create 到隔离 runtime 的
 永久 `domain-confirmations/` ledger，再把不可伪造的 id+digest receipt 写入下一 revision。Author/Candidate workspace 无权写 ledger。
+所有 authority command 先执行无副作用状态机 preflight；非法 target/decision 组合不会写 ledger。Candidate rejection
+只保留 rejection event并由 snapshot manifest 引用，不伪造产品真相 revision。
 
 ## 6. Authoring plane 与 Evaluation plane
 

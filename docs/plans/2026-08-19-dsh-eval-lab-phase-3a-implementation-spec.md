@@ -445,6 +445,7 @@ interface RequirementChangeSet {
   readonly schema_version: 1
   readonly requirement_id: string
   readonly version: number
+  readonly predecessor?: DomainArtifactPointer
   readonly product_id: string
   readonly requirement_refs: readonly SourceRef[]
   readonly base_contract: DomainArtifactPointer
@@ -583,12 +584,28 @@ dsh --profile eval-clowder domain validate <pack-root> <manifest-ref>
 dsh --profile eval-clowder domain impact <pack-root> <manifest-ref> <claim-id>
 ```
 
+合法状态迁移矩阵冻结如下；`—` 必须在 ledger pre-write 阶段 typed fail：
+
+| target kind | `confirm` | `reject` | `withdraw` |
+|---|---|---|---|
+| EvidenceCard | `proposed/unresolved → confirmed r+1` | candidate rejection event only | — |
+| ProductDomainContract | candidate → `issued vN` | candidate rejection event only | `issued vN → withdrawn vN+1` |
+| RequirementChangeSet | `draft candidate → owner_confirmed vN` | candidate rejection event only | `owner_confirmed vN → withdrawn vN+1` |
+| DecisionQuestion | `open → resolved r+1` | `open → resolved r+1`，event 保存 reject | `resolved → withdrawn r+1` |
+| Claim transition | transition approval event only | transition rejection event only | — |
+
+Reject-only event 必须进入下一个 DomainPackManifest 的 `confirmations` receipts，但不生成 final truth revision。所有生成下一
+revision/version 的格子都必须写 predecessor pointer。Preflight 完整验证 target schema/state、输出可表达性、目标 immutable path
+是否可用；只有它成功后才允许写永久 ledger。Ledger 写成功而 final write 因 I/O 失败时保留 event，并返回 typed incomplete
+result，禁止把它解释为已完成 transition。
+
 要求：
 
 - pack/manifest/target path 相对 invocation cwd，realpath containment，不接受 absolute/traversal/symlink；
 - confirmation command 只能由 `eval-clowder` app 接受；author profile 禁用 app 与 shell/process 工具，Candidate runner
   同样禁用，故 Skill/模型不能调用；command 从 target 推导 object identity/scope/projection，先 exclusive-create runtime ledger
   event，再写带 receipt 的下一 immutable revision；validator 必须同时核 pack receipt 与 ledger，workspace 内伪造 event 无效；
+- confirm/reject/withdraw × target kind 必须按上述 allowlist 做 pre-write red matrix；非法格子零 ledger side effect；
 - `validate` 解析所有 primary artifacts、重建 graph/readiness 并比较 frozen bytes；
 - `impact` 只在 validate 通过后输出依赖 Requirement/Claim IDs；
 - 不调用模型、不读取 live Candidate/Suite/Profile/Session、OAuth 或 ambient home；
