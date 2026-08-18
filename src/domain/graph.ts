@@ -27,10 +27,11 @@ export interface BuildClaimDependencyGraphInput {
 type GraphNode = ClaimDependencyGraph["nodes"][number];
 type GraphEdge = ClaimDependencyGraph["edges"][number];
 
-const claimNodeId = (claimId: string): string => `claim:${claimId}`;
-const requirementNodeId = (requirementId: string): string => `requirement:${requirementId}`;
-const proposalNodeId = (requirementId: string, claimId: string): string =>
-  `proposal:${requirementId}:${claimId}`;
+const claimNodeId = (version: number, claimId: string): string => `claim:${version}:${claimId}`;
+const requirementNodeId = (version: number, requirementId: string): string =>
+  `requirement:${version}:${requirementId}`;
+const proposalNodeId = (version: number, requirementId: string, claimId: string): string =>
+  `proposal:${version}:${requirementId}:${claimId}`;
 
 function edgeKey(edge: GraphEdge): string {
   return `${edge.from}\0${edge.to}\0${edge.kind}`;
@@ -98,14 +99,14 @@ function requirementEdges(
   contract: ProductDomainContract,
   contractClaims: ReadonlySet<string>,
 ): { readonly nodes: GraphNode[]; readonly edges: GraphEdge[] } {
-  const from = requirementNodeId(requirement.requirement_id);
+  const from = requirementNodeId(requirement.version, requirement.requirement_id);
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
 
   for (const kind of ["uses", "preserves", "deprecates"] as const) {
     for (const reference of requirement.effects[kind]) {
       assertClaimRef(reference.claim_id, reference.contract_version, contract, contractClaims);
-      edges.push({ from, to: claimNodeId(reference.claim_id), kind });
+      edges.push({ from, to: claimNodeId(reference.contract_version, reference.claim_id), kind });
     }
   }
   for (const conflict of requirement.effects.conflicts_with) {
@@ -115,14 +116,23 @@ function requirementEdges(
       contract,
       contractClaims,
     );
-    edges.push({ from, to: claimNodeId(conflict.claim.claim_id), kind: "conflicts_with" });
+    edges.push({
+      from,
+      to: claimNodeId(conflict.claim.contract_version, conflict.claim.claim_id),
+      kind: "conflicts_with",
+    });
   }
   for (const proposed of requirement.effects.introduces) {
-    const proposalId = proposalNodeId(requirement.requirement_id, proposed.claim_id);
+    const proposalId = proposalNodeId(
+      requirement.version,
+      requirement.requirement_id,
+      proposed.claim_id,
+    );
     nodes.push({
       node_id: proposalId,
       kind: "proposed_claim",
       object_id: proposed.claim_id,
+      object_version: requirement.version,
       domain_id: proposed.domain_id,
     });
     edges.push({ from, to: proposalId, kind: "introduces" });
@@ -134,17 +144,22 @@ function requirementEdges(
       contract,
       contractClaims,
     );
-    const proposalId = proposalNodeId(requirement.requirement_id, modification.proposed.claim_id);
+    const proposalId = proposalNodeId(
+      requirement.version,
+      requirement.requirement_id,
+      modification.proposed.claim_id,
+    );
     nodes.push({
       node_id: proposalId,
       kind: "proposed_claim",
       object_id: modification.proposed.claim_id,
+      object_version: requirement.version,
       domain_id: modification.proposed.domain_id,
     });
     edges.push({ from, to: proposalId, kind: "modifies" });
     edges.push({
       from: proposalId,
-      to: claimNodeId(modification.claim.claim_id),
+      to: claimNodeId(modification.claim.contract_version, modification.claim.claim_id),
       kind: "depends_on",
     });
   }
@@ -161,26 +176,50 @@ export function buildClaimDependencyGraph(
   });
   const contractClaims = new Set(contract.claims.map((claim) => claim.claim_id));
   const nodes: GraphNode[] = contract.claims.map((claim) => ({
-    node_id: claimNodeId(claim.claim_id),
+    node_id: claimNodeId(contract.version, claim.claim_id),
     kind: "contract_claim",
     object_id: claim.claim_id,
+    object_version: contract.version,
     domain_id: claim.domain_id,
   }));
   const edges: GraphEdge[] = contract.claims.flatMap((claim) =>
     claim.dependencies.map((dependency) => ({
-      from: claimNodeId(claim.claim_id),
-      to: claimNodeId(dependency),
+      from: claimNodeId(contract.version, claim.claim_id),
+      to: claimNodeId(dependency.contract_version, dependency.claim_id),
       kind: "depends_on" as const,
     })),
   );
+  for (const claim of contract.claims) {
+    if (claim.transition === undefined) continue;
+    const historicalId = claimNodeId(
+      claim.transition.predecessor.contract_version,
+      claim.transition.predecessor.claim_id,
+    );
+    if (!nodes.some((node) => node.node_id === historicalId)) {
+      nodes.push({
+        node_id: historicalId,
+        kind: "historical_claim",
+        object_id: claim.transition.predecessor.claim_id,
+        object_version: claim.transition.predecessor.contract_version,
+        domain_id: claim.domain_id,
+      });
+    }
+    edges.push({
+      from: claimNodeId(contract.version, claim.claim_id),
+      to: historicalId,
+      kind: claim.transition.kind,
+    });
+  }
 
   const requirements = input.requirements.map((artifact) => ({
     ref: artifact.ref,
     requirement: parseRequirementChangeSet(artifact.requirement),
   }));
-  const requirementIds = requirements.map(({ requirement }) => requirement.requirement_id);
-  if (new Set(requirementIds).size !== requirementIds.length) {
-    throw new Error("Requirement ids must be unique within one graph");
+  const requirementKeys = requirements.map(
+    ({ requirement }) => `${requirement.requirement_id}\0${requirement.version}`,
+  );
+  if (new Set(requirementKeys).size !== requirementKeys.length) {
+    throw new Error("Requirement id+version pairs must be unique within one graph");
   }
 
   for (const { requirement } of requirements) {
@@ -194,9 +233,10 @@ export function buildClaimDependencyGraph(
       throw new Error(`Requirement ${requirement.requirement_id} does not pin the exact Contract`);
     }
     nodes.push({
-      node_id: requirementNodeId(requirement.requirement_id),
+      node_id: requirementNodeId(requirement.version, requirement.requirement_id),
       kind: "requirement",
       object_id: requirement.requirement_id,
+      object_version: requirement.version,
     });
     const contribution = requirementEdges(requirement, contract, contractClaims);
     nodes.push(...contribution.nodes);
@@ -213,15 +253,22 @@ export function buildClaimDependencyGraph(
 
   const sortedNodes = sortNodes(nodes);
   const sortedEdges = sortEdges(edges);
+  const requirementPointers = requirements
+    .map(({ ref, requirement }) =>
+      domainPackPointerSchema.parse({ ref, sha256: canonicalJsonDigest(requirement) }),
+    )
+    .sort((left, right) => left.ref.localeCompare(right.ref));
   const graph = parseClaimDependencyGraph({
     schema_version: 1,
+    graph_id: `graph-${contract.product_id}-${canonicalJsonDigest({
+      contract: contractPointer,
+      requirements: requirementPointers,
+      nodes: sortedNodes,
+      edges: sortedEdges,
+    }).slice(0, 12)}`,
     product_id: contract.product_id,
     contract: contractPointer,
-    requirements: requirements
-      .map(({ ref, requirement }) =>
-        domainPackPointerSchema.parse({ ref, sha256: canonicalJsonDigest(requirement) }),
-      )
-      .sort((left, right) => left.ref.localeCompare(right.ref)),
+    requirements: requirementPointers,
     nodes: sortedNodes,
     edges: sortedEdges,
     reverse_index: buildReverseIndex(sortedEdges),
@@ -246,9 +293,11 @@ export interface ClaimImpact {
 
 export function impactedByClaim(graph: ClaimDependencyGraph, claimId: string): ClaimImpact {
   assertClaimDependencyGraphSemantics(graph);
-  const start = claimNodeId(claimId);
   const byId = new Map(graph.nodes.map((node) => [node.node_id, node]));
-  if (byId.get(start)?.kind !== "contract_claim") {
+  const start = graph.nodes.find(
+    (node) => node.kind === "contract_claim" && node.object_id === claimId,
+  )?.node_id;
+  if (start === undefined || byId.get(start)?.kind !== "contract_claim") {
     throw new Error(`unknown Contract Claim ${claimId}`);
   }
 

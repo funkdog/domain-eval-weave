@@ -7,6 +7,7 @@ export const EXIT_CODE = {
   CAMPAIGN_INFRASTRUCTURE_INVALID: 13,
   CALIBRATION_NOT_READY: 14,
   ARTIFACT_INTEGRITY_FAILURE: 15,
+  DOMAIN_TRUTH_NOT_READY: 16,
 } as const;
 
 export type ExitCode = (typeof EXIT_CODE)[keyof typeof EXIT_CODE];
@@ -27,11 +28,43 @@ export type AppInvocation =
   | { readonly kind: "report"; readonly campaignId: string }
   | { readonly kind: "binding-show" }
   | { readonly kind: "suite-run"; readonly timeoutMs: number }
-  | { readonly kind: "suite-report"; readonly suiteId: string };
+  | { readonly kind: "suite-report"; readonly suiteId: string }
+  | { readonly kind: "domain-validate"; readonly packPath: string; readonly manifestPath: string }
+  | {
+      readonly kind: "domain-impact";
+      readonly packPath: string;
+      readonly manifestPath: string;
+      readonly claimId: string;
+    }
+  | {
+      readonly kind: "domain-authority";
+      readonly decision: "confirm" | "reject" | "withdraw";
+      readonly packPath: string;
+      readonly targetKind:
+        | "evidence_card"
+        | "product_domain_contract"
+        | "requirement_change_set"
+        | "decision_question"
+        | "claim_transition";
+      readonly candidatePath: string;
+      readonly actorId: string;
+    };
 
 const CAMPAIGN_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const DEFAULT_TIMEOUT_MS = 2_700_000;
 const MAX_TIMEOUT_MS = 5_400_000;
+
+function parsePackPath(value: string | undefined): string {
+  if (
+    value === undefined ||
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    value.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+  ) {
+    throw new AppUsageError("domain pack path must be normalized and project-relative");
+  }
+  return value;
+}
 
 export class AppUsageError extends Error {
   readonly exitCode = EXIT_CODE.USAGE_OR_CONTRACT;
@@ -137,6 +170,56 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
         return { kind: "suite-report", suiteId: suiteRest[0] };
       }
       throw new AppUsageError("suite requires run or report <suite-id>");
+    }
+    case "domain": {
+      const [subcommand, packPathValue, third, fourth, fifth, ...domainRest] = rest;
+      const packPath = parsePackPath(packPathValue);
+      if (subcommand === "validate" && third !== undefined && fourth === undefined) {
+        return { kind: "domain-validate", packPath, manifestPath: parsePackPath(third) };
+      }
+      if (
+        subcommand === "impact" &&
+        third !== undefined &&
+        fourth !== undefined &&
+        CAMPAIGN_ID_PATTERN.test(fourth) &&
+        fifth === undefined &&
+        domainRest.length === 0
+      ) {
+        return {
+          kind: "domain-impact",
+          packPath,
+          manifestPath: parsePackPath(third),
+          claimId: fourth,
+        };
+      }
+      const targetKinds = [
+        "evidence_card",
+        "product_domain_contract",
+        "requirement_change_set",
+        "decision_question",
+        "claim_transition",
+      ] as const;
+      if (
+        (subcommand === "confirm" || subcommand === "reject" || subcommand === "withdraw") &&
+        third !== undefined &&
+        (targetKinds as readonly string[]).includes(third) &&
+        fourth !== undefined &&
+        fifth !== undefined &&
+        CAMPAIGN_ID_PATTERN.test(fifth) &&
+        domainRest.length === 0
+      ) {
+        return {
+          kind: "domain-authority",
+          decision: subcommand,
+          packPath,
+          targetKind: third as (typeof targetKinds)[number],
+          candidatePath: parsePackPath(fourth),
+          actorId: fifth,
+        };
+      }
+      throw new AppUsageError(
+        "domain requires validate/impact with an exact manifest or an authority command with a target",
+      );
     }
     case "report": {
       if (rest.length !== 1 || rest[0] === undefined || !CAMPAIGN_ID_PATTERN.test(rest[0])) {

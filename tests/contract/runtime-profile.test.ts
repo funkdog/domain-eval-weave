@@ -3,7 +3,9 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import test from "node:test";
 
 import {
+  assertAuthorProfileRoles,
   assertProfileRoles,
+  authorProfileFiles,
   materializeFrozenFiles,
   ProfileContractError,
   runnerProfileFiles,
@@ -44,6 +46,44 @@ test("runner profile files freeze the exact package and opposite app/bridge role
         ],
         "runner",
       ),
+    ProfileContractError,
+  );
+});
+
+test("author profile enables only the domain Skill authoring surface", () => {
+  const files = authorProfileFiles("file:/tmp/dsh-eval-lab.tgz");
+  const manifest = JSON.parse(files.get("package.json") ?? "null") as {
+    name: string;
+    dependencies: Record<string, string>;
+    dsh: { profile: { bundles: string[] } };
+  };
+  assert.equal(manifest.name, "dsh-profile-eval-clowder-author");
+  assert.equal(manifest.dependencies["dsh-eval-lab"], "file:/tmp/dsh-eval-lab.tgz");
+  assert.deepEqual(manifest.dsh.profile.bundles, [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless",
+    "dsh-codex-connect",
+    "dsh-eval-lab",
+  ]);
+
+  assertAuthorProfileRoles([
+    { id: "dsh-eval-app", disabled: true },
+    { id: "dsh-eval-bridge", disabled: true },
+    { id: "dsh-eval-domain-skill", disabled: false },
+    { id: "tool-skill", disabled: false },
+    { id: "tool-str-replace-editor", disabled: false },
+    { id: "tool-web", disabled: true },
+  ]);
+  assert.throws(
+    () =>
+      assertAuthorProfileRoles([
+        { id: "dsh-eval-app", disabled: true },
+        { id: "dsh-eval-bridge", disabled: false },
+        { id: "dsh-eval-domain-skill", disabled: false },
+        { id: "tool-skill", disabled: false },
+        { id: "tool-str-replace-editor", disabled: false },
+        { id: "tool-web", disabled: true },
+      ]),
     ProfileContractError,
   );
 });

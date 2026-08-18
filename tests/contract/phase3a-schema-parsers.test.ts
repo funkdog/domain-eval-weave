@@ -7,18 +7,26 @@ import type { FormatsPlugin } from "ajv-formats";
 import * as addFormatsModule from "ajv-formats";
 import {
   parseClaimDependencyGraph,
+  parseDomainDecisionQuestion,
   parseDomainEvidenceCard,
   parseDomainInterviewSession,
+  parseDomainPackManifest,
+  parseDomainReadinessRequest,
   parseDomainTruthReadiness,
+  parseOwnerConfirmationEvent,
   parseProductDomainContract,
   parseRequirementChangeSet,
 } from "../../src/domain/contracts.js";
 import {
   validClaimDependencyGraph,
+  validDecisionQuestion,
+  validDomainPackManifest,
   validDomainTruthReadiness,
   validEvidenceCard,
   validInterviewSession,
+  validOwnerConfirmation,
   validProductDomainContract,
+  validReadinessRequest,
   validRequirementChangeSet,
 } from "../helpers/phase3a-fixtures.js";
 
@@ -37,12 +45,16 @@ async function validator(name: string) {
 
 test("Phase 3A persisted faces have JSON Schema and Zod parser parity", async () => {
   const faces = [
+    ["owner-confirmation.schema.json", validOwnerConfirmation, parseOwnerConfirmationEvent],
     ["domain-evidence-card.schema.json", validEvidenceCard, parseDomainEvidenceCard],
     ["domain-interview-session.schema.json", validInterviewSession, parseDomainInterviewSession],
+    ["domain-decision-question.schema.json", validDecisionQuestion, parseDomainDecisionQuestion],
     ["product-domain-contract.schema.json", validProductDomainContract, parseProductDomainContract],
     ["requirement-change-set.schema.json", validRequirementChangeSet, parseRequirementChangeSet],
     ["claim-dependency-graph.schema.json", validClaimDependencyGraph, parseClaimDependencyGraph],
+    ["domain-readiness-request.schema.json", validReadinessRequest, parseDomainReadinessRequest],
     ["domain-truth-readiness.schema.json", validDomainTruthReadiness, parseDomainTruthReadiness],
+    ["domain-pack-manifest.schema.json", validDomainPackManifest, parseDomainPackManifest],
   ] as const;
 
   for (const [schemaName, value, parser] of faces) {
@@ -70,7 +82,7 @@ test("Phase 3A portable refs reject absolute, traversal, backslash, and empty se
 
 test("confirmed Evidence Cards require owner confirmation and non-knowledge authority", () => {
   const missingConfirmation = structuredClone(validEvidenceCard) as Record<string, unknown>;
-  delete missingConfirmation.confirmed_by;
+  delete missingConfirmation.confirmation;
   assert.throws(() => parseDomainEvidenceCard(missingConfirmation));
 
   const knowledgeOnly = structuredClone(validEvidenceCard) as Record<string, unknown>;
@@ -94,8 +106,7 @@ test("conflicted cards require distinct conflicting sources and cannot carry con
     source_ref_ids: ["owner-refund-policy"],
     reason: "The owner statement and product document disagree.",
   };
-  delete conflicted.confirmed_by;
-  delete conflicted.confirmed_at;
+  delete conflicted.confirmation;
   assert.throws(() => parseDomainEvidenceCard(conflicted));
 
   const proposed = structuredClone(validEvidenceCard) as Record<string, unknown>;
@@ -103,9 +114,9 @@ test("conflicted cards require distinct conflicting sources and cannot carry con
   assert.throws(() => parseDomainEvidenceCard(proposed));
 });
 
-test("owner-confirmed Requirement ChangeSets cannot retain blocking decision questions", () => {
+test("draft Requirement ChangeSets cannot self-attach confirmation evidence", () => {
   const requirement = structuredClone(validRequirementChangeSet) as Record<string, unknown>;
-  requirement.decision_question_ids = ["coupon-restoration-policy"];
+  requirement.status = "draft";
   assert.throws(() => parseRequirementChangeSet(requirement));
 });
 
@@ -114,10 +125,66 @@ test("interview completion and readiness overall remain semantically bound", () 
   delete interview.ended_at;
   assert.throws(() => parseDomainInterviewSession(interview));
 
+  const missingAnswer = structuredClone(validInterviewSession) as Record<string, unknown>;
+  const turns = missingAnswer.turns as Record<string, unknown>[];
+  const firstTurn = turns[0];
+  assert.ok(firstTurn);
+  delete firstTurn.answer;
+  assert.throws(() => parseDomainInterviewSession(missingAnswer));
+
+  const overwrittenRevision = {
+    ...validInterviewSession,
+    revision: 2,
+  };
+  assert.throws(() => parseDomainInterviewSession(overwrittenRevision));
+
   const readiness = structuredClone(validDomainTruthReadiness) as Record<string, unknown>;
   const dimensions = readiness.dimensions as Record<string, { status: string }>;
   const conflict = dimensions.conflict_state;
   assert.ok(conflict);
   conflict.status = "fail";
   assert.throws(() => parseDomainTruthReadiness(readiness));
+});
+
+test("representable authority-state invariants have JSON Schema and parser parity", async () => {
+  const cases = [
+    [
+      "domain-evidence-card.schema.json",
+      (() => {
+        const value = structuredClone(validEvidenceCard) as Record<string, unknown>;
+        delete value.confirmation;
+        return value;
+      })(),
+      parseDomainEvidenceCard,
+    ],
+    [
+      "domain-decision-question.schema.json",
+      { ...validDecisionQuestion, status: "resolved" },
+      parseDomainDecisionQuestion,
+    ],
+    [
+      "product-domain-contract.schema.json",
+      (() => {
+        const value = structuredClone(validProductDomainContract) as Record<string, unknown>;
+        delete value.confirmation;
+        return value;
+      })(),
+      parseProductDomainContract,
+    ],
+    [
+      "requirement-change-set.schema.json",
+      (() => {
+        const value = structuredClone(validRequirementChangeSet) as Record<string, unknown>;
+        delete value.confirmation;
+        return value;
+      })(),
+      parseRequirementChangeSet,
+    ],
+  ] as const;
+
+  for (const [schemaName, value, parser] of cases) {
+    const validate = await validator(schemaName);
+    assert.equal(validate(value), false, `${schemaName}: ${JSON.stringify(validate.errors)}`);
+    assert.throws(() => parser(value));
+  }
 });

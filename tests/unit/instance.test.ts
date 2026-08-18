@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import test from "node:test";
-
+import { pathToFileURL } from "node:url";
 import {
   assertContainedPhase2Directory,
+  assertCurrentPhase3AuthorProfile,
   PHASE2_INSTANCE,
+  PHASE3A_AUTHOR,
   Phase2InstanceError,
   phase2CalibrationPath,
   resolvePhase2Instance,
@@ -26,6 +28,15 @@ test("Phase 2 instance freezes profile and artifact namespaces without changing 
     },
   );
   assert.equal(PHASE2_INSTANCE.id, "clowder-ai");
+  assert.deepEqual(PHASE3A_AUTHOR, {
+    profile: "eval-clowder-author",
+    sessionsRoot: `${DEDICATED_DSH_HOME}/sessions/clowder-ai-author`,
+  });
+  assert.doesNotThrow(() =>
+    assertCurrentPhase3AuthorProfile(
+      pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-clowder-author/`).href,
+    ),
+  );
 });
 
 test("Phase 2 instance rejects missing, unknown, and alternate-home inputs", () => {

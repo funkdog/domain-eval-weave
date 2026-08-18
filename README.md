@@ -36,7 +36,8 @@ campaign outputs in this repository.
 
 Eval Lab is installed as a DSH bundle and has no standalone `dsh-eval` command.
 The Clowder implementation owns `eval-clowder` / `eval-clowder-runner`, instance
-id `clowder-ai`, and no `eval` or `eval-dsh` state. Every supported DSH process
+id `clowder-ai`, plus the Phase 3A authoring profile `eval-clowder-author`; it owns no
+`eval` or `eval-dsh` state. Every supported DSH process
 receives both isolation variables before boot:
 
 `<DSH_HOME>/settings.yaml` is shared transport-control-plane input. It must
@@ -78,6 +79,21 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder suite report <suite-id>
+
+# Run the authoring Skill from the synthetic/product project being onboarded.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder-author "/design-domain-grader onboard"
+
+# Owner authority stays on the management profile; the author Agent cannot call it.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder domain confirm domain-eval evidence_card \
+    candidates/card.json domain-owner
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder domain validate domain-eval \
+    manifests/<snapshot-id>.json
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -87,7 +103,9 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 ## Current state
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A is the active implementation
-contract; its authoring Skill/contracts are not yet release-accepted. The Phase 2 rc.4 release implements the
+contract. The local `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+an isolated author Skill/profile, and a management-only confirmation ledger; it is not yet release-accepted.
+The Phase 2 rc.4 release implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
 immutable exposure records, holdout first-exposure enforcement, blind six-Episode

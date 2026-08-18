@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "snapshot_id": "replace-me-snapshot",
+  "product_id": "replace-me-product",
+  "contract": {
+    "ref": "contracts/replace-me-contract/v1.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "interviews": [],
+  "evidence_cards": [],
+  "confirmations": [],
+  "decision_questions": [],
+  "requirements": [
+    {
+      "ref": "requirements/replace-me-requirement/v1.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "graph": {
+    "ref": "graphs/replace-me-graph.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "readiness_request": {
+    "ref": "readiness/requests/replace-me-request.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "readiness_report": {
+    "ref": "readiness/reports/replace-me-report.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

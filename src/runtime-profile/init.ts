@@ -3,6 +3,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 
 import { parse } from "yaml";
 
+import { PHASE3A_AUTHOR } from "../instance.js";
+
 export const PINNED_DSH_VERSION = "0.1.0-rc.6";
 export const PINNED_CODEX_CONNECT_VERSION = "0.1.0-alpha.4.7";
 
@@ -37,6 +39,26 @@ export function assertProfileRoles(
       "PROFILE_ROLE_INVALID",
       `${role} profile has an invalid app/bridge role composition`,
     );
+  }
+}
+
+export function assertAuthorProfileRoles(rows: readonly ComposedRoleRow[]): void {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const required = new Map<string, boolean>([
+    ["dsh-eval-app", true],
+    ["dsh-eval-bridge", true],
+    ["dsh-eval-domain-skill", false],
+    ["tool-skill", false],
+    ["tool-str-replace-editor", false],
+    ["tool-web", true],
+  ]);
+  for (const [id, disabled] of required) {
+    if (byId.get(id)?.disabled !== disabled) {
+      throw new ProfileContractError(
+        "PROFILE_ROLE_INVALID",
+        `author profile has an invalid ${id} role composition`,
+      );
+    }
   }
 }
 
@@ -89,6 +111,91 @@ export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, str
         "- id: dsh-eval-app",
         "  disabled: true",
         "- id: dsh-eval-bridge",
+        "  disabled: false",
+        "",
+      ].join("\n"),
+    ],
+  ]);
+}
+
+export function authorProfileFiles(packageSpec: string): ReadonlyMap<string, string> {
+  if (packageSpec.length === 0 || packageSpec.includes("\0")) {
+    throw new ProfileContractError("PACKAGE_SPEC_INVALID", "package spec must be non-empty");
+  }
+  return new Map([
+    [
+      "package.json",
+      frozenJson({
+        name: "dsh-profile-eval-clowder-author",
+        private: true,
+        dependencies: {
+          "dsh-codex-connect": PINNED_CODEX_CONNECT_VERSION,
+          "dsh-eval-lab": packageSpec,
+        },
+        dsh: {
+          profile: {
+            bundles: [
+              "@deepseek-ai/dsh-base",
+              "@deepseek-ai/dsh-headless",
+              "dsh-codex-connect",
+              "dsh-eval-lab",
+            ],
+          },
+        },
+      }),
+    ],
+    [
+      "pnpm-workspace.yaml",
+      [
+        "packages:",
+        "  - .",
+        "",
+        "nodeLinker: hoisted",
+        "autoInstallPeers: false",
+        "minimumReleaseAgeExclude:",
+        `  - dsh-codex-connect@${PINNED_CODEX_CONNECT_VERSION}`,
+        "",
+      ].join("\n"),
+    ],
+    [
+      "cordis.patch.yml",
+      [
+        "- id: dsh-eval-app",
+        "  disabled: true",
+        "- id: dsh-eval-bridge",
+        "  disabled: true",
+        "- id: dsh-eval-domain-skill",
+        "  disabled: false",
+        "- id: session-persistence-jsonl",
+        "  config:",
+        `    root: ${PHASE3A_AUTHOR.sessionsRoot}`,
+        "    compression: none",
+        "    packChunks: false",
+        "- id: tool-bash",
+        "  disabled: true",
+        "- id: tool-pwsh",
+        "  disabled: true",
+        "- id: tool-jobs",
+        "  disabled: true",
+        "- id: tool-web",
+        "  disabled: true",
+        "- id: tool-subagent-control",
+        "  disabled: true",
+        "- id: tool-subagent-list-agents",
+        "  disabled: true",
+        "- id: tool-subagent",
+        "  disabled: true",
+        "- id: tool-subagent-fork",
+        "  disabled: true",
+        "- id: tool-subagent-report",
+        "  disabled: true",
+        "- id: tool-workflow",
+        "  disabled: true",
+        "- id: tool-ralph",
+        "  disabled: true",
+        "- id: tool-skill",
+        "  disabled: false",
+        "- id: tool-str-replace-editor",
         "  disabled: false",
         "",
       ].join("\n"),

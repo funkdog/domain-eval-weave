@@ -7,19 +7,22 @@
   "required": [
     "schema_version",
     "interview_id",
+    "revision",
     "mode",
     "product_id",
     "domain_ids",
     "source_snapshot",
     "turns",
     "evidence_card_refs",
-    "decision_packet",
+    "decision_question_refs",
     "status",
     "started_at"
   ],
   "properties": {
     "schema_version": { "const": 1 },
     "interview_id": { "$ref": "#/$defs/id" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "predecessor": { "$ref": "#/$defs/pointer" },
     "mode": { "enum": ["onboard", "delta", "audit"] },
     "product_id": { "$ref": "#/$defs/id" },
     "domain_ids": {
@@ -56,6 +59,7 @@
           "reason": { "type": "string", "minLength": 1 },
           "source_ref_ids": { "$ref": "#/$defs/idArray" },
           "blocked_claim_ids": { "$ref": "#/$defs/idArray" },
+          "answer": { "type": "string", "minLength": 1 },
           "answer_ref_id": { "$ref": "#/$defs/id" },
           "status": { "enum": ["asked", "answered", "skipped"] }
         }
@@ -66,35 +70,10 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/pointer" }
     },
-    "decision_packet": {
+    "decision_question_refs": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "question_id",
-          "question",
-          "reason",
-          "blocked_claim_ids",
-          "risk",
-          "blocking",
-          "status"
-        ],
-        "properties": {
-          "question_id": { "$ref": "#/$defs/id" },
-          "question": { "type": "string", "minLength": 1 },
-          "reason": { "type": "string", "minLength": 1 },
-          "blocked_claim_ids": {
-            "type": "array",
-            "minItems": 1,
-            "uniqueItems": true,
-            "items": { "$ref": "#/$defs/id" }
-          },
-          "risk": { "$ref": "#/$defs/risk" },
-          "blocking": { "type": "boolean" },
-          "status": { "enum": ["open", "answered"] }
-        }
-      }
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
     },
     "status": { "enum": ["draft", "awaiting_owner", "completed", "aborted"] },
     "started_at": { "type": "string", "format": "date-time" },

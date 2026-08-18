@@ -6,10 +6,13 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "report_id",
     "product_id",
     "contract",
     "requirements",
     "graph",
+    "request",
+    "requested_closure_node_ids",
     "dimensions",
     "overall",
     "claim_strength",
@@ -17,6 +20,7 @@
   ],
   "properties": {
     "schema_version": { "const": 1 },
+    "report_id": { "$ref": "#/$defs/id" },
     "product_id": { "$ref": "#/$defs/id" },
     "contract": { "$ref": "#/$defs/pointer" },
     "requirements": {
@@ -25,6 +29,13 @@
       "items": { "$ref": "#/$defs/pointer" }
     },
     "graph": { "$ref": "#/$defs/pointer" },
+    "request": { "$ref": "#/$defs/pointer" },
+    "requested_closure_node_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nodeId" }
+    },
     "dimensions": {
       "type": "object",
       "additionalProperties": false,
@@ -53,6 +64,10 @@
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "nodeId": {
+      "type": "string",
+      "pattern": "^(?:claim|proposal|requirement):[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+    },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "packRef": {
       "type": "string",

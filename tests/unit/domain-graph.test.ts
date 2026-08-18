@@ -103,11 +103,14 @@ test("graph reuses one Claim across Requirements and preserves cross-domain edge
   });
   assertClaimDependencyGraphSemantics(graph);
 
-  const shared = graph.reverse_index["claim:refund-cash-limit"];
-  assert.deepEqual(shared, ["requirement:order-cancellation-v1", "requirement:partial-refund-v1"]);
+  const shared = graph.reverse_index["claim:1:refund-cash-limit"];
+  assert.deepEqual(shared, [
+    "requirement:1:order-cancellation-v1",
+    "requirement:1:partial-refund-v1",
+  ]);
   const cancellationDomains = new Set(
     graph.edges
-      .filter((edge) => edge.from === "requirement:order-cancellation-v1")
+      .filter((edge) => edge.from === "requirement:1:order-cancellation-v1")
       .map((edge) => graph.nodes.find((node) => node.node_id === edge.to)?.domain_id),
   );
   assert.deepEqual([...cancellationDomains].sort(), ["inventory", "orders", "payments"]);
@@ -256,9 +259,9 @@ test("graph construction rejects missing Claims, version drift, duplicate Requir
       ...claim,
       dependencies:
         claim.claim_id === "refund-cash-limit"
-          ? ["inventory-release-on-cancel"]
+          ? [{ claim_id: "inventory-release-on-cancel", contract_version: 1 }]
           : claim.claim_id === "inventory-release-on-cancel"
-            ? ["refund-cash-limit"]
+            ? [{ claim_id: "refund-cash-limit", contract_version: 1 }]
             : claim.dependencies,
     })),
   });
@@ -268,4 +271,71 @@ test("graph construction rejects missing Claims, version drift, duplicate Requir
       requirements: [],
     }),
   );
+});
+
+test("Claim retirement creates an explicit historical node and retires edge", () => {
+  const base = contractWithCommerceClaims();
+  const retired = parseProductDomainContract({
+    ...base,
+    version: 2,
+    predecessor: {
+      ref: "history/product-domain-contract-v1.json",
+      sha256: canonicalJsonDigest(base),
+    },
+    claims: base.claims.map((claim) =>
+      claim.claim_id === "refund-cash-limit"
+        ? {
+            ...claim,
+            lifecycle: "retired",
+            transition: {
+              kind: "retires",
+              predecessor: { claim_id: claim.claim_id, contract_version: 1 },
+              confirmation: {
+                confirmation_id: "retire-refund-cash-limit",
+                sha256: "a".repeat(64),
+              },
+            },
+          }
+        : claim,
+    ),
+  });
+  const graph = buildClaimDependencyGraph({
+    contract: { ref: "product-domain-contract.json", contract: retired },
+    requirements: [],
+  });
+  assert.ok(
+    graph.nodes.some(
+      (node) => node.node_id === "claim:1:refund-cash-limit" && node.kind === "historical_claim",
+    ),
+  );
+  assert.ok(
+    graph.edges.some(
+      (edge) =>
+        edge.from === "claim:2:refund-cash-limit" &&
+        edge.to === "claim:1:refund-cash-limit" &&
+        edge.kind === "retires",
+    ),
+  );
+});
+
+test("Requirement and Proposal node identity keeps semantic versions distinct", () => {
+  const contract = contractWithCommerceClaims();
+  const v1 = requirementFor(contract, "versioned-requirement");
+  const v2 = parseRequirementChangeSet({
+    ...v1,
+    version: 2,
+    predecessor: {
+      ref: "requirements/versioned-requirement/v1.json",
+      sha256: canonicalJsonDigest(v1),
+    },
+  });
+  const graph = buildClaimDependencyGraph({
+    contract: { ref: "product-domain-contract.json", contract },
+    requirements: [
+      { ref: "requirements/versioned-requirement/v1.json", requirement: v1 },
+      { ref: "requirements/versioned-requirement/v2.json", requirement: v2 },
+    ],
+  });
+  assert.ok(graph.nodes.some((node) => node.node_id === "requirement:1:versioned-requirement"));
+  assert.ok(graph.nodes.some((node) => node.node_id === "requirement:2:versioned-requirement"));
 });

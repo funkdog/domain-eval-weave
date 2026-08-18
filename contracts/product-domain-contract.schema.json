@@ -9,8 +9,10 @@
     "contract_id",
     "product_id",
     "version",
-    "issued_by",
-    "issued_at",
+    "state",
+    "confirmation",
+    "decided_by",
+    "decided_at",
     "source_snapshot_digest",
     "claims"
   ],
@@ -20,8 +22,10 @@
     "product_id": { "$ref": "#/$defs/id" },
     "version": { "type": "integer", "minimum": 1 },
     "predecessor": { "$ref": "#/$defs/pointer" },
-    "issued_by": { "$ref": "#/$defs/id" },
-    "issued_at": { "type": "string", "format": "date-time" },
+    "state": { "enum": ["issued", "withdrawn"] },
+    "confirmation": { "$ref": "#/$defs/confirmationPointer" },
+    "decided_by": { "$ref": "#/$defs/id" },
+    "decided_at": { "type": "string", "format": "date-time" },
     "source_snapshot_digest": { "$ref": "#/$defs/sha256" },
     "claims": {
       "type": "array",
@@ -53,18 +57,25 @@
             "minItems": 1,
             "items": { "$ref": "#/$defs/sourceRef" }
           },
-          "observation_refs": {
-            "type": "array",
-            "items": { "$ref": "#/$defs/sourceRef" }
-          },
+          "observation_refs": { "type": "array", "items": { "$ref": "#/$defs/sourceRef" } },
           "false_accept_risk": { "$ref": "#/$defs/risk" },
           "false_reject_risk": { "$ref": "#/$defs/risk" },
           "dependencies": {
             "type": "array",
             "uniqueItems": true,
-            "items": { "$ref": "#/$defs/id" }
+            "items": { "$ref": "#/$defs/claimRef" }
           },
-          "lifecycle": { "enum": ["active", "retired"] }
+          "lifecycle": { "enum": ["active", "retired"] },
+          "transition": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "predecessor", "confirmation"],
+            "properties": {
+              "kind": { "enum": ["supersedes", "retires"] },
+              "predecessor": { "$ref": "#/$defs/claimRef" },
+              "confirmation": { "$ref": "#/$defs/confirmationPointer" }
+            }
+          }
         }
       }
     }
@@ -81,9 +92,24 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["ref", "sha256"],
+      "properties": { "ref": { "$ref": "#/$defs/packRef" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "confirmationPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "sha256"],
       "properties": {
-        "ref": { "$ref": "#/$defs/packRef" },
+        "confirmation_id": { "$ref": "#/$defs/id" },
         "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claimRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "contract_version"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "contract_version": { "type": "integer", "minimum": 1 }
       }
     },
     "sourceRef": {

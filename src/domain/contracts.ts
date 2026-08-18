@@ -35,6 +35,11 @@ export const domainPackPointerSchema = z.strictObject({
   sha256: sha256Schema,
 });
 
+export const ownerConfirmationPointerSchema = z.strictObject({
+  confirmation_id: idSchema,
+  sha256: sha256Schema,
+});
+
 export const domainSourceRefSchema = z.strictObject({
   source_id: idSchema,
   kind: z.enum([
@@ -59,6 +64,47 @@ export const domainSourceRefSchema = z.strictObject({
     .optional(),
 });
 
+export const ownerConfirmationEventSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    confirmation_id: idSchema,
+    actor_id: idSchema,
+    authority_scope: z.strictObject({
+      product_id: idSchema,
+      domain_ids: uniqueIds(),
+    }),
+    target: z.strictObject({
+      kind: z.enum([
+        "evidence_card",
+        "product_domain_contract",
+        "requirement_change_set",
+        "decision_question",
+        "claim_transition",
+      ]),
+      object_id: idSchema,
+      object_version: z.number().finite().int().positive().optional(),
+      projection_sha256: sha256Schema,
+    }),
+    decision: z.enum(["confirm", "reject", "withdraw"]),
+    origin: z.strictObject({
+      kind: z.literal("management_cli_operator_invocation"),
+      profile: z.literal("eval-clowder"),
+      command: z.enum(["confirm", "reject", "withdraw"]),
+      invocation_sha256: sha256Schema,
+    }),
+    supporting_source_ref: domainSourceRefSchema.optional(),
+    occurred_at: dateTimeSchema,
+  })
+  .superRefine((event, context) => {
+    if (event.origin.command !== event.decision) {
+      context.addIssue({
+        code: "custom",
+        path: ["origin", "command"],
+        message: "management command must match the recorded decision",
+      });
+    }
+  });
+
 const evidenceStatusSchema = z.enum([
   "confirmed",
   "proposed",
@@ -71,6 +117,8 @@ export const domainEvidenceCardSchema = z
   .strictObject({
     schema_version: z.literal(1),
     card_id: idSchema,
+    revision: z.number().finite().int().positive(),
+    predecessor: domainPackPointerSchema.optional(),
     product_id: idSchema,
     domain_id: idSchema,
     claim_id: idSchema,
@@ -82,8 +130,7 @@ export const domainEvidenceCardSchema = z
     observation_ref_ids: uniqueIds(),
     false_accept_risk: riskSchema,
     false_reject_risk: riskSchema,
-    confirmed_by: idSchema.optional(),
-    confirmed_at: dateTimeSchema.optional(),
+    confirmation: ownerConfirmationPointerSchema.optional(),
     conflict: z
       .strictObject({
         source_ref_ids: uniqueIds(2),
@@ -92,6 +139,13 @@ export const domainEvidenceCardSchema = z
       .optional(),
   })
   .superRefine((card, context) => {
+    if ((card.revision === 1) === (card.predecessor !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["predecessor"],
+        message: "only later Evidence Card revisions require a predecessor",
+      });
+    }
     const sources = new Map(card.source_refs.map((source) => [source.source_id, source]));
     if (sources.size !== card.source_refs.length) {
       context.addIssue({
@@ -116,11 +170,11 @@ export const domainEvidenceCardSchema = z
     }
 
     if (card.status === "confirmed") {
-      if (card.confirmed_by === undefined || card.confirmed_at === undefined) {
+      if (card.confirmation === undefined) {
         context.addIssue({
           code: "custom",
           path: ["status"],
-          message: "confirmed cards require owner confirmation",
+          message: "confirmed cards require an OwnerConfirmationEvent pointer",
         });
       }
       if (card.authority_ref_ids.length === 0) {
@@ -140,11 +194,11 @@ export const domainEvidenceCardSchema = z
           message: "domain knowledge alone cannot confirm product truth",
         });
       }
-    } else if (card.confirmed_by !== undefined || card.confirmed_at !== undefined) {
+    } else if (card.confirmation !== undefined) {
       context.addIssue({
         code: "custom",
         path: ["status"],
-        message: "non-confirmed cards cannot carry confirmation",
+        message: "non-confirmed cards cannot carry a confirmation pointer",
       });
     }
 
@@ -190,24 +244,50 @@ const interviewTurnSchema = z.strictObject({
   reason: z.string().min(1),
   source_ref_ids: uniqueIds(),
   blocked_claim_ids: uniqueIds(),
+  answer: z.string().min(1).optional(),
   answer_ref_id: idSchema.optional(),
   status: z.enum(["asked", "answered", "skipped"]),
 });
 
-const decisionQuestionSchema = z.strictObject({
-  question_id: idSchema,
-  question: z.string().min(1),
-  reason: z.string().min(1),
-  blocked_claim_ids: uniqueIds(1),
-  risk: riskSchema,
-  blocking: z.boolean(),
-  status: z.enum(["open", "answered"]),
-});
+export const domainDecisionQuestionSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    question_id: idSchema,
+    revision: z.number().finite().int().positive(),
+    predecessor: domainPackPointerSchema.optional(),
+    product_id: idSchema,
+    requirement_id: idSchema.optional(),
+    question: z.string().min(1),
+    reason: z.string().min(1),
+    blocked_claim_ids: uniqueIds(1),
+    risk: riskSchema,
+    blocking: z.boolean(),
+    status: z.enum(["open", "resolved", "withdrawn"]),
+    resolution_confirmation: ownerConfirmationPointerSchema.optional(),
+  })
+  .superRefine((question, context) => {
+    if ((question.revision === 1) === (question.predecessor !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["predecessor"],
+        message: "only later DecisionQuestion revisions require a predecessor",
+      });
+    }
+    if ((question.status === "open") === (question.resolution_confirmation !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["resolution_confirmation"],
+        message: "resolved/withdrawn questions require confirmation; open questions forbid it",
+      });
+    }
+  });
 
 export const domainInterviewSessionSchema = z
   .strictObject({
     schema_version: z.literal(1),
     interview_id: idSchema,
+    revision: z.number().finite().int().positive(),
+    predecessor: domainPackPointerSchema.optional(),
     mode: z.enum(["onboard", "delta", "audit"]),
     product_id: idSchema,
     domain_ids: uniqueIds(1),
@@ -216,12 +296,19 @@ export const domainInterviewSessionSchema = z
     source_snapshot: z.array(domainSourceRefSchema).min(1),
     turns: z.array(interviewTurnSchema),
     evidence_card_refs: unique(domainPackPointerSchema),
-    decision_packet: z.array(decisionQuestionSchema),
+    decision_question_refs: unique(domainPackPointerSchema),
     status: z.enum(["draft", "awaiting_owner", "completed", "aborted"]),
     started_at: dateTimeSchema,
     ended_at: dateTimeSchema.optional(),
   })
   .superRefine((session, context) => {
+    if ((session.revision === 1) === (session.predecessor !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["predecessor"],
+        message: "only later InterviewSession revisions require a predecessor",
+      });
+    }
     const sourceIds = new Set(session.source_snapshot.map((source) => source.source_id));
     if (sourceIds.size !== session.source_snapshot.length) {
       context.addIssue({
@@ -241,25 +328,28 @@ export const domainInterviewSessionSchema = z
         }
       }
       if (turn.status === "answered") {
-        if (turn.answer_ref_id === undefined || !sourceIds.has(turn.answer_ref_id)) {
+        if (
+          turn.answer === undefined ||
+          turn.answer_ref_id === undefined ||
+          !sourceIds.has(turn.answer_ref_id)
+        ) {
           context.addIssue({
             code: "custom",
             path: ["turns", index],
-            message: "answered turn requires an answer source",
+            message: "answered turn requires persisted answer text and an answer source",
           });
         }
-      } else if (turn.answer_ref_id !== undefined) {
+      } else if (turn.answer !== undefined || turn.answer_ref_id !== undefined) {
         context.addIssue({
           code: "custom",
           path: ["turns", index],
-          message: "unanswered turn cannot carry an answer source",
+          message: "unanswered turn cannot carry an answer or answer source",
         });
       }
     }
     for (const [field, values] of [
       ["turn_id", session.turns.map((turn) => turn.turn_id)],
       ["question_id", session.turns.map((turn) => turn.question_id)],
-      ["decision_question_id", session.decision_packet.map((question) => question.question_id)],
     ] as const) {
       if (new Set(values).size !== values.length) {
         context.addIssue({ code: "custom", path: ["turns"], message: `${field}s must be unique` });
@@ -299,6 +389,17 @@ export const domainInterviewSessionSchema = z
     }
   });
 
+const contractClaimRefSchema = z.strictObject({
+  claim_id: idSchema,
+  contract_version: z.number().finite().int().positive(),
+});
+
+const claimTransitionSchema = z.strictObject({
+  kind: z.enum(["supersedes", "retires"]),
+  predecessor: contractClaimRefSchema,
+  confirmation: ownerConfirmationPointerSchema,
+});
+
 const productDomainClaimSchema = z.strictObject({
   claim_id: idSchema,
   domain_id: idSchema,
@@ -309,8 +410,9 @@ const productDomainClaimSchema = z.strictObject({
   observation_refs: z.array(domainSourceRefSchema),
   false_accept_risk: riskSchema,
   false_reject_risk: riskSchema,
-  dependencies: uniqueIds(),
+  dependencies: unique(contractClaimRefSchema),
   lifecycle: z.enum(["active", "retired"]),
+  transition: claimTransitionSchema.optional(),
 });
 
 export const productDomainContractSchema = z
@@ -320,8 +422,10 @@ export const productDomainContractSchema = z
     product_id: idSchema,
     version: z.number().finite().int().positive(),
     predecessor: domainPackPointerSchema.optional(),
-    issued_by: idSchema,
-    issued_at: dateTimeSchema,
+    state: z.enum(["issued", "withdrawn"]),
+    confirmation: ownerConfirmationPointerSchema,
+    decided_by: idSchema,
+    decided_at: dateTimeSchema,
     source_snapshot_digest: sha256Schema,
     claims: z.array(productDomainClaimSchema).min(1),
   })
@@ -331,7 +435,7 @@ export const productDomainContractSchema = z
       context.addIssue({ code: "custom", path: ["claims"], message: "claim ids must be unique" });
     }
     for (const [index, claim] of contract.claims.entries()) {
-      if (claim.dependencies.includes(claim.claim_id)) {
+      if (claim.dependencies.some((dependency) => dependency.claim_id === claim.claim_id)) {
         context.addIssue({
           code: "custom",
           path: ["claims", index],
@@ -339,7 +443,10 @@ export const productDomainContractSchema = z
         });
       }
       for (const dependency of claim.dependencies) {
-        if (!claimIds.has(dependency)) {
+        if (
+          !claimIds.has(dependency.claim_id) ||
+          dependency.contract_version !== contract.version
+        ) {
           context.addIssue({
             code: "custom",
             path: ["claims", index],
@@ -354,6 +461,28 @@ export const productDomainContractSchema = z
           path: ["claims", index],
           message: "contract truth cannot rely only on domain knowledge",
         });
+      }
+      if (claim.transition === undefined) {
+        if (contract.version > 1 && claim.lifecycle === "retired") {
+          context.addIssue({
+            code: "custom",
+            path: ["claims", index, "transition"],
+            message: "retired Claims require an explicit transition",
+          });
+        }
+      } else {
+        if (
+          contract.version === 1 ||
+          claim.transition.predecessor.claim_id !== claim.claim_id ||
+          claim.transition.predecessor.contract_version >= contract.version ||
+          (claim.transition.kind === "retires") !== (claim.lifecycle === "retired")
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["claims", index, "transition"],
+            message: "Claim transition does not match version/lifecycle",
+          });
+        }
       }
     }
     if (contract.version === 1 && contract.predecessor !== undefined) {
@@ -372,10 +501,7 @@ export const productDomainContractSchema = z
     }
   });
 
-const claimRefSchema = z.strictObject({
-  claim_id: idSchema,
-  contract_version: z.number().finite().int().positive(),
-});
+const claimRefSchema = contractClaimRefSchema;
 
 const proposedClaimSchema = z.strictObject({
   claim_id: idSchema,
@@ -402,6 +528,7 @@ export const requirementChangeSetSchema = z
     schema_version: z.literal(1),
     requirement_id: idSchema,
     version: z.number().finite().int().positive(),
+    predecessor: domainPackPointerSchema.optional(),
     product_id: idSchema,
     requirement_refs: z.array(domainSourceRefSchema).min(1),
     base_contract: domainPackPointerSchema,
@@ -413,12 +540,18 @@ export const requirementChangeSetSchema = z
       deprecates: unique(claimRefSchema),
       conflicts_with: unique(claimConflictSchema),
     }),
-    decision_question_ids: uniqueIds(),
+    decision_question_refs: unique(domainPackPointerSchema),
     status: z.enum(["draft", "owner_confirmed", "withdrawn"]),
-    confirmed_by: idSchema.optional(),
-    confirmed_at: dateTimeSchema.optional(),
+    confirmation: ownerConfirmationPointerSchema.optional(),
   })
   .superRefine((requirement, context) => {
+    if ((requirement.version === 1) === (requirement.predecessor !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["predecessor"],
+        message: "only later Requirement versions require a predecessor",
+      });
+    }
     const sourceIds = new Set(requirement.requirement_refs.map((source) => source.source_id));
     if (sourceIds.size !== requirement.requirement_refs.length) {
       context.addIssue({
@@ -453,30 +586,35 @@ export const requirementChangeSetSchema = z
       }
     }
     if (requirement.status === "owner_confirmed") {
-      if (
-        requirement.confirmed_by === undefined ||
-        requirement.confirmed_at === undefined ||
-        requirement.decision_question_ids.length > 0
-      ) {
+      if (requirement.confirmation === undefined) {
         context.addIssue({
           code: "custom",
           path: ["status"],
-          message: "owner-confirmed requirements need confirmation and no blocking questions",
+          message: "owner-confirmed requirements need a confirmation event",
         });
       }
-    } else if (requirement.confirmed_by !== undefined || requirement.confirmed_at !== undefined) {
+    } else if (requirement.status === "withdrawn") {
+      if (requirement.confirmation === undefined) {
+        context.addIssue({
+          code: "custom",
+          path: ["status"],
+          message: "withdrawn requirements need a withdrawal event",
+        });
+      }
+    } else if (requirement.confirmation !== undefined) {
       context.addIssue({
         code: "custom",
         path: ["status"],
-        message: "non-confirmed requirements cannot carry confirmation",
+        message: "draft requirements cannot carry confirmation",
       });
     }
   });
 
 const graphNodeSchema = z.strictObject({
   node_id: nodeIdSchema,
-  kind: z.enum(["contract_claim", "proposed_claim", "requirement"]),
+  kind: z.enum(["contract_claim", "historical_claim", "proposed_claim", "requirement"]),
   object_id: idSchema,
+  object_version: z.number().finite().int().positive(),
   domain_id: idSchema.optional(),
 });
 
@@ -491,12 +629,15 @@ const graphEdgeSchema = z.strictObject({
     "modifies",
     "deprecates",
     "conflicts_with",
+    "supersedes",
+    "retires",
   ]),
 });
 
 export const claimDependencyGraphSchema = z
   .strictObject({
     schema_version: z.literal(1),
+    graph_id: idSchema,
     product_id: idSchema,
     contract: domainPackPointerSchema,
     requirements: unique(domainPackPointerSchema),
@@ -557,13 +698,32 @@ const readinessDimensionSchema = z
     }
   });
 
+export const domainReadinessRequestSchema = z.strictObject({
+  schema_version: z.literal(1),
+  request_id: idSchema,
+  product_id: idSchema,
+  requirements: unique(domainPackPointerSchema, 1),
+  requested_by: idSchema,
+  requested_at: dateTimeSchema,
+  source_ref: domainSourceRefSchema,
+});
+
 export const domainTruthReadinessSchema = z
   .strictObject({
     schema_version: z.literal(1),
+    report_id: idSchema,
     product_id: idSchema,
     contract: domainPackPointerSchema,
     requirements: unique(domainPackPointerSchema),
     graph: domainPackPointerSchema,
+    request: domainPackPointerSchema,
+    requested_closure_node_ids: z
+      .array(nodeIdSchema)
+      .min(1)
+      .refine(
+        (values) => new Set(values).size === values.length,
+        "requested closure node ids must be unique",
+      ),
     dimensions: z.strictObject({
       source_integrity: readinessDimensionSchema,
       owner_confirmation: readinessDimensionSchema,
@@ -593,23 +753,51 @@ export const domainTruthReadinessSchema = z
     }
   });
 
+export const domainPackManifestSchema = z.strictObject({
+  schema_version: z.literal(1),
+  snapshot_id: idSchema,
+  product_id: idSchema,
+  contract: domainPackPointerSchema,
+  interviews: unique(domainPackPointerSchema),
+  evidence_cards: unique(domainPackPointerSchema),
+  confirmations: unique(ownerConfirmationPointerSchema),
+  decision_questions: unique(domainPackPointerSchema),
+  requirements: unique(domainPackPointerSchema, 1),
+  graph: domainPackPointerSchema,
+  readiness_request: domainPackPointerSchema,
+  readiness_report: domainPackPointerSchema,
+});
+
 export type DomainSourceRef = z.infer<typeof domainSourceRefSchema>;
+export type OwnerConfirmationEvent = z.infer<typeof ownerConfirmationEventSchema>;
+export type OwnerConfirmationPointer = z.infer<typeof ownerConfirmationPointerSchema>;
 export type DomainEvidenceCard = z.infer<typeof domainEvidenceCardSchema>;
 export type DomainInterviewSession = z.infer<typeof domainInterviewSessionSchema>;
+export type DomainDecisionQuestion = z.infer<typeof domainDecisionQuestionSchema>;
 export type ProductDomainContract = z.infer<typeof productDomainContractSchema>;
 export type RequirementChangeSet = z.infer<typeof requirementChangeSetSchema>;
 export type ClaimDependencyGraph = z.infer<typeof claimDependencyGraphSchema>;
+export type DomainReadinessRequest = z.infer<typeof domainReadinessRequestSchema>;
 export type DomainTruthReadiness = z.infer<typeof domainTruthReadinessSchema>;
+export type DomainPackManifest = z.infer<typeof domainPackManifestSchema>;
 
+export const parseOwnerConfirmationEvent = (value: unknown): OwnerConfirmationEvent =>
+  ownerConfirmationEventSchema.parse(value);
 export const parseDomainEvidenceCard = (value: unknown): DomainEvidenceCard =>
   domainEvidenceCardSchema.parse(value);
 export const parseDomainInterviewSession = (value: unknown): DomainInterviewSession =>
   domainInterviewSessionSchema.parse(value);
+export const parseDomainDecisionQuestion = (value: unknown): DomainDecisionQuestion =>
+  domainDecisionQuestionSchema.parse(value);
 export const parseProductDomainContract = (value: unknown): ProductDomainContract =>
   productDomainContractSchema.parse(value);
 export const parseRequirementChangeSet = (value: unknown): RequirementChangeSet =>
   requirementChangeSetSchema.parse(value);
 export const parseClaimDependencyGraph = (value: unknown): ClaimDependencyGraph =>
   claimDependencyGraphSchema.parse(value);
+export const parseDomainReadinessRequest = (value: unknown): DomainReadinessRequest =>
+  domainReadinessRequestSchema.parse(value);
 export const parseDomainTruthReadiness = (value: unknown): DomainTruthReadiness =>
   domainTruthReadinessSchema.parse(value);
+export const parseDomainPackManifest = (value: unknown): DomainPackManifest =>
+  domainPackManifestSchema.parse(value);

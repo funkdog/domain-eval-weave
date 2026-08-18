@@ -18,6 +18,11 @@ export const PHASE2_INSTANCE = {
 
 export type Phase2Instance = typeof PHASE2_INSTANCE;
 
+export const PHASE3A_AUTHOR = {
+  profile: "eval-clowder-author",
+  sessionsRoot: `${DEDICATED_DSH_HOME}/sessions/clowder-ai-author`,
+} as const;
+
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export class Phase2InstanceError extends Error {
@@ -61,6 +66,16 @@ export function assertCurrentPhase2Profile(
     throw new Phase2InstanceError(
       "PHASE2_PROFILE_INVALID",
       `current DSH profile must be ${profile}`,
+    );
+  }
+}
+
+export function assertCurrentPhase3AuthorProfile(rootBaseUrl: string | undefined): void {
+  const expected = pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/${PHASE3A_AUTHOR.profile}/`).href;
+  if (rootBaseUrl !== expected) {
+    throw new Phase2InstanceError(
+      "PHASE3A_AUTHOR_PROFILE_INVALID",
+      `current DSH profile must be ${PHASE3A_AUTHOR.profile}`,
     );
   }
 }
@@ -129,6 +144,7 @@ export async function assertContainedPhase2Directory(root: string, target: strin
 const INSTANCE_SUBDIRECTORIES = [
   "calibration",
   "campaigns",
+  "domain-confirmations",
   "exposures",
   "oracle-tmp",
   "qualification",
@@ -156,4 +172,12 @@ export async function ensurePhase2InstanceLayout(): Promise<void> {
 
 export async function assertPhase2InstanceLayout(): Promise<void> {
   await validatePhase2InstanceLayout(false);
+}
+
+export async function ensurePhase3AuthorLayout(): Promise<void> {
+  await validateContainedDirectory(DEDICATED_DSH_HOME, PHASE3A_AUTHOR.sessionsRoot, true);
+}
+
+export async function assertPhase3AuthorLayout(): Promise<void> {
+  await validateContainedDirectory(DEDICATED_DSH_HOME, PHASE3A_AUTHOR.sessionsRoot, false);
 }

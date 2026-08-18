@@ -4,7 +4,7 @@ import test from "node:test";
 import { AppUsageError, EXIT_CODE, parseAppArguments } from "../../src/app/args.js";
 import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 
-test("app grammar normalizes Phase 1 compatibility and Phase 2 commands", () => {
+test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A commands", () => {
   assert.deepEqual(parseAppArguments([]), { kind: "help" });
   assert.deepEqual(parseAppArguments(["--help"]), { kind: "help" });
   assert.deepEqual(parseAppArguments(["--version"]), { kind: "version" });
@@ -40,6 +40,52 @@ test("app grammar normalizes Phase 1 compatibility and Phase 2 commands", () => 
     kind: "suite-report",
     suiteId: "suite-phase2",
   });
+  assert.deepEqual(
+    parseAppArguments([
+      "domain",
+      "validate",
+      "domain-eval",
+      "manifests/snapshot-synthetic-commerce-v1.json",
+    ]),
+    {
+      kind: "domain-validate",
+      packPath: "domain-eval",
+      manifestPath: "manifests/snapshot-synthetic-commerce-v1.json",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "domain",
+      "impact",
+      "domain-eval",
+      "manifests/snapshot-synthetic-commerce-v1.json",
+      "refund-cash-limit",
+    ]),
+    {
+      kind: "domain-impact",
+      packPath: "domain-eval",
+      manifestPath: "manifests/snapshot-synthetic-commerce-v1.json",
+      claimId: "refund-cash-limit",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "domain",
+      "confirm",
+      "domain-eval",
+      "evidence_card",
+      "candidates/card.json",
+      "domain-owner-commerce",
+    ]),
+    {
+      kind: "domain-authority",
+      decision: "confirm",
+      packPath: "domain-eval",
+      targetKind: "evidence_card",
+      candidatePath: "candidates/card.json",
+      actorId: "domain-owner-commerce",
+    },
+  );
 });
 
 test("artifact-only report failures use the frozen integrity exit family", async () => {
@@ -70,6 +116,12 @@ test("usage failures use the stable exit code and reject runtime-root overrides"
     ["suite", "run", "--runtime-root", "/tmp/elsewhere"],
     ["suite", "run", "--timeout-ms", "0"],
     ["suite", "run", "--timeout-ms", "5400001"],
+    ["domain"],
+    ["domain", "validate"],
+    ["domain", "validate", "../domain-eval"],
+    ["domain", "validate", "/tmp/domain-eval"],
+    ["domain", "impact", "domain-eval"],
+    ["domain", "impact", "domain-eval", "manifests/a.json", "../claim"],
     ["run", "--runtime-root", "/tmp/elsewhere"],
     ["run", "--timeout-ms", "0"],
     ["run", "--timeout-ms", "5400001"],

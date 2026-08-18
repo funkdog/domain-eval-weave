@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/domain-readiness-request.schema.json",
+  "title": "DSH Eval Lab Domain Readiness Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "request_id",
+    "product_id",
+    "requirements",
+    "requested_by",
+    "requested_at",
+    "source_ref"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "request_id": { "$ref": "#/$defs/id" },
+    "product_id": { "$ref": "#/$defs/id" },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "requested_by": { "$ref": "#/$defs/id" },
+    "requested_at": { "type": "string", "format": "date-time" },
+    "source_ref": { "$ref": "#/$defs/sourceRef" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "kind", "artifact_ref", "digest"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "owner_statement",
+            "requirement",
+            "product_doc",
+            "external_contract",
+            "code",
+            "test",
+            "runtime_observation",
+            "domain_knowledge"
+          ]
+        },
+        "artifact_ref": { "$ref": "#/$defs/packRef" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  }
+}

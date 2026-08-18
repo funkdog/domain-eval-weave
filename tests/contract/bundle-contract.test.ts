@@ -23,6 +23,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   assert.deepEqual(manifest.exports, {
     "./app": "./dist/app/index.js",
     "./bridge": "./dist/bridge/index.js",
+    "./domain-skill": "./dist/domain/skill-provider.js",
   });
   assert.deepEqual(manifest.dsh, { bundle: { patch: "./cordis.patch.yml" } });
   assert.equal(
@@ -32,7 +33,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   );
 });
 
-test("release package, Harness, and Registry versions advance together", async () => {
+test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay immutable", async () => {
   const [manifestSource, harnessSource, registrySource] = await Promise.all([
     readFile(new URL("../../package.json", import.meta.url), "utf8"),
     readFile(new URL("../../harnesses/dsh-goal-stack/harness.json", import.meta.url), "utf8"),
@@ -42,30 +43,37 @@ test("release package, Harness, and Registry versions advance together", async (
   const harness = JSON.parse(harnessSource) as Record<string, unknown>;
   const registry = JSON.parse(registrySource) as Record<string, unknown>;
 
-  assert.equal(manifest.version, "0.2.0-rc.4");
-  assert.equal(harness.harness_version, manifest.version);
+  assert.equal(manifest.version, "0.3.0-alpha.1");
+  assert.equal(harness.harness_version, "0.2.0-rc.4");
   assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
 });
 
-test("bundle defaults to management app enabled and runner bridge disabled", async () => {
+test("bundle defaults to management app only and keeps Candidate/authoring surfaces disabled", async () => {
   const source = await readFile(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
   assert.deepEqual(parse(source), [
     {
       insert: [
         { id: "dsh-eval-app", name: "dsh-eval-lab/app", disabled: false },
         { id: "dsh-eval-bridge", name: "dsh-eval-lab/bridge", disabled: true },
+        {
+          id: "dsh-eval-domain-skill",
+          name: "dsh-eval-lab/domain-skill",
+          disabled: true,
+        },
       ],
     },
   ]);
 });
 
-test("both DSH entrypoints default-export side-effect-free plugin functions", async () => {
-  const [app, bridge] = await Promise.all([
+test("all DSH entrypoints default-export side-effect-free plugin functions", async () => {
+  const [app, bridge, domainSkill] = await Promise.all([
     import("../../src/app/index.js"),
     import("../../src/bridge/index.js"),
+    import("../../src/domain/skill-provider.js"),
   ]);
   assert.equal(typeof app.default, "function");
   assert.equal(typeof bridge.default, "function");
+  assert.equal(typeof domainSkill.default, "function");
   assert.deepEqual(
     (bridge.default as typeof bridge.default & { readonly inject?: readonly string[] }).inject,
     bridge.inject,
@@ -104,12 +112,16 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       cwd: packageRoot,
     });
 
-    const [app, bridge] = await Promise.all([
+    const [app, bridge, domainSkill, skillBody] = await Promise.all([
       import(pathToFileURL(join(packageRoot, "dist/app/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/bridge/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/domain/skill-provider.js")).href),
+      readFile(join(packageRoot, "skills/design-domain-grader/SKILL.md"), "utf8"),
     ]);
     assert.equal(typeof app.default, "function");
     assert.equal(typeof bridge.default, "function");
+    assert.equal(typeof domainSkill.default, "function");
+    assert.match(skillBody, /name: design-domain-grader/);
     assert.deepEqual(
       (bridge.default as typeof bridge.default & { readonly inject?: readonly string[] }).inject,
       bridge.inject,

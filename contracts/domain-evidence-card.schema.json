@@ -7,6 +7,7 @@
   "required": [
     "schema_version",
     "card_id",
+    "revision",
     "product_id",
     "domain_id",
     "claim_id",
@@ -22,6 +23,8 @@
   "properties": {
     "schema_version": { "const": 1 },
     "card_id": { "$ref": "#/$defs/id" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "predecessor": { "$ref": "#/$defs/pointer" },
     "product_id": { "$ref": "#/$defs/id" },
     "domain_id": { "$ref": "#/$defs/id" },
     "claim_id": { "$ref": "#/$defs/id" },
@@ -39,8 +42,7 @@
     "observation_ref_ids": { "$ref": "#/$defs/idArray" },
     "false_accept_risk": { "$ref": "#/$defs/risk" },
     "false_reject_risk": { "$ref": "#/$defs/risk" },
-    "confirmed_by": { "$ref": "#/$defs/id" },
-    "confirmed_at": { "type": "string", "format": "date-time" },
+    "confirmation": { "$ref": "#/$defs/confirmationPointer" },
     "conflict": {
       "type": "object",
       "additionalProperties": false,
@@ -56,6 +58,20 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "confirmed" } }, "required": ["status"] },
+      "then": { "properties": { "confirmation": {} }, "required": ["confirmation"] },
+      "else": {
+        "not": { "properties": { "confirmation": {} }, "required": ["confirmation"] }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "conflicted" } }, "required": ["status"] },
+      "then": { "properties": { "conflict": {} }, "required": ["conflict"] },
+      "else": { "not": { "properties": { "conflict": {} }, "required": ["conflict"] } }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -68,6 +84,24 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/id" }
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "confirmationPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "sha256"],
+      "properties": {
+        "confirmation_id": { "$ref": "#/$defs/id" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
     },
     "sourceRef": {
       "type": "object",

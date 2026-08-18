@@ -12,13 +12,14 @@
     "requirement_refs",
     "base_contract",
     "effects",
-    "decision_question_ids",
+    "decision_question_refs",
     "status"
   ],
   "properties": {
     "schema_version": { "const": 1 },
     "requirement_id": { "$ref": "#/$defs/id" },
     "version": { "type": "integer", "minimum": 1 },
+    "predecessor": { "$ref": "#/$defs/pointer" },
     "product_id": { "$ref": "#/$defs/id" },
     "requirement_refs": {
       "type": "array",
@@ -74,15 +75,23 @@
         }
       }
     },
-    "decision_question_ids": {
+    "decision_question_refs": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "$ref": "#/$defs/id" }
+      "items": { "$ref": "#/$defs/pointer" }
     },
     "status": { "enum": ["draft", "owner_confirmed", "withdrawn"] },
-    "confirmed_by": { "$ref": "#/$defs/id" },
-    "confirmed_at": { "type": "string", "format": "date-time" }
+    "confirmation": { "$ref": "#/$defs/confirmationPointer" }
   },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "draft" } }, "required": ["status"] },
+      "then": {
+        "not": { "properties": { "confirmation": {} }, "required": ["confirmation"] }
+      },
+      "else": { "properties": { "confirmation": {} }, "required": ["confirmation"] }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
@@ -96,6 +105,15 @@
       "required": ["ref", "sha256"],
       "properties": {
         "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "confirmationPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "sha256"],
+      "properties": {
+        "confirmation_id": { "$ref": "#/$defs/id" },
         "sha256": { "$ref": "#/$defs/sha256" }
       }
     },

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/domain-decision-question.schema.json",
+  "title": "DSH Eval Lab Domain Decision Question",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "question_id",
+    "revision",
+    "product_id",
+    "question",
+    "reason",
+    "blocked_claim_ids",
+    "risk",
+    "blocking",
+    "status"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "question_id": { "$ref": "#/$defs/id" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "predecessor": { "$ref": "#/$defs/pointer" },
+    "product_id": { "$ref": "#/$defs/id" },
+    "requirement_id": { "$ref": "#/$defs/id" },
+    "question": { "type": "string", "minLength": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "blocked_claim_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "blocking": { "type": "boolean" },
+    "status": { "enum": ["open", "resolved", "withdrawn"] },
+    "resolution_confirmation": { "$ref": "#/$defs/confirmationPointer" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "open" } }, "required": ["status"] },
+      "then": {
+        "not": {
+          "properties": { "resolution_confirmation": {} },
+          "required": ["resolution_confirmation"]
+        }
+      },
+      "else": {
+        "properties": { "resolution_confirmation": {} },
+        "required": ["resolution_confirmation"]
+      }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": { "ref": { "$ref": "#/$defs/packRef" }, "sha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "confirmationPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "sha256"],
+      "properties": {
+        "confirmation_id": { "$ref": "#/$defs/id" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

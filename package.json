@@ -1,6 +1,6 @@
 {
   "name": "dsh-eval-lab",
-  "version": "0.2.0-rc.4",
+  "version": "0.3.0-alpha.1",
   "private": true,
   "type": "module",
   "description": "DSH-native controlled harness evaluation plugin",
@@ -10,7 +10,8 @@
   "packageManager": "pnpm@11.7.0",
   "exports": {
     "./app": "./dist/app/index.js",
-    "./bridge": "./dist/bridge/index.js"
+    "./bridge": "./dist/bridge/index.js",
+    "./domain-skill": "./dist/domain/skill-provider.js"
   },
   "files": [
     "dist",
@@ -22,6 +23,7 @@
     "harnesses",
     "registry",
     "eval-packs",
+    "skills",
     "README.md"
   ],
   "dsh": {

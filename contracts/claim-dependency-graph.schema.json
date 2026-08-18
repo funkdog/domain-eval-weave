@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "graph_id",
     "product_id",
     "contract",
     "requirements",
@@ -15,6 +16,7 @@
   ],
   "properties": {
     "schema_version": { "const": 1 },
+    "graph_id": { "$ref": "#/$defs/id" },
     "product_id": { "$ref": "#/$defs/id" },
     "contract": { "$ref": "#/$defs/pointer" },
     "requirements": {
@@ -28,11 +30,14 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["node_id", "kind", "object_id"],
+        "required": ["node_id", "kind", "object_id", "object_version"],
         "properties": {
           "node_id": { "$ref": "#/$defs/nodeId" },
-          "kind": { "enum": ["contract_claim", "proposed_claim", "requirement"] },
+          "kind": {
+            "enum": ["contract_claim", "historical_claim", "proposed_claim", "requirement"]
+          },
           "object_id": { "$ref": "#/$defs/id" },
+          "object_version": { "type": "integer", "minimum": 1 },
           "domain_id": { "$ref": "#/$defs/id" }
         }
       }
@@ -55,7 +60,9 @@
               "introduces",
               "modifies",
               "deprecates",
-              "conflicts_with"
+              "conflicts_with",
+              "supersedes",
+              "retires"
             ]
           }
         }
