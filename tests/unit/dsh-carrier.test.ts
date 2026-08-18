@@ -96,7 +96,9 @@ test("DSH carrier closes a completed headless run that retains an active handle"
       commonPatch: "/frozen/common.patch.yml",
       armPatch: "/frozen/goal-off.patch.yml",
       task: "synthetic public task",
-      timeoutMs: 500,
+      // Keep the overall process-start safety net independent from the behavior
+      // under test: post-output active-handle shutdown uses the 25 ms grace below.
+      timeoutMs: 5_000,
       postOutputExitGraceMs: 25,
     });
     assert.equal(result.stdout, "completed\n");
