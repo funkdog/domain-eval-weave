@@ -14,3 +14,13 @@ dsh-home/
 sessions/
 workspaces/
 campaigns/
+
+# Machine-local Clowder AI governance projections. The stable governance
+# documents are tracked; generated capability snapshots and sibling-repo
+# symlinks are recreated by the governance bootstrap on each workstation.
+.cat-cafe/
+.claude/hooks
+.claude/skills/
+.codex/skills/
+.gemini/skills/
+.kimi/skills/
