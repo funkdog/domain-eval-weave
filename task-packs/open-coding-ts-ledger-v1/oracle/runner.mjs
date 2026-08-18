@@ -250,27 +250,58 @@ const checks = {
   async terminal_transition_idempotency() {
     await withDriver(candidate, async (driver) => {
       await driver.call("open", { file: stateFile, capacity: 10 });
-      const requestId = opaque("terminal");
-      await driver.call("reserve", { request: { requestId, key: "alpha", units: 1 } });
-      const first = await driver.call("commit", { requestId });
-      assert.deepEqual(await driver.call("commit", { requestId }), first);
-      assert.equal(await rejects(() => driver.call("release", { requestId })), true);
+      const commitId = opaque("terminal-commit");
+      await driver.call("reserve", { request: { requestId: commitId, key: "alpha", units: 1 } });
+      const firstCommit = await driver.call("commit", { requestId: commitId });
+      assert.deepEqual(await driver.call("commit", { requestId: commitId }), firstCommit);
+      assert.equal(await rejects(() => driver.call("release", { requestId: commitId })), true);
+
+      const releaseId = opaque("terminal-release");
+      await driver.call("reserve", { request: { requestId: releaseId, key: "beta", units: 2 } });
+      const firstRelease = await driver.call("release", { requestId: releaseId });
+      assert.deepEqual(await driver.call("release", { requestId: releaseId }), firstRelease);
+      assert.equal(await rejects(() => driver.call("commit", { requestId: releaseId })), true);
+      const snapshot = await driver.call("snapshot");
+      assert.equal(snapshot.used, 1);
+      assert.equal(
+        snapshot.reservations.find((entry) => entry.requestId === releaseId)?.status,
+        "released",
+      );
     });
   },
   async restart_recovery() {
-    const requestId = opaque("restart");
+    const commitId = opaque("restart-commit");
+    const releaseId = opaque("restart-release");
     await withDriver(candidate, async (driver) => {
       await driver.call("open", { file: stateFile, capacity: 10 });
-      await driver.call("reserve", { request: { requestId, key: "alpha", units: 4 } });
-      await driver.call("commit", { requestId });
+      await driver.call("reserve", { request: { requestId: commitId, key: "alpha", units: 4 } });
+      await driver.call("commit", { requestId: commitId });
+      await driver.call("reserve", { request: { requestId: releaseId, key: "beta", units: 3 } });
+      await driver.call("release", { requestId: releaseId });
     });
     await withDriver(candidate, async (driver) => {
       await driver.call("open", { file: stateFile, capacity: 10 });
       const snapshot = await driver.call("snapshot");
       assert.equal(snapshot.used, 4);
       assert.equal(
-        snapshot.reservations.find((entry) => entry.requestId === requestId)?.status,
+        snapshot.reservations.find((entry) => entry.requestId === commitId)?.status,
         "committed",
+      );
+      assert.equal(
+        snapshot.reservations.find((entry) => entry.requestId === releaseId)?.status,
+        "released",
+      );
+      await driver.call("reserve", {
+        request: { requestId: opaque("restart-fill"), key: "gamma", units: 6 },
+      });
+      assert.equal((await driver.call("snapshot")).used, 10);
+      assert.equal(
+        await rejects(() =>
+          driver.call("reserve", {
+            request: { requestId: opaque("restart-overflow"), key: "delta", units: 1 },
+          }),
+        ),
+        true,
       );
     });
   },

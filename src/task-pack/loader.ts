@@ -6,7 +6,7 @@ import { z } from "zod";
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
 
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
-const taskPackSchema = z.strictObject({
+const frozenTaskPackSchema = z.strictObject({
   schema_version: z.literal(1),
   task_id: z.literal("open-coding-ts-ledger-v1"),
   eval_pack_id: z.literal("open-coding-delivery-v1"),
@@ -19,15 +19,19 @@ const taskPackSchema = z.strictObject({
     z.literal("--test"),
     z.literal("test/public/*.test.ts"),
   ]),
-  oracle_version: z.literal("ledger-oracle-v2"),
+  oracle_version: z.enum(["ledger-oracle-v2", "ledger-oracle-v3"]),
   calibration_digest: sha256Schema,
 });
 
-export type TaskPack = z.infer<typeof taskPackSchema>;
+const currentTaskPackSchema = frozenTaskPackSchema.extend({
+  oracle_version: z.literal("ledger-oracle-v3"),
+});
+
+export type TaskPack = z.infer<typeof frozenTaskPackSchema>;
 
 const taskPackIdentitySchema = z.strictObject({
   schema_version: z.literal(1),
-  pack: taskPackSchema,
+  pack: frozenTaskPackSchema,
   public_task_sha256: sha256Schema,
   oracle_runner_sha256: sha256Schema,
 });
@@ -66,7 +70,7 @@ export async function digestTaskPack(packRoot: string): Promise<string> {
 export async function loadTaskPack(packRoot: string): Promise<TaskPack> {
   if (!isAbsolute(packRoot)) throw new Error("Task Pack root must be absolute");
   const decoded = JSON.parse(await readFile(resolve(packRoot, "pack.json"), "utf8"));
-  const pack = taskPackSchema.parse(decoded);
+  const pack = currentTaskPackSchema.parse(decoded);
   const [baseDigest, calibrationDigest] = await Promise.all([
     digestDirectory(resolve(packRoot, "base")),
     digestDirectory(resolve(packRoot, "calibration")),

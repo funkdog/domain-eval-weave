@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/campaign-pointer.schema.json",
+  "title": "DSH Eval Lab Suite Campaign Pointer",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "task_id",
+    "bucket",
+    "campaign_id",
+    "campaign_report",
+    "activation",
+    "exposure"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "suite_id": { "$ref": "#/$defs/id" },
+    "task_id": { "$ref": "#/$defs/id" },
+    "bucket": { "$ref": "#/$defs/bucket" },
+    "campaign_id": { "$ref": "#/$defs/id" },
+    "campaign_report": { "$ref": "#/$defs/campaignPointer" },
+    "activation": { "$ref": "#/$defs/arms" },
+    "exposure": { "$ref": "#/$defs/arms" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bucket": { "enum": ["trigger", "non-trigger", "holdout"] },
+    "campaignRef": {
+      "type": "string",
+      "pattern": "^artifact://campaign/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "campaignPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/campaignRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "arms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control", "treatment"],
+      "properties": {
+        "control": { "$ref": "#/$defs/campaignPointer" },
+        "treatment": { "$ref": "#/$defs/campaignPointer" }
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/task-entry.schema.json",
+  "title": "DSH Eval Lab Task Registry Entry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "bucket",
+    "public_task_ref",
+    "public_task_sha256",
+    "base_ref",
+    "overlays",
+    "effective_base_sha256",
+    "allowed_candidate_globs",
+    "forbidden_entry_types",
+    "oracle",
+    "activation_expectation"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "task_id": { "$ref": "#/$defs/id" },
+    "bucket": { "enum": ["trigger", "non-trigger", "holdout"] },
+    "public_task_ref": { "$ref": "#/$defs/packageRef" },
+    "public_task_sha256": { "$ref": "#/$defs/sha256" },
+    "base_ref": { "$ref": "#/$defs/packageRef" },
+    "overlays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_ref", "target_ref"],
+        "properties": {
+          "source_ref": { "$ref": "#/$defs/packageRef" },
+          "target_ref": { "$ref": "#/$defs/packageRef" }
+        }
+      }
+    },
+    "effective_base_sha256": { "$ref": "#/$defs/sha256" },
+    "allowed_candidate_globs": {
+      "type": "array",
+      "prefixItems": [{ "const": "src/**" }],
+      "minItems": 1,
+      "maxItems": 1,
+      "items": false
+    },
+    "forbidden_entry_types": {
+      "type": "array",
+      "prefixItems": [{ "const": "symlink" }, { "const": "submodule" }],
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false
+    },
+    "oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runner_ref", "runner_sha256", "version", "behavior_keys"],
+      "properties": {
+        "runner_ref": { "$ref": "#/$defs/packageRef" },
+        "runner_sha256": { "$ref": "#/$defs/sha256" },
+        "version": { "const": "ledger-oracle-v3" },
+        "behavior_keys": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+        }
+      }
+    },
+    "activation_expectation": { "enum": ["required", "forbidden", "observed"] }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packageRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    }
+  }
+}

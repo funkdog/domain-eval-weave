@@ -30,7 +30,7 @@ test("DSH carrier freezes argv and a credential-free dedicated child environment
     };
     assert.deepEqual(output.args, [
       "--profile",
-      "eval-runner",
+      "eval-clowder-runner",
       "--patch",
       "/frozen/common.patch.yml",
       "--patch",
@@ -45,6 +45,7 @@ test("DSH carrier freezes argv and a credential-free dedicated child environment
       LANG: "C",
       LC_ALL: "C",
       DSH_HOME: DEDICATED_DSH_HOME,
+      DSH_EVAL_INSTANCE_ID: "clowder-ai",
       DSH_TOOLS_MODE: "native",
       DSH_PERMISSION_MODE: "workspace-write",
     });

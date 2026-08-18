@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/registry-snapshot.schema.json",
+  "title": "DSH Eval Lab Frozen Registry Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "registry", "eval_pack", "tasks", "digests"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "registry": { "$ref": "https://dsh-eval-lab.local/contracts/registry.schema.json" },
+    "eval_pack": { "$ref": "https://dsh-eval-lab.local/contracts/eval-pack.schema.json" },
+    "tasks": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "https://dsh-eval-lab.local/contracts/task-entry.schema.json" }
+    },
+    "digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["registry", "eval_pack", "tasks"],
+      "properties": {
+        "registry": { "$ref": "#/$defs/sha256" },
+        "eval_pack": { "$ref": "#/$defs/sha256" },
+        "tasks": {
+          "type": "object",
+          "minProperties": 3,
+          "maxProperties": 3,
+          "propertyNames": { "$ref": "#/$defs/id" },
+          "additionalProperties": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -37,6 +37,7 @@
         "digest": { "$ref": "#/$defs/sha256" },
         "eval_package_sha256": { "$ref": "#/$defs/sha256" },
         "qualification": { "$ref": "#/$defs/qualificationEvidence" },
+        "qualification_projection": { "$ref": "#/$defs/qualificationProjection" },
         "calibration": { "$ref": "#/$defs/calibrationEvidence" }
       }
     },
@@ -101,6 +102,20 @@
         "common_tool_schema_sha256": { "$ref": "#/$defs/sha256" }
       }
     },
+    "qualificationProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_deployment_digest",
+        "projected_deployment_digest",
+        "source_qualification_sha256"
+      ],
+      "properties": {
+        "source_deployment_digest": { "$ref": "#/$defs/sha256" },
+        "projected_deployment_digest": { "$ref": "#/$defs/sha256" },
+        "source_qualification_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "calibrationEvidence": {
       "type": "object",
       "additionalProperties": false,
@@ -121,40 +136,96 @@
         "calibration_digest": { "$ref": "#/$defs/sha256" },
         "eval_package_sha256": { "$ref": "#/$defs/sha256" },
         "candidates": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "red",
-            "gold",
-            "no_lock_failures",
-            "no_persistence_failures",
-            "corrupt_resets_failures"
-          ],
-          "properties": {
-            "red": { "$ref": "#/$defs/behaviorStatuses" },
-            "gold": { "$ref": "#/$defs/behaviorStatuses" },
-            "no_lock_failures": {
-              "type": "array",
-              "prefixItems": [{ "const": "no_oversubscription_concurrent" }],
-              "minItems": 1,
-              "maxItems": 1
-            },
-            "no_persistence_failures": {
-              "type": "array",
-              "prefixItems": [{ "const": "restart_recovery" }],
-              "minItems": 1,
-              "maxItems": 1
-            },
-            "corrupt_resets_failures": {
-              "type": "array",
-              "prefixItems": [{ "const": "corrupt_state_fail_closed" }],
-              "minItems": 1,
-              "maxItems": 1
-            }
-          }
+          "oneOf": [
+            { "$ref": "#/$defs/calibrationCandidatesV2" },
+            { "$ref": "#/$defs/calibrationCandidatesV3" }
+          ]
         },
         "repeatable": { "const": true },
         "seed_stable": { "const": true }
+      }
+    },
+    "calibrationCandidatesV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red",
+        "gold",
+        "no_lock_failures",
+        "no_persistence_failures",
+        "corrupt_resets_failures"
+      ],
+      "properties": {
+        "red": { "$ref": "#/$defs/behaviorStatuses" },
+        "gold": { "$ref": "#/$defs/behaviorStatuses" },
+        "no_lock_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "no_oversubscription_concurrent" }],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "no_persistence_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "restart_recovery" }],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "corrupt_resets_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "corrupt_state_fail_closed" }],
+          "minItems": 1,
+          "maxItems": 1
+        }
+      }
+    },
+    "calibrationCandidatesV3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red",
+        "gold",
+        "no_lock_failures",
+        "no_persistence_failures",
+        "corrupt_resets_failures",
+        "broken_release_failures",
+        "release_not_persisted_failures"
+      ],
+      "properties": {
+        "red": { "$ref": "#/$defs/behaviorStatuses" },
+        "gold": { "$ref": "#/$defs/behaviorStatuses" },
+        "no_lock_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "no_oversubscription_concurrent" }],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "no_persistence_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "restart_recovery" }],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "corrupt_resets_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "corrupt_state_fail_closed" }],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "broken_release_failures": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "terminal_transition_idempotency" },
+            { "const": "restart_recovery" }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "release_not_persisted_failures": {
+          "type": "array",
+          "prefixItems": [{ "const": "restart_recovery" }],
+          "minItems": 1,
+          "maxItems": 1
+        }
       }
     },
     "behaviorStatuses": {

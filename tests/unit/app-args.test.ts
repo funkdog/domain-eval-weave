@@ -4,7 +4,7 @@ import test from "node:test";
 import { AppUsageError, EXIT_CODE, parseAppArguments } from "../../src/app/args.js";
 import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 
-test("app grammar normalizes every Phase 1 command", () => {
+test("app grammar normalizes Phase 1 compatibility and Phase 2 commands", () => {
   assert.deepEqual(parseAppArguments([]), { kind: "help" });
   assert.deepEqual(parseAppArguments(["--help"]), { kind: "help" });
   assert.deepEqual(parseAppArguments(["--version"]), { kind: "version" });
@@ -27,6 +27,19 @@ test("app grammar normalizes every Phase 1 command", () => {
     kind: "report",
     campaignId: "campaign-m0",
   });
+  assert.deepEqual(parseAppArguments(["binding", "show"]), { kind: "binding-show" });
+  assert.deepEqual(parseAppArguments(["suite", "run"]), {
+    kind: "suite-run",
+    timeoutMs: 2_700_000,
+  });
+  assert.deepEqual(parseAppArguments(["suite", "run", "--timeout-ms", "5400000"]), {
+    kind: "suite-run",
+    timeoutMs: 5_400_000,
+  });
+  assert.deepEqual(parseAppArguments(["suite", "report", "suite-phase2"]), {
+    kind: "suite-report",
+    suiteId: "suite-phase2",
+  });
 });
 
 test("artifact-only report failures use the frozen integrity exit family", async () => {
@@ -47,6 +60,16 @@ test("usage failures use the stable exit code and reject runtime-root overrides"
     ["auth", "unknown"],
     ["report"],
     ["report", "../campaign"],
+    ["binding"],
+    ["binding", "unknown"],
+    ["suite"],
+    ["suite", "unknown"],
+    ["suite", "report"],
+    ["suite", "report", "../suite"],
+    ["suite", "run", "--keep-workspaces"],
+    ["suite", "run", "--runtime-root", "/tmp/elsewhere"],
+    ["suite", "run", "--timeout-ms", "0"],
+    ["suite", "run", "--timeout-ms", "5400001"],
     ["run", "--runtime-root", "/tmp/elsewhere"],
     ["run", "--timeout-ms", "0"],
     ["run", "--timeout-ms", "5400001"],

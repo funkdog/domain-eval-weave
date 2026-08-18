@@ -1,4 +1,8 @@
-import { assertDedicatedDshHomePreBoot } from "../runtime-root.js";
+import {
+  assertCurrentPhase2Profile,
+  assertPhase2InstanceLayout,
+  resolvePhase2Instance,
+} from "../instance.js";
 import { type AppInvocation, AppUsageError, EXIT_CODE, parseAppArguments } from "./args.js";
 import { createDefaultAppExecutor } from "./default-executor.js";
 import type { DshEvalCommandExecutor } from "./startup.js";
@@ -7,6 +11,7 @@ export const name = "dsh-eval-app";
 export const inject = ["cmdlineArgs", "appExit"] as const;
 
 export interface DshEvalAppContext {
+  readonly root: { readonly baseUrl?: string };
   readonly cmdlineArgs: { get(): readonly string[] };
   readonly appExit: (code: number) => void;
   provide(name: "dshEvalApp", invocation: AppInvocation): void;
@@ -21,7 +26,8 @@ export default function applyDshEvalApp(
   context: DshEvalAppContext,
   config: DshEvalAppConfig = {},
 ): Promise<void> {
-  assertDedicatedDshHomePreBoot(config.env ?? process.env);
+  resolvePhase2Instance(config.env ?? process.env);
+  assertCurrentPhase2Profile(context.root.baseUrl, "management");
   let invocation: AppInvocation;
   try {
     invocation = parseAppArguments(context.cmdlineArgs.get());
@@ -31,8 +37,10 @@ export default function applyDshEvalApp(
     return Promise.resolve();
   }
   context.provide("dshEvalApp", invocation);
-  return (config.executor ?? createDefaultAppExecutor())
-    .execute(invocation)
+  const requiresExistingLayout = !["help", "version", "init"].includes(invocation.kind);
+  const layoutReady = requiresExistingLayout ? assertPhase2InstanceLayout() : Promise.resolve();
+  return layoutReady
+    .then(() => (config.executor ?? createDefaultAppExecutor()).execute(invocation))
     .then((exitCode) => context.appExit(exitCode));
 }
 

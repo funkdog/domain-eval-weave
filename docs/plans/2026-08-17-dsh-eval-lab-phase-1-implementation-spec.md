@@ -371,7 +371,7 @@ Doctor 不调用模型，不产生 Session，不修改已有 runtime config。
 
 - red base 必须失败；
 - gold-equivalent 必须全过；
-- concurrency、persistence、corruption 三个定向 mutant 必须分别被对应 check 捕获；
+- concurrency、persistence、corruption、release、release-persistence 五个定向 mutant 必须分别被对应 check 捕获；
 - 同一 Candidate + 同一 seed 重跑得到同一 behavior vector。
 
 任一失败则 Pack `not_ready`，`run` 拒绝启动。
@@ -411,7 +411,7 @@ interface TaskPack {
   allowed_candidate_globs: readonly ['src/**']
   forbidden_entry_types: readonly ['symlink', 'submodule']
   public_test_command: readonly ['node', '--test', 'test/public/*.test.ts']
-  oracle_version: 'ledger-oracle-v2'
+  oracle_version: 'ledger-oracle-v3'
   calibration_digest: string
 }
 ```
@@ -745,7 +745,7 @@ SMOKE.txt
 
 ### 8.3 Hidden behavior vector
 
-Candidate freeze 后生成随机 seed 与 case 数据，`ledger-oracle-v2` 以八个独立、各自有超时边界的进程评估行为：
+Candidate freeze 后生成随机 seed 与 case 数据，`ledger-oracle-v3` 以八个独立、各自有超时边界的进程评估行为；相较 v2，terminal 与 restart 维度同时覆盖 release 幂等、冲突、持久化和 capacity 恢复：
 
 ```text
 basic_reservation
@@ -766,7 +766,9 @@ deterministic_snapshot
 - `gold/equivalent`：一个正确但非唯一实现；
 - `mutant/no-lock`：必须只被 concurrency 相关 checks 明确击中；
 - `mutant/no-persistence`：必须被 restart/durability checks 击中；
-- `mutant/corrupt-resets`：必须被 corruption fail-closed check 击中。
+- `mutant/corrupt-resets`：必须被 corruption fail-closed check 击中；
+- `mutant/broken-release`：必须被 terminal 与 restart checks 击中；
+- `mutant/release-not-persisted`：必须被 restart/durability check 击中。
 
 Calibration artifact 保存每个 check 的方向与重复性，不进入 Candidate Campaign 分母。
 
@@ -905,7 +907,7 @@ utility_claim: 八项外部行为全部成立，代表这个开放编码 Episode
 estimator: hidden behavior vector 全 pass 且 unauthorized-path gate=pass
 validity_bounds: Oracle/seed/generator/fixture/version 任一漂移；Candidate 可见 Oracle/gold；边界外改动；Oracle 自身错误
 consumer: 个人用户决定本地 Keep/Iterate/Revert/Run More
-calibration_plan: red/gold/三个定向 mutant；每次 pack digest 变化强制重校准
+calibration_plan: red/gold/五个定向 mutant；每次 pack digest 变化强制重校准
 repeatability_contract: acceptance；同 candidate+seed 必须 byte-identical，换 seed 允许 case 变化但行为方向不得反转
 ```
 
@@ -1075,7 +1077,7 @@ message 禁止包含 credential、OAuth URL/code、account id、完整 user home
 ### 17.3 Calibration
 
 - red fail、gold pass；
-- three mutants each caught by intended behavior；
+- five Oracle-v3 mutants each caught by the intended behavior；
 - same seed repeatability；
 - distinct seed behavior stability；
 - Oracle self-error classified invalid rather than candidate fail。
@@ -1181,7 +1183,7 @@ secret/source/oracle paths 不可由工具读取，两个 arms 只差四个 Goal
 | AC-8 | error taxonomy + fake E2E classification matrix |
 | AC-9 | report schema/snapshots + hard claim fields |
 | AC-10 | artifact resolver + canonical rebuild digest |
-| AC-11 | red/gold/three-mutant calibration |
+| AC-11 | red/gold/five-mutant Oracle-v3 calibration |
 | AC-12 | runtime doctor + ambient-home sentinel + forbidden integration tests + no external effects |
 | AC-13 | source/runtime/reference-lab root invariants + exact pre-boot `DSH_HOME` env capture + secret scanner |
 | AC-14 | dedicated-home built package install test、app command E2E、management/runner role gate、runner request/tool surface absence proof |

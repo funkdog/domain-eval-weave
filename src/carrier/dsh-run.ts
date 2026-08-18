@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 
+import { PHASE2_INSTANCE } from "../instance.js";
 import { DEDICATED_DSH_HOME } from "../runtime-root.js";
 
 export interface DshRunInput {
@@ -36,7 +37,7 @@ export class DshRunCarrier {
       [
         ...(input.launcherArgs ?? []),
         "--profile",
-        "eval-runner",
+        PHASE2_INSTANCE.runnerProfile,
         "--patch",
         input.commonPatch,
         "--patch",
@@ -50,6 +51,7 @@ export class DshRunCarrier {
           LANG: "C",
           LC_ALL: "C",
           DSH_HOME: DEDICATED_DSH_HOME,
+          DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
           DSH_TOOLS_MODE: "native",
           DSH_PERMISSION_MODE: "workspace-write",
         },

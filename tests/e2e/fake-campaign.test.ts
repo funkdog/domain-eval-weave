@@ -7,7 +7,10 @@ import { EXIT_CODE } from "../../src/app/args.js";
 import { DefaultAppExecutor } from "../../src/app/default-executor.js";
 import { rebuildCampaignReport, runPairedCampaign } from "../../src/campaign/coordinator.js";
 import { CampaignStateStore } from "../../src/campaign/state.js";
+import { canonicalJson, canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
 import { parseExperimentSpec } from "../../src/contracts/parsers.js";
+import { fingerprintEvalDeployment } from "../../src/fingerprint/deployment.js";
+import { PHASE2_INSTANCE } from "../../src/instance.js";
 import type { BehaviorVector } from "../../src/oracle/ledger.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import { parseTaskPackIdentity } from "../../src/task-pack/loader.js";
@@ -69,7 +72,7 @@ function evaluated(arm: "control" | "treatment", behavior: BehaviorVector = pass
   return {
     behavior,
     candidateTreeAfterOracle: armTree(arm),
-    oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v2" },
+    oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v3" },
   };
 }
 
@@ -148,7 +151,7 @@ test("an interrupted arm persists interrupted state and never reports", async ()
 
 test("invalid top-level report still produces an independent measurement-invalid report", async () => {
   const campaignId = `campaign-invalid-report-${randomUUID()}`;
-  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
   const experiment = parseExperimentSpec({ ...validExperiment, campaign_id: campaignId });
   try {
@@ -186,7 +189,7 @@ test("invalid top-level report still produces an independent measurement-invalid
 
 test("missing top-level report still produces the standalone invalid envelope", async () => {
   const campaignId = `campaign-missing-report-${randomUUID()}`;
-  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
   let stdout = "";
   const executor = new DefaultAppExecutor({ stdout: (text) => (stdout += text) });
@@ -199,6 +202,132 @@ test("missing top-level report still produces the standalone invalid envelope", 
     const invalid = JSON.parse(await readFile(`${campaignRoot}/measurement-invalid.json`, "utf8"));
     assert.equal(invalid.campaign_id, campaignId);
     assert.equal(invalid.measurement_validity.overall, "invalid");
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
+test("legacy fixed-root report failure remains read-only", async () => {
+  const campaignId = `campaign-legacy-read-only-${randomUUID()}`;
+  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
+  const experiment = parseExperimentSpec({ ...validExperiment, campaign_id: campaignId });
+  try {
+    await runPairedCampaign({
+      campaignRoot,
+      experiment,
+      variants,
+      taskPackIdentity,
+      publicTask: SYNTHETIC_PUBLIC_TASK,
+      executeArm: async (arm) => execution(arm),
+      evaluateArm: async (arm) => evaluated(arm),
+    });
+    await writeFile(`${campaignRoot}/report.json`, "{broken", { mode: 0o600 });
+    const executor = new DefaultAppExecutor();
+
+    assert.equal(
+      await executor.execute({ kind: "report", campaignId }),
+      EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+    );
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.json`));
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.md`));
+  } finally {
+    await rm(campaignRoot, { recursive: true, force: true });
+  }
+});
+
+test("legacy Oracle-v2 Campaign remains reportable read-only", async () => {
+  const campaignId = `campaign-legacy-v2-${randomUUID()}`;
+  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
+  const legacyTaskPack = parseTaskPackIdentity({
+    ...validTaskPackIdentity,
+    pack: { ...validTaskPackIdentity.pack, oracle_version: "ledger-oracle-v2" },
+  });
+  const taskPackDigest = canonicalJsonDigest(legacyTaskPack);
+  const deploymentDigest = fingerprintEvalDeployment({
+    control: validControlVariant.resolved_config_sha256,
+    treatment: validTreatmentVariant.resolved_config_sha256,
+    task_pack: taskPackDigest,
+    model: {
+      provider: validControlVariant.model_route.provider,
+      model: validControlVariant.model_route.model,
+      effort: validControlVariant.model_route.reasoning_effort,
+    },
+    dsh_package_tree: validControlVariant.dsh_package_tree_sha256,
+    codex_connect_package: validControlVariant.codex_connect_package_sha256,
+    eval_package: validControlVariant.eval_package_sha256,
+    common_patch: validControlVariant.common_patch_sha256,
+  });
+  const experiment = parseExperimentSpec({
+    ...validExperiment,
+    campaign_id: campaignId,
+    task_pack_digest: taskPackDigest,
+    deployment: {
+      ...validExperiment.deployment,
+      digest: deploymentDigest,
+      qualification: {
+        ...validExperiment.deployment.qualification,
+        deployment_digest: deploymentDigest,
+      },
+      calibration: {
+        ...validExperiment.deployment.calibration,
+        task_pack_digest: taskPackDigest,
+        candidates: {
+          red: validExperiment.deployment.calibration.candidates.red,
+          gold: validExperiment.deployment.calibration.candidates.gold,
+          no_lock_failures: validExperiment.deployment.calibration.candidates.no_lock_failures,
+          no_persistence_failures:
+            validExperiment.deployment.calibration.candidates.no_persistence_failures,
+          corrupt_resets_failures:
+            validExperiment.deployment.calibration.candidates.corrupt_resets_failures,
+        },
+      },
+    },
+  });
+  try {
+    await runPairedCampaign({
+      campaignRoot,
+      experiment,
+      variants,
+      taskPackIdentity: legacyTaskPack,
+      publicTask: SYNTHETIC_PUBLIC_TASK,
+      executeArm: async (arm) => execution(arm),
+      evaluateArm: async (arm) => ({
+        ...evaluated(arm),
+        oracleSeed: {
+          schema_version: 1 as const,
+          seed: 1729,
+          oracle_version: "ledger-oracle-v2",
+        },
+      }),
+    });
+    const report = JSON.parse(await readFile(`${campaignRoot}/report.json`, "utf8"));
+    const evaluation = JSON.parse(await readFile(`${campaignRoot}/evaluation.json`, "utf8"));
+    for (const arm of ["control", "treatment"] as const) {
+      const path = `${campaignRoot}/arms/${arm}/episode.json`;
+      const episode = JSON.parse(await readFile(path, "utf8"));
+      delete episode.measurement;
+      await writeFile(path, canonicalJson(episode));
+      const pointer = {
+        ref: report.evidence[`${arm}_episode`].ref,
+        sha256: canonicalJsonDigest(episode),
+      };
+      report.evidence[`${arm}_episode`] = pointer;
+      evaluation.arms[arm].episode = pointer;
+    }
+    await writeFile(`${campaignRoot}/evaluation.json`, canonicalJson(evaluation));
+    report.evidence.evaluation.sha256 = canonicalJsonDigest(evaluation);
+    await writeFile(`${campaignRoot}/report.json`, canonicalJson(report));
+    const frozenReport = await readFile(`${campaignRoot}/report.json`);
+    let stdout = "";
+    const executor = new DefaultAppExecutor({ stdout: (text) => (stdout += text) });
+
+    assert.equal(await executor.execute({ kind: "report", campaignId }), EXIT_CODE.OK);
+    assert.match(stdout, /Overall:/);
+    assert.deepEqual(await readFile(`${campaignRoot}/report.json`), frozenReport);
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.json`));
+    await assert.rejects(access(`${campaignRoot}/measurement-invalid.md`));
   } finally {
     await rm(campaignRoot, { recursive: true, force: true });
   }

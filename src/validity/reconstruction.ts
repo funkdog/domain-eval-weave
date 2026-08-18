@@ -3,6 +3,7 @@ import type {
   Diagnostic,
   EpisodeRecord,
   EvaluationResult,
+  LegacyEpisodeRecordV2,
   VariantSpec,
 } from "../contracts/parsers.js";
 import type { BehaviorVector } from "../oracle/ledger.js";
@@ -119,5 +120,36 @@ export function evaluationFromFrozenEvidence(input: {
       input.episode.process.signal === null &&
       !input.episode.process.timed_out,
     elapsedMs: input.episode.measurement.elapsed_ms,
+  });
+}
+
+export function evaluationFromLegacyV2Evidence(input: {
+  readonly episode: LegacyEpisodeRecordV2;
+  readonly persistedResult: EvaluationResult;
+  readonly sessionText: string;
+  readonly publicTask: string;
+  readonly variant: VariantSpec;
+  readonly behavior: BehaviorVector;
+}): EvaluationResult {
+  const projection = projectFrozenSession({
+    sessionText: input.sessionText,
+    publicTask: input.publicTask,
+  });
+  return evaluationFromEvidence({
+    projection,
+    behavior: input.behavior,
+    candidateAuthorized: input.persistedResult.hard_gates.unauthorized_path_change === "pass",
+    oracleHidden: projection.prompt_isolation_valid,
+    candidateFrozenBeforeOracle:
+      input.persistedResult.hard_gates.candidate_frozen_before_oracle === "pass",
+    candidateUnchangedAfterOracle:
+      input.persistedResult.hard_gates.candidate_unchanged_after_oracle === "pass",
+    deploymentFingerprintMatches: deploymentMatches(projection, input.variant),
+    goalExpected: input.episode.arm === "treatment",
+    carrierProcessHealthy:
+      input.episode.process.exit_code === 0 &&
+      input.episode.process.signal === null &&
+      !input.episode.process.timed_out,
+    elapsedMs: input.persistedResult.cost.elapsed_ms,
   });
 }

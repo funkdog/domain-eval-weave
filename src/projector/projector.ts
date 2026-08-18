@@ -4,6 +4,11 @@ import { KNOWN_SESSION_EVENT_TYPES } from "@deepseek-ai/dsh-session";
 
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
 import type { Diagnostic, MeasurementValidity } from "../contracts/parsers.js";
+import {
+  type ActivationArtifact,
+  assertActivationArtifactSemantics,
+  parseActivationArtifact,
+} from "../contracts/phase2.js";
 import type { SessionEventRecord, SessionHeaderRecord } from "./jsonl.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -157,9 +162,26 @@ interface GoalFoldSnapshot {
 interface GoalFoldResult {
   readonly valid: boolean;
   readonly maximumRoundsStarted: number;
+  readonly activationEvents: ActivationArtifact["events"];
+  readonly terminalPhase: ActivationArtifact["summary"]["terminal_phase"];
 }
 
-const invalidGoalFold = (): GoalFoldResult => ({ valid: false, maximumRoundsStarted: 0 });
+const invalidGoalFold = (): GoalFoldResult => ({
+  valid: false,
+  maximumRoundsStarted: 0,
+  activationEvents: [],
+  terminalPhase: "none",
+});
+
+const ACTIVATION_TYPES = {
+  create: "activated",
+  edit: "progressed",
+  pause: "progressed",
+  resume: "progressed",
+  complete: "terminal",
+  block: "terminal",
+  clear: "cleared",
+} as const;
 
 function sameGoalDefinition(current: GoalFoldSnapshot, next: Record<string, unknown>): boolean {
   return next.objective === current.objective && next.maxGoalRounds === current.maxGoalRounds;
@@ -173,6 +195,7 @@ function sameBlockedReason(left: unknown, right: unknown): boolean {
 function foldGoalEvidence(events: readonly SessionEventRecord[]): GoalFoldResult {
   let current: GoalFoldSnapshot | undefined;
   let maximumRoundsStarted = 0;
+  const activationEvents: ActivationArtifact["events"][number][] = [];
   const seenGoalIds = new Set<string>();
   for (const event of events) {
     const data = recordData(event);
@@ -211,6 +234,16 @@ function foldGoalEvidence(events: readonly SessionEventRecord[]): GoalFoldResult
       ) {
         return invalidGoalFold();
       }
+      activationEvents.push({
+        sequence: activationEvents.length,
+        source_event_type: "goal/change",
+        operation: "clear",
+        activation_type: ACTIVATION_TYPES.clear,
+        goal_id: data.cleared.id as string,
+        revision: data.cleared.revision as number,
+        phase: "none",
+        timestamp: new Date(event.time).toISOString(),
+      });
       current = undefined;
       continue;
     }
@@ -315,9 +348,49 @@ function foldGoalEvidence(events: readonly SessionEventRecord[]): GoalFoldResult
       createdAt: data.createdAt as number,
       updatedAt: data.updatedAt as number,
     };
+    const operation = data.operation as keyof typeof ACTIVATION_TYPES;
+    activationEvents.push({
+      sequence: activationEvents.length,
+      source_event_type: "goal/change",
+      operation,
+      activation_type: ACTIVATION_TYPES[operation],
+      goal_id: current.id,
+      revision: current.revision,
+      phase: current.phase,
+      timestamp: new Date(event.time).toISOString(),
+    });
     maximumRoundsStarted = Math.max(maximumRoundsStarted, current.roundsStarted);
   }
-  return { valid: true, maximumRoundsStarted };
+  return {
+    valid: true,
+    maximumRoundsStarted,
+    activationEvents,
+    terminalPhase: current?.phase ?? "none",
+  };
+}
+
+export function projectGoalActivation(input: {
+  readonly header: SessionHeaderRecord;
+  readonly events: readonly SessionEventRecord[];
+}): ActivationArtifact {
+  const seedBoundary = input.events.findLastIndex((event) => event.type === "session/end-seed");
+  const fold = foldGoalEvidence(input.events.slice(seedBoundary + 1));
+  if (!fold.valid) throw new Error("Goal evidence is invalid");
+
+  const artifact = parseActivationArtifact({
+    schema_version: 1,
+    harness_id: "dsh-goal-stack",
+    session_id: input.header.id,
+    events: fold.activationEvents,
+    summary: {
+      activated: fold.activationEvents.some((event) => event.operation === "create"),
+      event_count: fold.activationEvents.length,
+      continuation_rounds: fold.maximumRoundsStarted,
+      terminal_phase: fold.terminalPhase,
+    },
+  });
+  assertActivationArtifactSemantics(artifact);
+  return artifact;
 }
 
 function validLifecycle(events: readonly SessionEventRecord[]): boolean {

@@ -83,22 +83,52 @@ export const qualificationEvidenceSchema = z.strictObject({
   common_tool_schema_sha256: sha256Schema,
 });
 
-export const calibrationEvidenceSchema = z.strictObject({
+const qualificationProjectionSchema = z.strictObject({
+  source_deployment_digest: sha256Schema,
+  projected_deployment_digest: sha256Schema,
+  source_qualification_sha256: sha256Schema,
+});
+
+const calibrationEvidenceCommon = {
   schema_version: z.literal(1),
   ready: z.literal(true),
   task_pack_digest: sha256Schema,
   calibration_digest: sha256Schema,
   eval_package_sha256: sha256Schema,
-  candidates: z.strictObject({
-    red: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
-    gold: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
-    no_lock_failures: z.tuple([z.literal("no_oversubscription_concurrent")]),
-    no_persistence_failures: z.tuple([z.literal("restart_recovery")]),
-    corrupt_resets_failures: z.tuple([z.literal("corrupt_state_fail_closed")]),
-  }),
   repeatable: z.literal(true),
   seed_stable: z.literal(true),
+} as const;
+
+const calibrationCandidateCommon = {
+  red: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
+  gold: z.array(behaviorStatusSchema).length(VERIFIED_BEHAVIOR_KEYS.length),
+  no_lock_failures: z.tuple([z.literal("no_oversubscription_concurrent")]),
+  no_persistence_failures: z.tuple([z.literal("restart_recovery")]),
+  corrupt_resets_failures: z.tuple([z.literal("corrupt_state_fail_closed")]),
+} as const;
+
+const calibrationEvidenceV2Schema = z.strictObject({
+  ...calibrationEvidenceCommon,
+  candidates: z.strictObject(calibrationCandidateCommon),
 });
+
+const calibrationEvidenceV3Schema = z.strictObject({
+  ...calibrationEvidenceCommon,
+  candidates: z.strictObject({
+    ...calibrationCandidateCommon,
+    broken_release_failures: z.tuple([
+      z.literal("terminal_transition_idempotency"),
+      z.literal("restart_recovery"),
+    ]),
+    release_not_persisted_failures: z.tuple([z.literal("restart_recovery")]),
+  }),
+});
+
+export const currentCalibrationEvidenceSchema = calibrationEvidenceV3Schema;
+export const calibrationEvidenceSchema = z.union([
+  calibrationEvidenceV3Schema,
+  calibrationEvidenceV2Schema,
+]);
 
 export const experimentSpecSchema = z.strictObject({
   schema_version: z.literal(1),
@@ -113,6 +143,7 @@ export const experimentSpecSchema = z.strictObject({
     digest: sha256Schema,
     eval_package_sha256: sha256Schema,
     qualification: qualificationEvidenceSchema,
+    qualification_projection: qualificationProjectionSchema.optional(),
     calibration: calibrationEvidenceSchema,
   }),
   intervention: z.strictObject({
@@ -225,6 +256,9 @@ export const episodeRecordSchema = z.strictObject({
   measurement: episodeMeasurementSchema,
   infrastructure_errors: z.array(diagnosticSchema),
 });
+
+const legacyEpisodeRecordV2Schema = episodeRecordSchema.omit({ measurement: true });
+const frozenEpisodeRecordSchema = z.union([episodeRecordSchema, legacyEpisodeRecordV2Schema]);
 
 export const evaluationResultSchema = z
   .strictObject({
@@ -359,9 +393,12 @@ export type Diagnostic = z.infer<typeof diagnosticSchema>;
 export type MeasurementValidity = z.infer<typeof measurementValiditySchema>;
 export type QualificationEvidence = z.infer<typeof qualificationEvidenceSchema>;
 export type CalibrationEvidence = z.infer<typeof calibrationEvidenceSchema>;
+export type CurrentCalibrationEvidence = z.infer<typeof currentCalibrationEvidenceSchema>;
 export type ExperimentSpec = z.infer<typeof experimentSpecSchema>;
 export type VariantSpec = z.infer<typeof variantSpecSchema>;
 export type EpisodeRecord = z.infer<typeof episodeRecordSchema>;
+export type FrozenEpisodeRecord = z.infer<typeof frozenEpisodeRecordSchema>;
+export type LegacyEpisodeRecordV2 = z.infer<typeof legacyEpisodeRecordV2Schema>;
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>;
 export type PairedEvaluationArtifact = z.infer<typeof pairedEvaluationArtifactSchema>;
 export type PairedImpactReport = z.infer<typeof pairedImpactReportSchema>;
@@ -378,12 +415,20 @@ export function parseCalibrationEvidence(input: unknown): CalibrationEvidence {
   return calibrationEvidenceSchema.parse(input);
 }
 
+export function parseCurrentCalibrationEvidence(input: unknown): CurrentCalibrationEvidence {
+  return currentCalibrationEvidenceSchema.parse(input);
+}
+
 export function parseVariantSpec(input: unknown): VariantSpec {
   return variantSpecSchema.parse(input);
 }
 
 export function parseEpisodeRecord(input: unknown): EpisodeRecord {
   return episodeRecordSchema.parse(input);
+}
+
+export function parseFrozenEpisodeRecord(input: unknown): FrozenEpisodeRecord {
+  return frozenEpisodeRecordSchema.parse(input);
 }
 
 export function parseEvaluationResult(input: unknown): EvaluationResult {

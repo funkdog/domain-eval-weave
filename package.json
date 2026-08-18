@@ -1,6 +1,6 @@
 {
   "name": "dsh-eval-lab",
-  "version": "0.1.0-rc.9",
+  "version": "0.2.0-rc.4",
   "private": true,
   "type": "module",
   "description": "DSH-native controlled harness evaluation plugin",
@@ -19,6 +19,9 @@
     "runtime-profile",
     "variants",
     "task-packs",
+    "harnesses",
+    "registry",
+    "eval-packs",
     "README.md"
   ],
   "dsh": {

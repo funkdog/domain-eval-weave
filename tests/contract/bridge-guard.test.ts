@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { createWorkspaceToolGuard, type GuardedToolExecution } from "../../src/bridge/guard.js";
 import applyDshEvalBridge from "../../src/bridge/index.js";
 import { createWorkspaceTestDefinition } from "../../src/bridge/workspace-test.js";
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+
+const runnerProfileBaseUrl = pathToFileURL(
+  `${DEDICATED_DSH_HOME}/profiles/eval-clowder-runner/`,
+).href;
 
 test("bridge guard allows workspace reads and src writes but rejects escapes before bodies run", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
@@ -103,8 +108,9 @@ test("default bridge runner executes public tests inside workspace/tmp", async (
   );
   let definition: ReturnType<typeof createWorkspaceTestDefinition> | undefined;
   try {
-    applyDshEvalBridge(
+    await applyDshEvalBridge(
       {
+        root: { baseUrl: runnerProfileBaseUrl },
         tools: {
           guard: () => undefined,
           register: (value) => {
@@ -112,7 +118,10 @@ test("default bridge runner executes public tests inside workspace/tmp", async (
           },
         },
       },
-      { workspaceRoot: workspace },
+      {
+        workspaceRoot: workspace,
+        env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+      },
     );
     assert.ok(definition);
     const result = (await definition.execute({})) as { exitCode: number | null; stderr: string };
@@ -120,4 +129,33 @@ test("default bridge runner executes public tests inside workspace/tmp", async (
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
+});
+
+test("bridge rejects the wrong current DSH profile before installing guards or tools", async () => {
+  let guarded = false;
+  let registered = false;
+  await assert.rejects(
+    applyDshEvalBridge(
+      {
+        root: {
+          baseUrl: pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-dsh-runner/`).href,
+        },
+        tools: {
+          guard: () => {
+            guarded = true;
+          },
+          register: () => {
+            registered = true;
+          },
+        },
+      },
+      {
+        workspaceRoot: "/tmp/never-used",
+        env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+      },
+    ),
+    /profile/i,
+  );
+  assert.equal(guarded, false);
+  assert.equal(registered, false);
 });

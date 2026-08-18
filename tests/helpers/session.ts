@@ -26,10 +26,14 @@ export function syntheticSessionLog(input: {
   readonly goalActivated?: boolean;
   readonly includeUsage?: boolean;
   readonly completion?: "complete" | "blocked" | "absent";
+  readonly publicTask?: string;
+  readonly sessionId?: string;
 }): string {
   const goalActivated = input.goalActivated ?? input.arm === "treatment";
   const includeUsage = input.includeUsage ?? true;
   const completion = input.completion ?? "complete";
+  const publicTask = input.publicTask ?? SYNTHETIC_PUBLIC_TASK;
+  const sessionId = input.sessionId ?? `session-${input.arm}`;
   const tools = input.arm === "treatment" ? [...commonTools, ...goalTools] : [...commonTools];
   const rows: Array<{ readonly type: string; readonly data: unknown }> = [
     {
@@ -55,7 +59,7 @@ export function syntheticSessionLog(input: {
       data: {
         id: `user-${input.arm}`,
         role: "user",
-        content: [{ type: "text", text: SYNTHETIC_PUBLIC_TASK }],
+        content: [{ type: "text", text: publicTask }],
         source: { kind: "user" },
       },
     },
@@ -199,7 +203,7 @@ export function syntheticSessionLog(input: {
   const header = {
     type: "session",
     version: 0,
-    id: `session-${input.arm}`,
+    id: sessionId,
     cwd: `/synthetic/${input.arm}`,
     createdAt: Date.parse("2026-08-17T10:00:00.000Z"),
   };

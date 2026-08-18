@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/exposure.schema.json",
+  "title": "DSH Eval Lab Exposure Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "exposure_id",
+    "suite_id",
+    "campaign_id",
+    "episode_id",
+    "session_id",
+    "task_id",
+    "bucket",
+    "arm",
+    "variant_digest",
+    "public_task_sha256",
+    "effective_base_sha256",
+    "candidate_archive",
+    "registry_digest",
+    "binding_digest",
+    "started_at",
+    "ended_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "exposure_id": { "$ref": "#/$defs/id" },
+    "suite_id": { "$ref": "#/$defs/id" },
+    "campaign_id": { "$ref": "#/$defs/id" },
+    "episode_id": { "$ref": "#/$defs/id" },
+    "session_id": { "$ref": "#/$defs/id" },
+    "task_id": { "$ref": "#/$defs/id" },
+    "bucket": { "enum": ["trigger", "non-trigger", "holdout"] },
+    "arm": { "enum": ["control", "treatment"] },
+    "variant_digest": { "$ref": "#/$defs/sha256" },
+    "public_task_sha256": { "$ref": "#/$defs/sha256" },
+    "effective_base_sha256": { "$ref": "#/$defs/sha256" },
+    "candidate_archive": { "$ref": "#/$defs/artifactPointer" },
+    "registry_digest": { "$ref": "#/$defs/sha256" },
+    "binding_digest": { "$ref": "#/$defs/sha256" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifactPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "type": "string", "pattern": "^artifact://campaign(?:/[A-Za-z0-9._-]+)+$" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

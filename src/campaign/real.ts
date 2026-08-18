@@ -14,10 +14,11 @@ import {
   readStableSessionTranscript,
   scanRawSessionInventory,
 } from "../carrier/session-inventory.js";
-import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import {
-  type CalibrationEvidence,
-  parseCalibrationEvidence,
+  type CurrentCalibrationEvidence,
+  type ExperimentSpec,
+  parseCurrentCalibrationEvidence,
   parseExperimentSpec,
   parseQualificationEvidence,
   parseVariantSpec,
@@ -36,13 +37,20 @@ import {
   fingerprintComposedRows,
 } from "../fingerprint/variants.js";
 import { computeCandidateTree, freezeCandidate } from "../freeze/candidate.js";
+import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
 import { type BehaviorVector, LEDGER_BEHAVIORS, LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { decodeOfficialSessionJsonl } from "../projector/jsonl.js";
 import { projectSessionEvidence } from "../projector/projector.js";
 import { assertProfileRoles } from "../runtime-profile/init.js";
-import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
-import { digestTaskPack, loadTaskPack, loadTaskPackIdentity } from "../task-pack/loader.js";
+import { DEDICATED_DSH_HOME } from "../runtime-root.js";
+import {
+  digestTaskPack,
+  loadTaskPack,
+  loadTaskPackIdentity,
+  type TaskPack,
+  type TaskPackIdentity,
+} from "../task-pack/loader.js";
 import {
   type ArmEvaluationOutput,
   type ArmExecutionOutput,
@@ -83,12 +91,12 @@ export async function dumpRows(
   commonPatch: string,
   armPatch: string,
 ): Promise<readonly ComposedRow[]> {
-  return dumpProfileRows(launch, "eval-runner", [commonPatch, armPatch]);
+  return dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, [commonPatch, armPatch]);
 }
 
 export async function dumpProfileRows(
   launch: ReturnType<typeof dshLaunch>,
-  profile: "eval" | "eval-runner",
+  profile: "eval-clowder" | "eval-clowder-runner",
   patches: readonly string[],
 ): Promise<readonly ComposedRow[]> {
   const result = await execFileAsync(
@@ -106,6 +114,7 @@ export async function dumpProfileRows(
         LANG: "C",
         LC_ALL: "C",
         DSH_HOME: DEDICATED_DSH_HOME,
+        DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
       },
       maxBuffer: 16 * 1024 * 1024,
     },
@@ -119,6 +128,10 @@ export async function initializeGitWorkspace(source: string, destination: string
   await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
   await cp(source, destination, { recursive: true, errorOnExist: true, force: false });
   await chmod(destination, 0o700);
+  await initializeMaterializedGitWorkspace(destination);
+}
+
+export async function initializeMaterializedGitWorkspace(destination: string): Promise<void> {
   const run = (args: readonly string[]) =>
     execFileAsync("git", [...args], {
       cwd: destination,
@@ -142,8 +155,8 @@ export function createOpaqueArmWorkspaces(): {
   readonly treatment: string;
 } {
   return {
-    control: `${DEDICATED_RUNTIME_ROOT}/workspaces/episode-${randomUUID()}`,
-    treatment: `${DEDICATED_RUNTIME_ROOT}/workspaces/episode-${randomUUID()}`,
+    control: `${PHASE2_INSTANCE.instanceRoot}/workspaces/episode-${randomUUID()}`,
+    treatment: `${PHASE2_INSTANCE.instanceRoot}/workspaces/episode-${randomUUID()}`,
   };
 }
 
@@ -203,14 +216,14 @@ async function writeFrozenQualification(path: string, value: unknown): Promise<v
   }
 }
 
-async function qualifyCarrier(input: {
+export async function qualifyCarrier(input: {
   readonly launch: ReturnType<typeof dshLaunch>;
   readonly packageRoot: string;
   readonly commonPatch: string;
   readonly controlPatch: string;
   readonly deploymentDigest: string;
 }): Promise<QualificationEvidence> {
-  const qualificationPath = `${DEDICATED_RUNTIME_ROOT}/qualification/${input.deploymentDigest}.json`;
+  const qualificationPath = `${PHASE2_INSTANCE.instanceRoot}/qualification/${input.deploymentDigest}.json`;
   try {
     const existing = parseQualificationEvidence(
       JSON.parse(await readFile(qualificationPath, "utf8")),
@@ -223,16 +236,16 @@ async function qualifyCarrier(input: {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 
-  const workspace = `${DEDICATED_RUNTIME_ROOT}/workspaces/qualification-${randomUUID()}`;
+  const workspace = `${PHASE2_INSTANCE.instanceRoot}/workspaces/qualification-${randomUUID()}`;
   await initializeGitWorkspace(
     `${input.packageRoot}/task-packs/open-coding-ts-ledger-v1/base`,
     workspace,
   );
-  const sessionsRoot = `${DEDICATED_DSH_HOME}/sessions`;
+  const sessionsRoot = PHASE2_INSTANCE.sessionsRoot;
   const before = await scanRawSessionInventory(sessionsRoot);
   const startedAt = new Date().toISOString();
   const carrier = new DshRunCarrier();
-  const deniedRoot = `${DEDICATED_RUNTIME_ROOT}/qualification-probe`;
+  const deniedRoot = `${PHASE2_INSTANCE.instanceRoot}/qualification-probe`;
   const deniedPath = `${deniedRoot}/sentinel-${randomUUID()}.txt`;
   await mkdir(deniedRoot, { recursive: true, mode: 0o700 });
   await writeFile(deniedPath, "synthetic denied sentinel", { flag: "wx", mode: 0o600 });
@@ -302,23 +315,34 @@ function errorVector(): BehaviorVector {
   ) as BehaviorVector;
 }
 
-export async function runRealCampaign(input: {
+export interface PreparedRealDeployment {
   readonly packageRoot: string;
-  readonly timeoutMs: number;
-  readonly confirm: (summary: string) => Promise<boolean>;
-}): Promise<{ readonly campaignId: string; readonly pointers: CampaignPointers }> {
-  const packRoot = `${input.packageRoot}/task-packs/open-coding-ts-ledger-v1`;
+  readonly packRoot: string;
+  readonly pack: TaskPack;
+  readonly launch: ReturnType<typeof dshLaunch>;
+  readonly commonPatch: string;
+  readonly controlPatch: string;
+  readonly treatmentPatch: string;
+  readonly controlConfigDigest: string;
+  readonly treatmentConfigDigest: string;
+  readonly commonPatchDigest: string;
+  readonly controlPatchDigest: string;
+  readonly treatmentPatchDigest: string;
+  readonly dshPackageTreeDigest: string;
+  readonly codexConnectDigest: string;
+  readonly evalPackageDigest: string;
+}
+
+export async function prepareRealDeployment(packageRoot: string): Promise<PreparedRealDeployment> {
+  const packRoot = `${packageRoot}/task-packs/open-coding-ts-ledger-v1`;
   const pack = await loadTaskPack(packRoot);
-  const taskPackIdentity = await loadTaskPackIdentity(packRoot);
-  const taskPackDigest = await digestTaskPack(packRoot);
-  const commonPatch = `${input.packageRoot}/variants/common.patch.yml`;
-  const controlPatch = `${input.packageRoot}/variants/goal-off.patch.yml`;
-  const treatmentPatch = `${input.packageRoot}/variants/goal-on.patch.yml`;
+  const commonPatch = `${packageRoot}/variants/common.patch.yml`;
+  const controlPatch = `${packageRoot}/variants/goal-off.patch.yml`;
+  const treatmentPatch = `${packageRoot}/variants/goal-on.patch.yml`;
   const launch = dshLaunch();
-  const [controlRows, treatmentRows, task] = await Promise.all([
+  const [controlRows, treatmentRows] = await Promise.all([
     dumpRows(launch, commonPatch, controlPatch),
     dumpRows(launch, commonPatch, treatmentPatch),
-    readFile(`${packRoot}/${pack.public_task_ref}`, "utf8"),
   ]);
   assertProfileRoles(controlRows, "runner");
   assertProfileRoles(treatmentRows, "runner");
@@ -331,50 +355,52 @@ export async function runRealCampaign(input: {
     readFile(treatmentPatch),
     findPackageRoot(launch.launcherArgs[0] ?? "", "@deepseek-ai/dsh"),
   ]);
-  const codexConnectRoot = `${DEDICATED_DSH_HOME}/profiles/eval-runner/node_modules/dsh-codex-connect`;
+  const codexConnectRoot = `${DEDICATED_DSH_HOME}/profiles/${PHASE2_INSTANCE.runnerProfile}/node_modules/dsh-codex-connect`;
   const [dshPackageTreeDigest, codexConnectDigest, evalPackageDigest] = await Promise.all([
     fingerprintPackageClosure(dshRoot),
     fingerprintPackageContent(codexConnectRoot),
-    fingerprintPackageContent(input.packageRoot),
+    fingerprintPackageContent(packageRoot),
   ]);
-  const deploymentDigest = fingerprintEvalDeployment({
-    control: controlConfigDigest,
-    treatment: treatmentConfigDigest,
+
+  return {
+    packageRoot,
+    packRoot,
+    pack,
+    launch,
+    commonPatch,
+    controlPatch,
+    treatmentPatch,
+    controlConfigDigest,
+    treatmentConfigDigest,
+    commonPatchDigest: sha256Hex(commonPatchBytes),
+    controlPatchDigest: sha256Hex(controlPatchBytes),
+    treatmentPatchDigest: sha256Hex(treatmentPatchBytes),
+    dshPackageTreeDigest,
+    codexConnectDigest,
+    evalPackageDigest,
+  };
+}
+
+export function deploymentDigestForTask(
+  deployment: PreparedRealDeployment,
+  taskPackDigest: string,
+): string {
+  return fingerprintEvalDeployment({
+    control: deployment.controlConfigDigest,
+    treatment: deployment.treatmentConfigDigest,
     task_pack: taskPackDigest,
     model: { provider: "openai-codex", model: "gpt-5.6-sol", effort: "xhigh" },
-    dsh_package_tree: dshPackageTreeDigest,
-    codex_connect_package: codexConnectDigest,
-    eval_package: evalPackageDigest,
-    common_patch: sha256Hex(commonPatchBytes),
+    dsh_package_tree: deployment.dshPackageTreeDigest,
+    codex_connect_package: deployment.codexConnectDigest,
+    eval_package: deployment.evalPackageDigest,
+    common_patch: deployment.commonPatchDigest,
   });
-  const calibration = parseCalibrationEvidence(
-    JSON.parse(
-      await readFile(`${DEDICATED_RUNTIME_ROOT}/calibration/${taskPackDigest}.json`, "utf8"),
-    ),
-  ) as CalibrationEvidence;
-  if (
-    calibration.task_pack_digest !== taskPackDigest ||
-    calibration.calibration_digest !== pack.calibration_digest ||
-    calibration.eval_package_sha256 !== evalPackageDigest
-  ) {
-    throw new Error("calibration evidence is not bound to the current deployment");
-  }
-  const confirmed = await input.confirm(
-    `Run one read-only qualification if needed and two model Episodes (max ${input.timeoutMs} ms per arm)?`,
-  );
-  if (!confirmed) throw new Error("Campaign confirmation declined");
-  let qualification: Awaited<ReturnType<typeof qualifyCarrier>>;
-  try {
-    qualification = await qualifyCarrier({
-      launch,
-      packageRoot: input.packageRoot,
-      commonPatch,
-      controlPatch,
-      deploymentDigest,
-    });
-  } catch {
-    throw new CarrierQualificationError();
-  }
+}
+
+export function variantsForQualification(
+  deployment: PreparedRealDeployment,
+  qualification: QualificationEvidence,
+): { readonly control: VariantSpec; readonly treatment: VariantSpec } {
   const variant = (
     variantId: "goal-off" | "goal-on",
     armPatchSha256: string,
@@ -384,7 +410,7 @@ export async function runRealCampaign(input: {
     parseVariantSpec({
       schema_version: 1,
       variant_id: variantId,
-      common_patch_sha256: sha256Hex(commonPatchBytes),
+      common_patch_sha256: deployment.commonPatchDigest,
       arm_patch_sha256: armPatchSha256,
       expected_goal_rows: {
         goal: enabled,
@@ -392,9 +418,9 @@ export async function runRealCampaign(input: {
         command_goal: enabled,
         tool_goal: enabled,
       },
-      dsh_package_tree_sha256: dshPackageTreeDigest,
-      codex_connect_package_sha256: codexConnectDigest,
-      eval_package_sha256: evalPackageDigest,
+      dsh_package_tree_sha256: deployment.dshPackageTreeDigest,
+      codex_connect_package_sha256: deployment.codexConnectDigest,
+      eval_package_sha256: deployment.evalPackageDigest,
       model_route: {
         provider: "openai-codex",
         model: "gpt-5.6-sol",
@@ -406,31 +432,85 @@ export async function runRealCampaign(input: {
       permission_mode: "workspace-write",
     });
   const variants = {
-    control: variant("goal-off", sha256Hex(controlPatchBytes), controlConfigDigest, false),
-    treatment: variant("goal-on", sha256Hex(treatmentPatchBytes), treatmentConfigDigest, true),
+    control: variant(
+      "goal-off",
+      deployment.controlPatchDigest,
+      deployment.controlConfigDigest,
+      false,
+    ),
+    treatment: variant(
+      "goal-on",
+      deployment.treatmentPatchDigest,
+      deployment.treatmentConfigDigest,
+      true,
+    ),
   } as const;
+  return variants;
+}
+
+export interface RealCampaignExecutionInput {
+  readonly campaignRoot: string;
+  readonly experiment: ExperimentSpec;
+  readonly variants: { readonly control: VariantSpec; readonly treatment: VariantSpec };
+  readonly executeArm: (arm: "control" | "treatment") => Promise<ArmExecutionOutput>;
+  readonly evaluateArm: (
+    arm: "control" | "treatment",
+    output: ArmExecutionOutput,
+  ) => Promise<ArmEvaluationOutput>;
+}
+
+export async function executePreparedRealCampaign<T>(input: {
+  readonly deployment: PreparedRealDeployment;
+  readonly campaignId: string;
+  readonly createdAt: string;
+  readonly timeoutMs: number;
+  readonly taskPackIdentity: TaskPackIdentity;
+  readonly taskPackDigest: string;
+  readonly publicTask: string;
+  readonly calibration: CurrentCalibrationEvidence;
+  readonly qualification: QualificationEvidence;
+  readonly materializeBase: (destination: string) => Promise<void>;
+  readonly coordinate: (execution: RealCampaignExecutionInput) => Promise<T>;
+}): Promise<{ readonly campaignRoot: string; readonly result: T }> {
+  const deploymentDigest = deploymentDigestForTask(input.deployment, input.taskPackDigest);
+  if (
+    input.calibration.task_pack_digest !== input.taskPackDigest ||
+    input.calibration.calibration_digest !== input.taskPackIdentity.pack.calibration_digest ||
+    input.calibration.eval_package_sha256 !== input.deployment.evalPackageDigest
+  ) {
+    throw new Error("calibration evidence is not bound to the current deployment");
+  }
+  const qualification = parseQualificationEvidence(input.qualification);
+  const qualificationProjection =
+    qualification.deployment_digest === deploymentDigest
+      ? undefined
+      : {
+          source_deployment_digest: qualification.deployment_digest,
+          projected_deployment_digest: deploymentDigest,
+          source_qualification_sha256: canonicalJsonDigest(qualification),
+        };
+  const variants = variantsForQualification(input.deployment, qualification);
   const controlDigest = sha256Hex(canonicalJson(variants.control));
   const treatmentDigest = sha256Hex(canonicalJson(variants.treatment));
 
-  const campaignId = `campaign-${new Date()
-    .toISOString()
-    .replaceAll(/[^0-9]/g, "")
-    .slice(0, 14)}-${randomUUID().slice(0, 8)}`;
   const armOrder = randomInt(2) === 0 ? ["control", "treatment"] : ["treatment", "control"];
   const experiment = parseExperimentSpec({
     schema_version: 1,
-    campaign_id: campaignId,
-    created_at: new Date().toISOString(),
+    campaign_id: input.campaignId,
+    created_at: input.createdAt,
     domain: "open-coding-delivery",
     eval_pack_id: "open-coding-delivery-v1",
-    task_pack_digest: taskPackDigest,
+    task_pack_digest: input.taskPackDigest,
     control_variant_digest: controlDigest,
     treatment_variant_digest: treatmentDigest,
     deployment: {
       digest: deploymentDigest,
-      eval_package_sha256: evalPackageDigest,
+      eval_package_sha256: input.deployment.evalPackageDigest,
       qualification,
-      calibration,
+      ...(qualificationProjection === undefined
+        ? {}
+        : { qualification_projection: qualificationProjection }),
+      calibration: input.calibration,
     },
     intervention: {
       id: "dsh-goal-stack",
@@ -446,36 +526,39 @@ export async function runRealCampaign(input: {
     claim_strength: "diagnostic",
     effect_claim_eligible: false,
   });
-  const campaignRoot = `${DEDICATED_RUNTIME_ROOT}/campaigns/${campaignId}`;
+  const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${input.campaignId}`;
   await mkdir(campaignRoot, { recursive: true, mode: 0o700 });
   const workspaces = createOpaqueArmWorkspaces();
   await Promise.all([
-    initializeGitWorkspace(`${packRoot}/base`, workspaces.control),
-    initializeGitWorkspace(`${packRoot}/base`, workspaces.treatment),
+    input.materializeBase(workspaces.control),
+    input.materializeBase(workspaces.treatment),
+  ]);
+  await Promise.all([
+    initializeMaterializedGitWorkspace(workspaces.control),
+    initializeMaterializedGitWorkspace(workspaces.treatment),
   ]);
   const carrier = new DshRunCarrier();
   let oracleSeed: number | undefined;
   const oracle = new LedgerOracle({
     runner: new StrictProcessRunner(),
-    oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
+    oracleRunnerPath: `${input.deployment.packRoot}/oracle/runner.mjs`,
   });
-  const result = await runPairedCampaign({
+  const result = await input.coordinate({
     campaignRoot,
     experiment,
     variants,
-    taskPackIdentity,
-    publicTask: task,
     executeArm: async (arm): Promise<ArmExecutionOutput> => {
       const workspace = workspaces[arm];
-      const before = await scanRawSessionInventory(`${DEDICATED_DSH_HOME}/sessions`);
+      const before = await scanRawSessionInventory(PHASE2_INSTANCE.sessionsRoot);
       const startedAt = new Date().toISOString();
       const monotonicStart = performance.now();
       const processResult = await carrier.runEpisode({
-        ...launch,
+        ...input.deployment.launch,
         workspace,
-        commonPatch,
-        armPatch: arm === "control" ? controlPatch : treatmentPatch,
-        task,
+        commonPatch: input.deployment.commonPatch,
+        armPatch:
+          arm === "control" ? input.deployment.controlPatch : input.deployment.treatmentPatch,
+        task: input.publicTask,
         timeoutMs: input.timeoutMs,
       });
       const elapsedMs = Math.max(0, Math.round(performance.now() - monotonicStart));
@@ -483,7 +566,7 @@ export async function runRealCampaign(input: {
       if (processResult.timedOut || processResult.outputLimitExceeded) {
         throw new Error("arm exceeded a process boundary before trustworthy freeze");
       }
-      const after = await scanRawSessionInventory(`${DEDICATED_DSH_HOME}/sessions`);
+      const after = await scanRawSessionInventory(PHASE2_INSTANCE.sessionsRoot);
       const discovered = discoverFreshSession({ before, after, workspace, startedAt, endedAt });
       const transcriptPath = locatedSession(after, discovered.id).transcriptPath;
       const transcript = await readStableSessionTranscript(transcriptPath);
@@ -500,7 +583,7 @@ export async function runRealCampaign(input: {
         candidateChangedPaths: frozen.changedPaths,
         candidateUnauthorizedPaths: frozen.unauthorizedPaths,
         candidateForbiddenEntries: frozen.forbiddenEntries,
-        workspaceBaseDigest: pack.base_tree_sha256,
+        workspaceBaseDigest: input.taskPackIdentity.pack.base_tree_sha256,
         process: {
           started_at: startedAt,
           ended_at: endedAt,
@@ -522,7 +605,7 @@ export async function runRealCampaign(input: {
     evaluateArm: async (_arm, output): Promise<ArmEvaluationOutput> => {
       const oracleInput = output.oracleInput as RealArmOracleInput;
       oracleSeed ??= randomInt(0, 2_147_483_647);
-      const scratchParent = `${DEDICATED_RUNTIME_ROOT}/oracle-tmp`;
+      const scratchParent = `${PHASE2_INSTANCE.instanceRoot}/oracle-tmp`;
       await mkdir(scratchParent, { recursive: true, mode: 0o700 });
       const scratch = await mkdtemp(`${scratchParent}/oracle-${randomUUID()}-`);
       let behavior: BehaviorVector;
@@ -535,7 +618,7 @@ export async function runRealCampaign(input: {
       }
       const candidateTreeAfterOracle = await computeCandidateTree(
         oracleInput.workspace,
-        `${DEDICATED_RUNTIME_ROOT}/oracle-tmp/tree-verification`,
+        `${PHASE2_INSTANCE.instanceRoot}/oracle-tmp/tree-verification`,
       );
       return {
         behavior,
@@ -543,10 +626,82 @@ export async function runRealCampaign(input: {
         oracleSeed: {
           schema_version: 1,
           seed: oracleSeed,
-          oracle_version: pack.oracle_version,
+          oracle_version: input.taskPackIdentity.pack.oracle_version,
         },
       };
     },
   });
-  return { campaignId, pointers: result.pointers };
+  return { campaignRoot, result };
+}
+
+async function copyLegacyBase(
+  deployment: PreparedRealDeployment,
+  destination: string,
+): Promise<void> {
+  await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+  await cp(`${deployment.packRoot}/base`, destination, {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+  });
+  await chmod(destination, 0o700);
+}
+
+export async function runRealCampaign(input: {
+  readonly packageRoot: string;
+  readonly timeoutMs: number;
+  readonly confirm: (summary: string) => Promise<boolean>;
+}): Promise<{ readonly campaignId: string; readonly pointers: CampaignPointers }> {
+  const deployment = await prepareRealDeployment(input.packageRoot);
+  const taskPackIdentity = await loadTaskPackIdentity(deployment.packRoot);
+  const taskPackDigest = await digestTaskPack(deployment.packRoot);
+  const publicTask = await readFile(
+    `${deployment.packRoot}/${deployment.pack.public_task_ref}`,
+    "utf8",
+  );
+  const calibration = parseCurrentCalibrationEvidence(
+    JSON.parse(
+      await readFile(phase2CalibrationPath(taskPackDigest, deployment.evalPackageDigest), "utf8"),
+    ),
+  );
+  const confirmed = await input.confirm(
+    `Run one read-only qualification if needed and two model Episodes (max ${input.timeoutMs} ms per arm)?`,
+  );
+  if (!confirmed) throw new Error("Campaign confirmation declined");
+  const deploymentDigest = deploymentDigestForTask(deployment, taskPackDigest);
+  let qualification: QualificationEvidence;
+  try {
+    qualification = await qualifyCarrier({
+      launch: deployment.launch,
+      packageRoot: deployment.packageRoot,
+      commonPatch: deployment.commonPatch,
+      controlPatch: deployment.controlPatch,
+      deploymentDigest,
+    });
+  } catch {
+    throw new CarrierQualificationError();
+  }
+  const campaignId = `campaign-${new Date()
+    .toISOString()
+    .replaceAll(/[^0-9]/g, "")
+    .slice(0, 14)}-${randomUUID().slice(0, 8)}`;
+  const executed = await executePreparedRealCampaign({
+    deployment,
+    campaignId,
+    createdAt: new Date().toISOString(),
+    timeoutMs: input.timeoutMs,
+    taskPackIdentity,
+    taskPackDigest,
+    publicTask,
+    calibration,
+    qualification,
+    materializeBase: (destination) => copyLegacyBase(deployment, destination),
+    coordinate: (execution) =>
+      runPairedCampaign({
+        ...execution,
+        taskPackIdentity,
+        publicTask,
+      }),
+  });
+  return { campaignId, pointers: executed.result.pointers };
 }

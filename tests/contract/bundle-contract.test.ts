@@ -11,6 +11,7 @@ import { parse } from "yaml";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 const execFileAsync = promisify(execFile);
+const managementProfileBaseUrl = pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-clowder/`).href;
 
 test("package is a DSH bundle with app/bridge exports and no standalone bin", async () => {
   const manifest = JSON.parse(
@@ -29,6 +30,21 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
     "pnpm build",
     "local or Git plugin installs must build their exported entrypoints",
   );
+});
+
+test("release package, Harness, and Registry versions advance together", async () => {
+  const [manifestSource, harnessSource, registrySource] = await Promise.all([
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    readFile(new URL("../../harnesses/dsh-goal-stack/harness.json", import.meta.url), "utf8"),
+    readFile(new URL("../../registry/registry.json", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestSource) as Record<string, unknown>;
+  const harness = JSON.parse(harnessSource) as Record<string, unknown>;
+  const registry = JSON.parse(registrySource) as Record<string, unknown>;
+
+  assert.equal(manifest.version, "0.2.0-rc.4");
+  assert.equal(harness.harness_version, manifest.version);
+  assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
 });
 
 test("bundle defaults to management app enabled and runner bridge disabled", async () => {
@@ -103,6 +119,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     const exits: number[] = [];
     await app.default(
       {
+        root: { baseUrl: managementProfileBaseUrl },
         cmdlineArgs: { get: () => ["doctor"] },
         appExit: (code: number) => exits.push(code),
         provide: (_name: "dshEvalApp", invocation: unknown) => {
@@ -110,7 +127,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
         },
       },
       {
-        env: { DSH_HOME: DEDICATED_DSH_HOME },
+        env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
         executor: { execute: async () => 0 },
       },
     );
@@ -121,12 +138,13 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
   }
 });
 
-test("app plugin enforces DSH_HOME before consuming immutable app arguments", async () => {
+test("app plugin enforces DSH_HOME and instance id before consuming immutable arguments", async () => {
   const app = await import("../../src/app/index.js");
   let argsRead = false;
   let provided: unknown;
   const exits: number[] = [];
   const context = {
+    root: { baseUrl: managementProfileBaseUrl },
     cmdlineArgs: {
       get: () => {
         argsRead = true;
@@ -145,8 +163,34 @@ test("app plugin enforces DSH_HOME before consuming immutable app arguments", as
   );
   assert.equal(argsRead, false);
 
+  assert.throws(
+    () =>
+      app.default(
+        {
+          ...context,
+          root: { baseUrl: pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-dsh/`).href },
+        },
+        {
+          env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+          executor: { execute: async () => 0 },
+        },
+      ),
+    /profile/i,
+  );
+  assert.equal(argsRead, false);
+
+  assert.throws(
+    () =>
+      app.default(context, {
+        env: { DSH_HOME: DEDICATED_DSH_HOME },
+        executor: { execute: async () => 0 },
+      }),
+    /DSH_EVAL_INSTANCE_ID/,
+  );
+  assert.equal(argsRead, false);
+
   await app.default(context, {
-    env: { DSH_HOME: DEDICATED_DSH_HOME },
+    env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
     executor: { execute: async () => 0 },
   });
   assert.equal(argsRead, true);
@@ -161,6 +205,7 @@ test("app plugin turns invalid immutable arguments into exit 2 before execution"
   let executed = false;
   await app.default(
     {
+      root: { baseUrl: managementProfileBaseUrl },
       cmdlineArgs: { get: () => ["run", "--runtime-root", "/tmp/forbidden"] },
       appExit: (code: number) => exits.push(code),
       provide: () => {
@@ -168,7 +213,7 @@ test("app plugin turns invalid immutable arguments into exit 2 before execution"
       },
     },
     {
-      env: { DSH_HOME: DEDICATED_DSH_HOME },
+      env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
       executor: {
         execute: async () => {
           executed = true;

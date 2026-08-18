@@ -21,6 +21,8 @@ export interface CalibrationResult {
     readonly no_lock_failures: readonly LedgerBehavior[];
     readonly no_persistence_failures: readonly LedgerBehavior[];
     readonly corrupt_resets_failures: readonly LedgerBehavior[];
+    readonly broken_release_failures: readonly LedgerBehavior[];
+    readonly release_not_persisted_failures: readonly LedgerBehavior[];
   };
   readonly repeatable: boolean;
   readonly seed_stable: boolean;
@@ -46,19 +48,32 @@ export async function calibrateLedgerPack(input: {
       `${input.scratchRoot}/checks/${suffix}`,
     );
   };
-  const [red, gold, noLock, noPersistence, corruptResets, repeatedGold, nextSeedGold] =
-    await Promise.all([
-      evaluate("base", "red"),
-      evaluate("calibration/gold-equivalent", "gold"),
-      evaluate("calibration/mutant-no-lock", "no-lock"),
-      evaluate("calibration/mutant-no-persistence", "no-persistence"),
-      evaluate("calibration/mutant-corrupt-resets", "corrupt-resets"),
-      evaluate("calibration/gold-equivalent", "gold-repeat"),
-      evaluate("calibration/gold-equivalent", "gold-next-seed", input.seed + 1),
-    ]);
+  const [
+    red,
+    gold,
+    noLock,
+    noPersistence,
+    corruptResets,
+    brokenRelease,
+    releaseNotPersisted,
+    repeatedGold,
+    nextSeedGold,
+  ] = await Promise.all([
+    evaluate("base", "red"),
+    evaluate("calibration/gold-equivalent", "gold"),
+    evaluate("calibration/mutant-no-lock", "no-lock"),
+    evaluate("calibration/mutant-no-persistence", "no-persistence"),
+    evaluate("calibration/mutant-corrupt-resets", "corrupt-resets"),
+    evaluate("calibration/mutant-broken-release", "broken-release"),
+    evaluate("calibration/mutant-release-not-persisted", "release-not-persisted"),
+    evaluate("calibration/gold-equivalent", "gold-repeat"),
+    evaluate("calibration/gold-equivalent", "gold-next-seed", input.seed + 1),
+  ]);
   const noLockFailures = failures(noLock);
   const noPersistenceFailures = failures(noPersistence);
   const corruptResetsFailures = failures(corruptResets);
+  const brokenReleaseFailures = failures(brokenRelease);
+  const releaseNotPersistedFailures = failures(releaseNotPersisted);
   const repeatable =
     input.oracle.canonicalVector(gold) === input.oracle.canonicalVector(repeatedGold);
   const seedStable = JSON.stringify(statuses(gold)) === JSON.stringify(statuses(nextSeedGold));
@@ -68,6 +83,9 @@ export async function calibrateLedgerPack(input: {
     JSON.stringify(noLockFailures) === JSON.stringify(["no_oversubscription_concurrent"]) &&
     JSON.stringify(noPersistenceFailures) === JSON.stringify(["restart_recovery"]) &&
     JSON.stringify(corruptResetsFailures) === JSON.stringify(["corrupt_state_fail_closed"]) &&
+    JSON.stringify(brokenReleaseFailures) ===
+      JSON.stringify(["terminal_transition_idempotency", "restart_recovery"]) &&
+    JSON.stringify(releaseNotPersistedFailures) === JSON.stringify(["restart_recovery"]) &&
     repeatable &&
     seedStable;
   return {
@@ -79,6 +97,8 @@ export async function calibrateLedgerPack(input: {
       no_lock_failures: noLockFailures,
       no_persistence_failures: noPersistenceFailures,
       corrupt_resets_failures: corruptResetsFailures,
+      broken_release_failures: brokenReleaseFailures,
+      release_not_persisted_failures: releaseNotPersistedFailures,
     },
     repeatable,
     seed_stable: seedStable,

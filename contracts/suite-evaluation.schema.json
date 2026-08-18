@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/suite-evaluation.schema.json",
+  "title": "DSH Eval Lab Suite Evaluation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "measurement_validity",
+    "reasons",
+    "tasks",
+    "summary",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "suite_id": { "$ref": "#/$defs/id" },
+    "measurement_validity": { "$ref": "#/$defs/validity" },
+    "reasons": { "$ref": "#/$defs/reasons" },
+    "tasks": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/task" } },
+    "summary": { "$ref": "#/$defs/summary" },
+    "claim_strength": { "const": "multi_task_diagnostic" },
+    "effect_claim_eligible": { "const": false }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "nullableCount": { "type": ["integer", "null"], "minimum": 0 },
+    "validity": { "enum": ["valid", "invalid", "insufficient"] },
+    "bucket": { "enum": ["trigger", "non-trigger", "holdout"] },
+    "reasons": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+    },
+    "campaignRef": {
+      "type": "string",
+      "pattern": "^artifact://campaign/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "suiteRef": {
+      "type": "string",
+      "pattern": "^artifact://suite/[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "campaignPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/campaignRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "suitePointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/suiteRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsed_ms",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "failed_tool_calls"
+      ],
+      "properties": {
+        "elapsed_ms": { "$ref": "#/$defs/nullableCount" },
+        "input_tokens": { "$ref": "#/$defs/nullableCount" },
+        "cached_input_tokens": { "$ref": "#/$defs/nullableCount" },
+        "output_tokens": { "$ref": "#/$defs/nullableCount" },
+        "failed_tool_calls": { "$ref": "#/$defs/nullableCount" }
+      }
+    },
+    "costDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsed_ms",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "failed_tool_calls"
+      ],
+      "properties": {
+        "elapsed_ms": { "type": ["integer", "null"] },
+        "input_tokens": { "type": ["integer", "null"] },
+        "cached_input_tokens": { "type": ["integer", "null"] },
+        "output_tokens": { "type": ["integer", "null"] },
+        "failed_tool_calls": { "type": ["integer", "null"] }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "externally_verified_completion",
+        "completion_claim",
+        "goal_activated",
+        "goal_rounds_started",
+        "goal_terminal_phase",
+        "cost"
+      ],
+      "properties": {
+        "externally_verified_completion": { "type": ["boolean", "null"] },
+        "completion_claim": { "enum": ["complete", "blocked", "absent"] },
+        "goal_activated": { "type": ["boolean", "null"] },
+        "goal_rounds_started": { "$ref": "#/$defs/nullableCount" },
+        "goal_terminal_phase": {
+          "enum": ["active", "paused", "complete", "blocked", "none", null]
+        },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "code", "treatment_activated"],
+      "properties": {
+        "status": { "enum": ["pass", "fail", "insufficient", "invalid"] },
+        "code": {
+          "enum": [
+            "ACTIVATION_EXPECTED_OBSERVED",
+            "TRIGGER_ACTIVATION_MISSING",
+            "NON_TRIGGER_ACTIVATION_ABSENT",
+            "NON_TRIGGER_OVER_ACTIVATION",
+            "HOLDOUT_ACTIVATION_OBSERVED",
+            "HOLDOUT_ACTIVATION_ABSENT",
+            "CONTROL_CONTAMINATION",
+            "CAMPAIGN_INVALID"
+          ]
+        },
+        "treatment_activated": { "type": "boolean" }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "bucket",
+        "campaign_id",
+        "campaign_pointer",
+        "campaign_report",
+        "paired_overall",
+        "suite_overall",
+        "activation_assessment",
+        "arms",
+        "cost_delta"
+      ],
+      "properties": {
+        "task_id": { "$ref": "#/$defs/id" },
+        "bucket": { "$ref": "#/$defs/bucket" },
+        "campaign_id": { "$ref": "#/$defs/id" },
+        "campaign_pointer": { "$ref": "#/$defs/suitePointer" },
+        "campaign_report": { "$ref": "#/$defs/campaignPointer" },
+        "paired_overall": { "$ref": "#/$defs/validity" },
+        "suite_overall": { "$ref": "#/$defs/validity" },
+        "activation_assessment": { "$ref": "#/$defs/assessment" },
+        "arms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["control", "treatment"],
+          "properties": {
+            "control": { "$ref": "#/$defs/arm" },
+            "treatment": { "$ref": "#/$defs/arm" }
+          }
+        },
+        "cost_delta": { "$ref": "#/$defs/costDelta" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "valid_task_count",
+        "invalid_task_count",
+        "insufficient_task_count",
+        "trigger_activation",
+        "non_trigger_guardrail",
+        "holdout_activation_observed"
+      ],
+      "properties": {
+        "valid_task_count": { "$ref": "#/$defs/count" },
+        "invalid_task_count": { "$ref": "#/$defs/count" },
+        "insufficient_task_count": { "$ref": "#/$defs/count" },
+        "trigger_activation": { "type": ["boolean", "null"] },
+        "non_trigger_guardrail": { "enum": ["pass", "fail", null] },
+        "holdout_activation_observed": { "type": ["boolean", "null"] }
+      }
+    }
+  }
+}

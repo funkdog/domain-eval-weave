@@ -571,6 +571,7 @@ Phase 1 的成功不是 treatment 获胜，而是：
 ## 12. Source Map
 
 - [DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
+- [DSH Eval Lab Phase 2 Implementation Spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
 - [In-snapshot DSH primary evidence bundle](../evidence/dsh/README.md)
 
 外部 provenance（不属于 assignment 实现依赖，隔离 Agent 不得访问）：Clowder AI Agent Eval Epistemology、
