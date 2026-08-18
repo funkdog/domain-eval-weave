@@ -9,8 +9,9 @@ replayable multi-task diagnostic evidence without a general uplift claim.
 
 ## Canonical plans
 
-- [Product plan](docs/plans/2026-08-17-dsh-eval-lab-product-plan.md)
+- [Phase 1 product plan](docs/plans/2026-08-17-dsh-eval-lab-product-plan.md)
 - [Phase 1 implementation spec](docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
+- [Phase 2 product plan](docs/plans/2026-08-18-dsh-eval-lab-phase-2-product-plan.md)
 - [Phase 2 implementation spec](docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
 
 ## Workspace boundary
@@ -77,7 +78,7 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 1 Milestones 0–4 are complete. The Phase 2 rc.4 candidate implements the
+Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 2 rc.4 release implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
 immutable exposure records, holdout first-exposure enforcement, blind six-Episode
@@ -87,8 +88,11 @@ per-task Outcome, Mechanism, Cost, and validity; it has no aggregate score,
 effect claim, or automatic lifecycle action. The rc.4 Registry replaces the permanently reserved
 `ledger-restart-recovery-v1` slot with the genuinely new `ledger-release-recovery-v1` holdout. Its
 task id, public-task bytes, and effective-base bytes are all distinct; prior reservations and exposure
-evidence remain immutable. Release acceptance requires an exact reviewed package to run one real
-qualification and six fresh Candidate Episodes, then pass artifact-only Suite replay.
+evidence remain immutable. Exact HEAD `fb15c7ef8ec34aeed4401ce82cc35ef5302f97f9`
+completed release acceptance in Suite `suite-20260818092709-d1a5faa7`: one qualification,
+six fresh Candidate Episodes, six externally verified outcomes, and byte-stable artifact-only replay.
+The Suite retained holdout no-activation as paired insufficiency while keeping the bounded
+multi-task diagnostic valid; it did not produce a general effect claim.
 
 The operator gates are intentional: `auth login` must be invoked explicitly,
 and any replacement for an already exposed holdout must be approved as a new
