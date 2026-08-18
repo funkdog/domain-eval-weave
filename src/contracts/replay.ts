@@ -4,7 +4,10 @@ import { fingerprintEvalDeployment } from "../fingerprint/deployment.js";
 import { type BehaviorVector, LEDGER_BEHAVIORS } from "../oracle/ledger.js";
 import { buildPairedImpactReport, combinePairedValidity } from "../report/reporter.js";
 import { parseTaskPackIdentity, type TaskPackIdentity } from "../task-pack/loader.js";
-import { evaluationFromFrozenEvidence } from "../validity/reconstruction.js";
+import {
+  evaluationFromFrozenEvidence,
+  evaluationFromLegacyV2Evidence,
+} from "../validity/reconstruction.js";
 import {
   ArtifactIntegrityError,
   type ArtifactPointer,
@@ -15,12 +18,12 @@ import {
 } from "./artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "./canonical-json.js";
 import {
-  type EpisodeRecord,
   type ExperimentSpec,
+  type FrozenEpisodeRecord,
   type PairedEvaluationArtifact,
   type PairedImpactReport,
-  parseEpisodeRecord,
   parseExperimentSpec,
+  parseFrozenEpisodeRecord,
   parsePairedEvaluationArtifact,
   parsePairedImpactReport,
   parseVariantSpec,
@@ -30,8 +33,8 @@ import {
 export interface ReplayedPairedImpactReport {
   readonly report: PairedImpactReport;
   readonly experiment: ExperimentSpec;
-  readonly control_episode: EpisodeRecord;
-  readonly treatment_episode: EpisodeRecord;
+  readonly control_episode: FrozenEpisodeRecord;
+  readonly treatment_episode: FrozenEpisodeRecord;
   readonly evaluation: PairedEvaluationArtifact;
   readonly reconstructed_evaluation: PairedEvaluationArtifact;
   readonly control_variant: VariantSpec;
@@ -103,7 +106,7 @@ function parseOracleBehavior(value: unknown): BehaviorVector {
 async function verifyEpisodeEvidenceBytes(
   campaignRoot: string,
   arm: "control" | "treatment",
-  episode: EpisodeRecord,
+  episode: FrozenEpisodeRecord,
 ): Promise<string> {
   const pointers: ArtifactPointer[] = [
     { ref: episode.evidence.session_log_ref, sha256: episode.evidence.session_log_sha256 },
@@ -150,8 +153,8 @@ export async function replayPairedImpactReport(
   const report = await readJsonArtifact(campaignRoot, reportPointer, parsePairedImpactReport);
   const [experiment, controlEpisode, treatmentEpisode] = await Promise.all([
     readJsonArtifact(campaignRoot, report.evidence.experiment, parseExperimentSpec),
-    readJsonArtifact(campaignRoot, report.evidence.control_episode, parseEpisodeRecord),
-    readJsonArtifact(campaignRoot, report.evidence.treatment_episode, parseEpisodeRecord),
+    readJsonArtifact(campaignRoot, report.evidence.control_episode, parseFrozenEpisodeRecord),
+    readJsonArtifact(campaignRoot, report.evidence.treatment_episode, parseFrozenEpisodeRecord),
   ]);
   const [controlVariant, treatmentVariant, taskPack] = await Promise.all([
     readJsonArtifact(
@@ -236,6 +239,18 @@ export async function replayPairedImpactReport(
   ) {
     crossReferenceFailure("Experiment deployment, qualification, and calibration evidence drifted");
   }
+  const calibrationIsV3 = "broken_release_failures" in experiment.deployment.calibration.candidates;
+  if ((taskPack.pack.oracle_version === "ledger-oracle-v3") !== calibrationIsV3) {
+    crossReferenceFailure("Calibration evidence does not match the frozen Oracle version");
+  }
+  const controlHasMeasurement = "measurement" in controlEpisode;
+  const treatmentHasMeasurement = "measurement" in treatmentEpisode;
+  if (
+    controlHasMeasurement !== treatmentHasMeasurement ||
+    (taskPack.pack.oracle_version === "ledger-oracle-v3" && !controlHasMeasurement)
+  ) {
+    crossReferenceFailure("Episode evidence shape does not match the frozen Oracle version");
+  }
   if (
     controlEpisode.variant_digest !== experiment.control_variant_digest ||
     treatmentEpisode.variant_digest !== experiment.treatment_variant_digest
@@ -280,20 +295,48 @@ export async function replayPairedImpactReport(
   if (oracleSeed.oracle_version !== taskPack.pack.oracle_version) {
     crossReferenceFailure("Oracle seed version does not match the Task Pack");
   }
-  const controlEvaluation = evaluationFromFrozenEvidence({
-    episode: controlEpisode,
-    sessionText: controlSession,
-    publicTask,
-    variant: controlVariant,
-    behavior: controlBehavior,
-  });
-  const treatmentEvaluation = evaluationFromFrozenEvidence({
-    episode: treatmentEpisode,
-    sessionText: treatmentSession,
-    publicTask,
-    variant: treatmentVariant,
-    behavior: treatmentBehavior,
-  });
+  let evaluation: PairedEvaluationArtifact | undefined;
+  if (!controlHasMeasurement || !treatmentHasMeasurement) {
+    evaluation = await readJsonArtifact(
+      campaignRoot,
+      report.evidence.evaluation,
+      parsePairedEvaluationArtifact,
+    );
+  }
+  const controlEvaluation = controlHasMeasurement
+    ? evaluationFromFrozenEvidence({
+        episode: controlEpisode,
+        sessionText: controlSession,
+        publicTask,
+        variant: controlVariant,
+        behavior: controlBehavior,
+      })
+    : evaluationFromLegacyV2Evidence({
+        episode: controlEpisode,
+        persistedResult:
+          evaluation?.arms.control.result ?? crossReferenceFailure("missing legacy evaluation"),
+        sessionText: controlSession,
+        publicTask,
+        variant: controlVariant,
+        behavior: controlBehavior,
+      });
+  const treatmentEvaluation = treatmentHasMeasurement
+    ? evaluationFromFrozenEvidence({
+        episode: treatmentEpisode,
+        sessionText: treatmentSession,
+        publicTask,
+        variant: treatmentVariant,
+        behavior: treatmentBehavior,
+      })
+    : evaluationFromLegacyV2Evidence({
+        episode: treatmentEpisode,
+        persistedResult:
+          evaluation?.arms.treatment.result ?? crossReferenceFailure("missing legacy evaluation"),
+        sessionText: treatmentSession,
+        publicTask,
+        variant: treatmentVariant,
+        behavior: treatmentBehavior,
+      });
   const reconstructedEvaluation: PairedEvaluationArtifact = {
     schema_version: 1,
     campaign_id: experiment.campaign_id,
@@ -335,7 +378,7 @@ export async function replayPairedImpactReport(
   ) {
     crossReferenceFailure("report does not bind the semantically reconstructed evaluation");
   }
-  const evaluation =
+  evaluation ??=
     options.requirePersistedEvaluation === false
       ? reconstructedEvaluation
       : await readJsonArtifact(

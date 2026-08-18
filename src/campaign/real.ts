@@ -16,9 +16,9 @@ import {
 } from "../carrier/session-inventory.js";
 import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import {
-  type CalibrationEvidence,
+  type CurrentCalibrationEvidence,
   type ExperimentSpec,
-  parseCalibrationEvidence,
+  parseCurrentCalibrationEvidence,
   parseExperimentSpec,
   parseQualificationEvidence,
   parseVariantSpec,
@@ -467,7 +467,7 @@ export async function executePreparedRealCampaign<T>(input: {
   readonly taskPackIdentity: TaskPackIdentity;
   readonly taskPackDigest: string;
   readonly publicTask: string;
-  readonly calibration: CalibrationEvidence;
+  readonly calibration: CurrentCalibrationEvidence;
   readonly qualification: QualificationEvidence;
   readonly materializeBase: (destination: string) => Promise<void>;
   readonly coordinate: (execution: RealCampaignExecutionInput) => Promise<T>;
@@ -659,7 +659,7 @@ export async function runRealCampaign(input: {
     `${deployment.packRoot}/${deployment.pack.public_task_ref}`,
     "utf8",
   );
-  const calibration = parseCalibrationEvidence(
+  const calibration = parseCurrentCalibrationEvidence(
     JSON.parse(
       await readFile(phase2CalibrationPath(taskPackDigest, deployment.evalPackageDigest), "utf8"),
     ),

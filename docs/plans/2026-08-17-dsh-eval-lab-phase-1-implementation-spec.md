@@ -371,7 +371,7 @@ Doctor 不调用模型，不产生 Session，不修改已有 runtime config。
 
 - red base 必须失败；
 - gold-equivalent 必须全过；
-- concurrency、persistence、corruption 三个定向 mutant 必须分别被对应 check 捕获；
+- concurrency、persistence、corruption、release、release-persistence 五个定向 mutant 必须分别被对应 check 捕获；
 - 同一 Candidate + 同一 seed 重跑得到同一 behavior vector。
 
 任一失败则 Pack `not_ready`，`run` 拒绝启动。
@@ -907,7 +907,7 @@ utility_claim: 八项外部行为全部成立，代表这个开放编码 Episode
 estimator: hidden behavior vector 全 pass 且 unauthorized-path gate=pass
 validity_bounds: Oracle/seed/generator/fixture/version 任一漂移；Candidate 可见 Oracle/gold；边界外改动；Oracle 自身错误
 consumer: 个人用户决定本地 Keep/Iterate/Revert/Run More
-calibration_plan: red/gold/三个定向 mutant；每次 pack digest 变化强制重校准
+calibration_plan: red/gold/五个定向 mutant；每次 pack digest 变化强制重校准
 repeatability_contract: acceptance；同 candidate+seed 必须 byte-identical，换 seed 允许 case 变化但行为方向不得反转
 ```
 

@@ -10,8 +10,8 @@ import {
 } from "../campaign/real.js";
 import { canonicalJsonDigest } from "../contracts/canonical-json.js";
 import {
-  type CalibrationEvidence,
-  parseCalibrationEvidence,
+  type CurrentCalibrationEvidence,
+  parseCurrentCalibrationEvidence,
   type QualificationEvidence,
 } from "../contracts/parsers.js";
 import { ExposureLedger } from "../exposure/ledger.js";
@@ -48,11 +48,11 @@ export async function runRealPhase2Suite(input: {
 
   const identities = new Map<string, TaskPackIdentity>();
   const taskDigests = new Map<string, string>();
-  const calibrations = new Map<string, CalibrationEvidence>();
+  const calibrations = new Map<string, CurrentCalibrationEvidence>();
   for (const task of binding.tasks) {
     const identity = phase2TaskPackIdentity(task, deployment.pack);
     const taskPackDigest = canonicalJsonDigest(identity);
-    const calibration = parseCalibrationEvidence(
+    const calibration = parseCurrentCalibrationEvidence(
       JSON.parse(
         await readFile(phase2CalibrationPath(taskPackDigest, deployment.evalPackageDigest), "utf8"),
       ),

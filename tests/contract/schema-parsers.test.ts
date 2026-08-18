@@ -7,6 +7,7 @@ import type { FormatsPlugin } from "ajv-formats";
 import * as addFormatsModule from "ajv-formats";
 
 import {
+  parseCurrentCalibrationEvidence,
   parseEpisodeRecord,
   parseEvaluationResult,
   parseExperimentSpec,
@@ -58,6 +59,37 @@ test("the four JSON Schema faces accept their canonical fixtures", async () => {
     const validate = ajv.compile(JSON.parse(source));
     assert.equal(validate(fixture), true, `${schemaName}: ${ajv.errorsText(validate.errors)}`);
   }
+});
+
+test("ExperimentSpec parser and schema retain frozen Oracle-v2 calibration evidence", async () => {
+  const current = validExperiment.deployment.calibration.candidates;
+  const legacy = {
+    ...validExperiment,
+    deployment: {
+      ...validExperiment.deployment,
+      calibration: {
+        ...validExperiment.deployment.calibration,
+        candidates: {
+          red: current.red,
+          gold: current.gold,
+          no_lock_failures: current.no_lock_failures,
+          no_persistence_failures: current.no_persistence_failures,
+          corrupt_resets_failures: current.corrupt_resets_failures,
+        },
+      },
+    },
+  };
+  assert.deepEqual(parseExperimentSpec(legacy), legacy);
+
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  const source = await readFile(
+    new URL("../../contracts/experiment.schema.json", import.meta.url),
+    "utf8",
+  );
+  const validate = ajv.compile(JSON.parse(source));
+  assert.equal(validate(legacy), true, ajv.errorsText(validate.errors));
+  assert.throws(() => parseCurrentCalibrationEvidence(legacy.deployment.calibration));
 });
 
 test("evaluation and report schemas share the exact EvaluationResult definition", async () => {

@@ -27,7 +27,7 @@ import {
   resolveArtifactRef,
 } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
-import { parseCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
+import { parseCurrentCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
 import { runDoctor } from "../doctor/index.js";
@@ -540,7 +540,7 @@ async function runProductDoctor() {
         const evalPackageDigest = await fingerprintPackageContent(packageRoot());
         for (const target of targets) {
           const path = phase2CalibrationPath(target.taskPackDigest, evalPackageDigest);
-          const value = parseCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
+          const value = parseCurrentCalibrationEvidence(JSON.parse(await readFile(path, "utf8")));
           if (
             value.task_pack_digest !== target.taskPackDigest ||
             value.calibration_digest !== pack.calibration_digest ||
