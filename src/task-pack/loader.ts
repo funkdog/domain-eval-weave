@@ -19,7 +19,7 @@ const taskPackSchema = z.strictObject({
     z.literal("--test"),
     z.literal("test/public/*.test.ts"),
   ]),
-  oracle_version: z.literal("ledger-oracle-v2"),
+  oracle_version: z.literal("ledger-oracle-v3"),
   calibration_digest: sha256Schema,
 });
 

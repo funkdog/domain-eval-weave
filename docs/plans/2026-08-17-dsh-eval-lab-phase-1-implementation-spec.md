@@ -411,7 +411,7 @@ interface TaskPack {
   allowed_candidate_globs: readonly ['src/**']
   forbidden_entry_types: readonly ['symlink', 'submodule']
   public_test_command: readonly ['node', '--test', 'test/public/*.test.ts']
-  oracle_version: 'ledger-oracle-v2'
+  oracle_version: 'ledger-oracle-v3'
   calibration_digest: string
 }
 ```
@@ -745,7 +745,7 @@ SMOKE.txt
 
 ### 8.3 Hidden behavior vector
 
-Candidate freeze 后生成随机 seed 与 case 数据，`ledger-oracle-v2` 以八个独立、各自有超时边界的进程评估行为：
+Candidate freeze 后生成随机 seed 与 case 数据，`ledger-oracle-v3` 以八个独立、各自有超时边界的进程评估行为；相较 v2，terminal 与 restart 维度同时覆盖 release 幂等、冲突、持久化和 capacity 恢复：
 
 ```text
 basic_reservation
@@ -766,7 +766,9 @@ deterministic_snapshot
 - `gold/equivalent`：一个正确但非唯一实现；
 - `mutant/no-lock`：必须只被 concurrency 相关 checks 明确击中；
 - `mutant/no-persistence`：必须被 restart/durability checks 击中；
-- `mutant/corrupt-resets`：必须被 corruption fail-closed check 击中。
+- `mutant/corrupt-resets`：必须被 corruption fail-closed check 击中；
+- `mutant/broken-release`：必须被 terminal 与 restart checks 击中；
+- `mutant/release-not-persisted`：必须被 restart/durability check 击中。
 
 Calibration artifact 保存每个 check 的方向与重复性，不进入 Candidate Campaign 分母。
 

@@ -43,7 +43,7 @@ export const validTaskEntry = {
   oracle: {
     runner_ref: "task-packs/open-coding-ts-ledger-v1/oracle/runner.mjs",
     runner_sha256: digest("d"),
-    version: "ledger-oracle-v2",
+    version: "ledger-oracle-v3",
     behavior_keys: [
       "basic_reservation",
       "idempotent_replay",

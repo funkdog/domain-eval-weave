@@ -59,7 +59,7 @@
       "properties": {
         "runner_ref": { "$ref": "#/$defs/packageRef" },
         "runner_sha256": { "$ref": "#/$defs/sha256" },
-        "version": { "const": "ledger-oracle-v2" },
+        "version": { "const": "ledger-oracle-v3" },
         "behavior_keys": {
           "type": "array",
           "minItems": 1,

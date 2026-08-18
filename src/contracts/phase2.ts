@@ -190,7 +190,7 @@ export const taskEntrySchema = z
     oracle: z.strictObject({
       runner_ref: packageRelativeRefSchema,
       runner_sha256: sha256Schema,
-      version: z.literal("ledger-oracle-v2"),
+      version: z.literal("ledger-oracle-v3"),
       behavior_keys: uniqueStrings(behaviorKeySchema),
     }),
     activation_expectation: z.enum(["required", "forbidden", "observed"]),

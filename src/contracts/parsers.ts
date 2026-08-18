@@ -101,6 +101,11 @@ export const calibrationEvidenceSchema = z.strictObject({
     no_lock_failures: z.tuple([z.literal("no_oversubscription_concurrent")]),
     no_persistence_failures: z.tuple([z.literal("restart_recovery")]),
     corrupt_resets_failures: z.tuple([z.literal("corrupt_state_fail_closed")]),
+    broken_release_failures: z.tuple([
+      z.literal("terminal_transition_idempotency"),
+      z.literal("restart_recovery"),
+    ]),
+    release_not_persisted_failures: z.tuple([z.literal("restart_recovery")]),
   }),
   repeatable: z.literal(true),
   seed_stable: z.literal(true),

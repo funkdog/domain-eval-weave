@@ -156,10 +156,10 @@ bytes；旧 exposure 继续保留在 instance ledger 中，但不再属于当前
 
 ```yaml
 utility_claim: 在未见过的聚焦持久化修复 Task 上，Goal treatment 的激活、外部结果与成本向量能补充三桶 binding 的本地诊断证据
-estimator: 同 Task、同 Oracle seed 的 control/treatment 配对；ledger-oracle-v2 八维行为向量 + typed Goal activation + raw cost delta
+estimator: 同 Task、同 Oracle seed 的 control/treatment 配对；ledger-oracle-v3 八维行为向量（terminal 同时覆盖 commit/release，restart 同时覆盖 committed/released 状态与 used/capacity）+ typed Goal activation + raw cost delta
 validity_bounds: exact task/public/base/registry/binding 任一 digest 漂移；该 Task 已有模型 exposure；Candidate 可见 bucket/Oracle/arm；任何 adaptive feedback
 consumer: Phase 2 operator 只据此判断当前 binding 是 keep、iterate_binding、keep_baseline 或 run_more，不产生总体 effect claim
-calibration_plan: effective base 在 deterministic calibration 中仅 restart_recovery 失败；gold 等价实现八维全过；Oracle protocol/version 不变
+calibration_plan: effective base 在 deterministic calibration 中仅 restart_recovery 失败；gold 等价实现八维全过；broken-release 在 terminal/restart 失败，release-not-persisted 仅在 restart 失败；Oracle protocol 保持不变、语义版本升级为 ledger-oracle-v3
 repeatability_contract: acceptance；只允许一个 Suite 取得该 holdout reservation，两个 fresh arms 共享 seed；artifact replay 不产生 exposure，禁止第二次模型运行
 ```
 

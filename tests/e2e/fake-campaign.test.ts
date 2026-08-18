@@ -70,7 +70,7 @@ function evaluated(arm: "control" | "treatment", behavior: BehaviorVector = pass
   return {
     behavior,
     candidateTreeAfterOracle: armTree(arm),
-    oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v2" },
+    oracleSeed: { schema_version: 1 as const, seed: 1729, oracle_version: "ledger-oracle-v3" },
   };
 }
 

@@ -180,7 +180,7 @@ test("fake Campaign artifacts can be canonically written, verified, and replayed
         writeCanonicalJsonArtifact(campaignRoot, "artifact://campaign/oracle/seed.json", {
           schema_version: 1,
           seed: 1729,
-          oracle_version: "ledger-oracle-v2",
+          oracle_version: "ledger-oracle-v3",
         }),
         writeCanonicalJsonArtifact(
           campaignRoot,

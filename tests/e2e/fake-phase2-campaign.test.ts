@@ -82,7 +82,7 @@ test("Phase 2 Campaign freezes activation and exposure before Oracle", async () 
         return {
           behavior,
           candidateTreeAfterOracle: output.candidateTree,
-          oracleSeed: { schema_version: 1, seed: 1729, oracle_version: "ledger-oracle-v2" },
+          oracleSeed: { schema_version: 1, seed: 1729, oracle_version: "ledger-oracle-v3" },
         };
       },
     });

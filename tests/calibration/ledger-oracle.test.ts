@@ -12,7 +12,7 @@ const packRoot = fileURLToPath(
   new URL("../../task-packs/open-coding-ts-ledger-v1", import.meta.url),
 );
 
-test("red/gold and three targeted mutants calibrate in the intended directions", async () => {
+test("red/gold and five targeted mutants calibrate in the intended directions", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const scratch = await mkdtemp(`${scratchParent}/oracle-calibration-`);
@@ -36,6 +36,11 @@ test("red/gold and three targeted mutants calibrate in the intended directions",
     assert.deepEqual(result.candidates.no_lock_failures, ["no_oversubscription_concurrent"]);
     assert.deepEqual(result.candidates.no_persistence_failures, ["restart_recovery"]);
     assert.deepEqual(result.candidates.corrupt_resets_failures, ["corrupt_state_fail_closed"]);
+    assert.deepEqual(result.candidates.broken_release_failures, [
+      "terminal_transition_idempotency",
+      "restart_recovery",
+    ]);
+    assert.deepEqual(result.candidates.release_not_persisted_failures, ["restart_recovery"]);
     assert.equal(result.repeatable, true);
     assert.equal(result.seed_stable, true);
   } finally {
@@ -101,6 +106,33 @@ test("Oracle rejects candidates that accept invalid integers or unknown state ve
     const version = await oracle.evaluateDirectory(unknownVersion, 42, `${scratch}/checks-b`);
     assert.equal(invalid.basic_reservation, "fail");
     assert.equal(version.corrupt_state_fail_closed, "fail");
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("Oracle rejects broken and non-persisted release transitions", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${scratchParent}/oracle-release-contract-`);
+  const oracle = new LedgerOracle({
+    runner: new StrictProcessRunner(),
+    oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
+  });
+
+  try {
+    const broken = await oracle.evaluateDirectory(
+      `${packRoot}/calibration/mutant-broken-release`,
+      42,
+      `${scratch}/checks-a`,
+    );
+    const nonPersisted = await oracle.evaluateDirectory(
+      `${packRoot}/calibration/mutant-release-not-persisted`,
+      42,
+      `${scratch}/checks-b`,
+    );
+    assert.equal(broken.terminal_transition_idempotency, "fail");
+    assert.equal(nonPersisted.restart_recovery, "fail");
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
