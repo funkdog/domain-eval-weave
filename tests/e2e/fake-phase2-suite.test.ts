@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 
+import { ArtifactIntegrityError } from "../../src/contracts/artifacts.js";
 import {
   canonicalJson,
   canonicalJsonDigest,
@@ -319,6 +320,48 @@ test("Suite stops after infrastructure failure and leaves an independent invalid
       /TASK_INFRASTRUCTURE_FAILURE/,
     );
     await assert.rejects(readFile(`${instanceRoot}/suites/suite-failed/report.json`, "utf8"));
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("Campaign artifact integrity failure is not mislabeled as Task infrastructure", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${parent}/artifact-failed-phase2-suite-`);
+  const instanceRoot = `${scratch}/instance`;
+  await mkdir(instanceRoot, { mode: 0o700 });
+  const binding = await loadStaticEvalBinding(PACKAGE_ROOT);
+  try {
+    await assert.rejects(
+      runPhase2Suite({
+        instanceRoot,
+        binding,
+        suiteId: "suite-artifact-failed",
+        createdAt: "2026-08-18T02:00:00.000Z",
+        deploymentDigest: validExperiment.deployment.digest,
+        timeoutMsPerArm: 2_700_000,
+        triggerFirst: true,
+        campaignIdForTask: (task) => `campaign-artifact-failed-${task.task_id}`,
+        exposureLedger: new ExposureLedger(instanceRoot),
+        beforeTasks: async () => validExperiment.deployment.qualification,
+        runCampaign: async () => {
+          throw new ArtifactIntegrityError(
+            "ARTIFACT_DIGEST_MISMATCH",
+            "synthetic Campaign artifact failure",
+          );
+        },
+      }),
+      (error) =>
+        error instanceof ArtifactIntegrityError && error.code === "ARTIFACT_DIGEST_MISMATCH",
+    );
+    assert.match(
+      await readFile(
+        `${instanceRoot}/suites/suite-artifact-failed/measurement-invalid.json`,
+        "utf8",
+      ),
+      /ARTIFACT_INTEGRITY_FAILURE/,
+    );
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

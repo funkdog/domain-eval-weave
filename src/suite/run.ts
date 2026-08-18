@@ -1,7 +1,7 @@
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 
-import { readJsonArtifact } from "../contracts/artifacts.js";
+import { ArtifactIntegrityError, readJsonArtifact } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { parseQualificationEvidence, type QualificationEvidence } from "../contracts/parsers.js";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../contracts/phase2.js";
 import { parseSuiteArtifactRef } from "../contracts/suite-artifact-ref.js";
 import {
+  SuiteArtifactIntegrityError,
   type SuiteArtifactPointer,
   writeCanonicalSuiteArtifact,
   writeSuiteArtifactBytes,
@@ -243,11 +244,13 @@ export async function runPhase2Suite(input: {
     };
   } catch (error) {
     if (failure.stage !== "pre-measurement") {
+      const artifactIntegrityFailure =
+        error instanceof ArtifactIntegrityError || error instanceof SuiteArtifactIntegrityError;
       await writeSuiteMeasurementInvalidEnvelope({
         suiteRoot,
         suiteId: input.suiteId,
         reason:
-          failure.stage === "task-measurement"
+          failure.stage === "task-measurement" && !artifactIntegrityFailure
             ? "TASK_INFRASTRUCTURE_FAILURE"
             : "ARTIFACT_INTEGRITY_FAILURE",
       });
