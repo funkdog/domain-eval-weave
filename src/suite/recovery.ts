@@ -51,17 +51,23 @@ export async function frozenSuiteReportPointer(suiteRoot: string): Promise<Suite
 export async function writeSuiteMeasurementInvalidEnvelope(input: {
   readonly suiteRoot: string;
   readonly suiteId: string;
+  readonly reason?: SuiteInvalidEnvelope["reason"];
 }): Promise<{
   readonly envelope: SuiteInvalidEnvelope;
   readonly reportPointer: SuiteArtifactPointer;
   readonly markdownPointer: SuiteArtifactPointer;
 }> {
+  const reason = input.reason ?? "ARTIFACT_INTEGRITY_FAILURE";
+  const message =
+    reason === "ARTIFACT_INTEGRITY_FAILURE"
+      ? "Frozen Suite evidence failed integrity or semantic replay."
+      : "Suite task measurement failed before a valid report could be produced.";
   const envelope = parseSuiteInvalidEnvelope({
     schema_version: 1,
     suite_id: input.suiteId,
     measurement_validity: "invalid",
-    reason: "ARTIFACT_INTEGRITY_FAILURE",
-    message: "Frozen Suite evidence failed integrity or semantic replay.",
+    reason,
+    message,
     claim_strength: "multi_task_diagnostic",
     effect_claim_eligible: false,
   });
@@ -70,7 +76,7 @@ export async function writeSuiteMeasurementInvalidEnvelope(input: {
     "",
     "Measurement validity: **invalid**",
     "",
-    "Frozen Suite evidence failed integrity or semantic replay.",
+    message,
     "",
     "No effect claim or lifecycle action is permitted.",
     "",

@@ -22,6 +22,32 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "events": {
+            "type": "array",
+            "contains": {
+              "type": "object",
+              "required": ["operation"],
+              "properties": { "operation": { "const": "create" } }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "summary": { "type": "object", "properties": { "activated": { "const": true } } }
+        }
+      },
+      "else": {
+        "properties": {
+          "summary": { "type": "object", "properties": { "activated": { "const": false } } }
+        }
+      }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "count": { "type": "integer", "minimum": 0 },
@@ -50,7 +76,37 @@
         "revision": { "type": "integer", "minimum": 1 },
         "phase": { "$ref": "#/$defs/phase" },
         "timestamp": { "type": "string", "format": "date-time" }
-      }
+      },
+      "allOf": [
+        {
+          "if": { "type": "object", "properties": { "operation": { "const": "create" } } },
+          "then": {
+            "type": "object",
+            "properties": { "activation_type": { "const": "activated" } }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": { "operation": { "enum": ["edit", "pause", "resume"] } }
+          },
+          "then": {
+            "type": "object",
+            "properties": { "activation_type": { "const": "progressed" } }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": { "operation": { "enum": ["complete", "block"] } }
+          },
+          "then": { "type": "object", "properties": { "activation_type": { "const": "terminal" } } }
+        },
+        {
+          "if": { "type": "object", "properties": { "operation": { "const": "clear" } } },
+          "then": { "type": "object", "properties": { "activation_type": { "const": "cleared" } } }
+        }
+      ]
     }
   }
 }

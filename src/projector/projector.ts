@@ -4,7 +4,11 @@ import { KNOWN_SESSION_EVENT_TYPES } from "@deepseek-ai/dsh-session";
 
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
 import type { Diagnostic, MeasurementValidity } from "../contracts/parsers.js";
-import { type ActivationArtifact, parseActivationArtifact } from "../contracts/phase2.js";
+import {
+  type ActivationArtifact,
+  assertActivationArtifactSemantics,
+  parseActivationArtifact,
+} from "../contracts/phase2.js";
 import type { SessionEventRecord, SessionHeaderRecord } from "./jsonl.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -373,7 +377,7 @@ export function projectGoalActivation(input: {
   const fold = foldGoalEvidence(input.events.slice(seedBoundary + 1));
   if (!fold.valid) throw new Error("Goal evidence is invalid");
 
-  return parseActivationArtifact({
+  const artifact = parseActivationArtifact({
     schema_version: 1,
     harness_id: "dsh-goal-stack",
     session_id: input.header.id,
@@ -385,6 +389,8 @@ export function projectGoalActivation(input: {
       terminal_phase: fold.terminalPhase,
     },
   });
+  assertActivationArtifactSemantics(artifact);
+  return artifact;
 }
 
 function validLifecycle(events: readonly SessionEventRecord[]): boolean {

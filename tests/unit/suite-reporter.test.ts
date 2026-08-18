@@ -27,6 +27,7 @@ function evidence(
   taskIndex: number,
   activated: boolean,
   reportValidity: "valid" | "invalid" | "insufficient" = "valid",
+  reportReason = "GOAL_NOT_ACTIVATED",
 ): SuiteCampaignEvidence {
   const task = parseTaskEntry(validRegistrySnapshot.tasks[taskIndex]);
   const activation = activated
@@ -57,7 +58,7 @@ function evidence(
           reportValidity === "insufficient"
             ? [
                 {
-                  code: "GOAL_NOT_ACTIVATED",
+                  code: reportReason,
                   severity: "warning",
                   message: "Goal was not activated.",
                   evidence_refs: ["artifact://campaign/arms/treatment/session.jsonl"],
@@ -164,4 +165,16 @@ test("expected no-activation normalizes only the Phase 1 Goal-only insufficiency
   assert.equal(expectedAbsence.measurement_validity, "valid");
   assert.equal(expectedAbsence.tasks[1]?.paired_overall, "insufficient");
   assert.equal(expectedAbsence.tasks[1]?.suite_overall, "valid");
+});
+
+test("Suite reporter preserves Campaign insufficiency reasons when activation passes", () => {
+  const evaluation = buildSuiteEvaluation("suite-usage-missing", [
+    evidence(0, true, "insufficient", "USAGE_MISSING"),
+    evidence(1, false),
+    evidence(2, false),
+  ]);
+
+  assert.equal(evaluation.measurement_validity, "insufficient");
+  assert.deepEqual(evaluation.reasons, ["USAGE_MISSING"]);
+  assert.ok(!evaluation.reasons.includes("ACTIVATION_EXPECTED_OBSERVED"));
 });

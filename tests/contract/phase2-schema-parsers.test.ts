@@ -7,6 +7,8 @@ import type { FormatsPlugin } from "ajv-formats";
 import * as addFormatsModule from "ajv-formats";
 import { parseQualificationEvidence } from "../../src/contracts/parsers.js";
 import {
+  assertActivationArtifactSemantics,
+  assertSuiteManifestSemantics,
   parseActivationArtifact,
   parseCampaignPointerArtifact,
   parseEvalPack,
@@ -107,14 +109,31 @@ test("registry/eval pack rejects a missing bucket and duplicate task membership"
   assert.throws(() => parseEvalPack(duplicate));
 });
 
-test("activation rejects unknown operations and inconsistent summaries", () => {
+test("activation schema and parser reject the same representable drift", async () => {
   const unknown = structuredClone(validActivationArtifact) as Record<string, unknown>;
   ((unknown.events as Record<string, unknown>[])[0] ?? {}).operation = "future-operation";
+  const activationValidator = await validator("activation.schema.json");
+  assert.equal(activationValidator(unknown), false);
   assert.throws(() => parseActivationArtifact(unknown));
 
   const inconsistent = structuredClone(validActivationArtifact) as Record<string, unknown>;
   (inconsistent.summary as Record<string, unknown>).activated = false;
+  assert.equal(activationValidator(inconsistent), false);
   assert.throws(() => parseActivationArtifact(inconsistent));
+
+  const wrongType = structuredClone(validActivationArtifact) as Record<string, unknown>;
+  ((wrongType.events as Record<string, unknown>[])[0] ?? {}).activation_type = "terminal";
+  assert.equal(activationValidator(wrongType), false);
+  assert.throws(() => parseActivationArtifact(wrongType));
+});
+
+test("non-representable activation ordering is enforced by the replay semantic layer", async () => {
+  const inconsistent = structuredClone(validActivationArtifact) as Record<string, unknown>;
+  (inconsistent.summary as Record<string, unknown>).event_count = 2;
+  const validate = await validator("activation.schema.json");
+  assert.equal(validate(inconsistent), true);
+  const parsed = parseActivationArtifact(inconsistent);
+  assert.throws(() => assertActivationArtifactSemantics(parsed));
 });
 
 test("Phase 2 refs reject absolute, traversal, backslash, and empty segments", () => {
@@ -125,7 +144,7 @@ test("Phase 2 refs reject absolute, traversal, backslash, and empty segments", (
   }
 });
 
-test("exposure rejects reversed timestamps and Suite rejects duplicate task ids", () => {
+test("exposure rejects reversed timestamps and Suite replay rejects semantic drift", async () => {
   const exposure = structuredClone(validExposureRecord) as Record<string, unknown>;
   exposure.ended_at = "2026-08-17T23:59:00.000Z";
   assert.throws(() => parseExposureRecord(exposure));
@@ -133,9 +152,44 @@ test("exposure rejects reversed timestamps and Suite rejects duplicate task ids"
   const suite = structuredClone(validSuiteManifest) as Record<string, unknown>;
   const tasks = suite.tasks as Record<string, unknown>[];
   if (tasks[1] !== undefined) tasks[1].task_id = "ledger-audit-v1";
-  assert.throws(() => parseSuiteManifest(suite));
+  const validate = await validator("suite-manifest.schema.json");
+  assert.equal(validate(suite), true);
+  assert.throws(() => assertSuiteManifestSemantics(parseSuiteManifest(suite)));
 
   const reordered = structuredClone(validSuiteManifest) as Record<string, unknown>;
   (reordered.task_order as string[]).reverse();
-  assert.throws(() => parseSuiteManifest(reordered));
+  assert.throws(() => assertSuiteManifestSemantics(parseSuiteManifest(reordered)));
+});
+
+test("Suite invalid envelope reason/message pairs have JSON Schema and parser parity", async () => {
+  const validate = await validator("suite-invalid.schema.json");
+  const infrastructure = {
+    ...validSuiteInvalidEnvelope,
+    reason: "TASK_INFRASTRUCTURE_FAILURE",
+    message: "Suite task measurement failed before a valid report could be produced.",
+  };
+  assert.equal(validate(infrastructure), true, JSON.stringify(validate.errors));
+  assert.deepEqual(parseSuiteInvalidEnvelope(infrastructure), infrastructure);
+
+  const mismatched = {
+    ...infrastructure,
+    message: "Frozen Suite evidence failed integrity or semantic replay.",
+  };
+  assert.equal(validate(mismatched), false);
+  assert.throws(() => parseSuiteInvalidEnvelope(mismatched));
+});
+
+test("Suite manifest schema and parser freeze exactly three tasks", async () => {
+  const suite = structuredClone(validSuiteManifest) as Record<string, unknown>;
+  const tasks = suite.tasks as Record<string, unknown>[];
+  tasks.push({
+    task_id: "ledger-extra-v1",
+    bucket: "trigger",
+    campaign_id: "campaign-extra",
+  });
+  (suite.task_order as string[]).push("ledger-extra-v1");
+
+  const validate = await validator("suite-manifest.schema.json");
+  assert.equal(validate(suite), false);
+  assert.throws(() => parseSuiteManifest(suite));
 });

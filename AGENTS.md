@@ -4,8 +4,10 @@
 
 - Product boundary: `docs/plans/2026-08-17-dsh-eval-lab-product-plan.md`
 - Implementation contract: `docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md`
+- Phase 2 implementation contract: `docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md`
 
-Read both before implementation. Do not broaden Phase 1 while coding.
+Read the product boundary and the implementation contract for the phase in scope before coding.
+Do not broaden either phase beyond its frozen contract.
 
 ## Safety boundaries
 
@@ -24,7 +26,7 @@ Read both before implementation. Do not broaden Phase 1 while coding.
 - Work red-to-green in the milestone order frozen by the implementation spec.
 - Diagnose root causes before fixes and keep evidence bound to exact revisions.
 - Do not claim completion without proportional tests and a clean candidate.
-- Do not add Web UI, a domain registry, an LLM Judge, multi-user roles, remote
-  evaluators, or automatic promotion/rollback during Phase 1.
+- Do not add Web UI, an open-ended domain registry, an LLM Judge, multi-user roles,
+  remote evaluators, or automatic promotion/rollback during Phase 1 or Phase 2.
 - Keep the source repository free of runtime artifacts and secrets even when a
   matching ignore rule exists; physical separation is the actual boundary.

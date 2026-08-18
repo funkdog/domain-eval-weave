@@ -316,9 +316,45 @@ test("Suite stops after infrastructure failure and leaves an independent invalid
     assert.equal(attempts, 1);
     assert.match(
       await readFile(`${instanceRoot}/suites/suite-failed/measurement-invalid.json`, "utf8"),
-      /ARTIFACT_INTEGRITY_FAILURE/,
+      /TASK_INFRASTRUCTURE_FAILURE/,
     );
     await assert.rejects(readFile(`${instanceRoot}/suites/suite-failed/report.json`, "utf8"));
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
+  }
+});
+
+test("confirmation or qualification failure does not fabricate a measurement envelope", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${parent}/pre-measurement-phase2-suite-`);
+  const instanceRoot = `${scratch}/instance`;
+  await mkdir(instanceRoot, { mode: 0o700 });
+  const binding = await loadStaticEvalBinding(PACKAGE_ROOT);
+  try {
+    await assert.rejects(
+      runPhase2Suite({
+        instanceRoot,
+        binding,
+        suiteId: "suite-declined",
+        createdAt: "2026-08-18T02:00:00.000Z",
+        deploymentDigest: validExperiment.deployment.digest,
+        timeoutMsPerArm: 2_700_000,
+        triggerFirst: true,
+        campaignIdForTask: (task) => `campaign-declined-${task.task_id}`,
+        exposureLedger: new ExposureLedger(instanceRoot),
+        beforeTasks: async () => {
+          throw new Error("confirmation declined");
+        },
+        runCampaign: async () => {
+          throw new Error("must not run");
+        },
+      }),
+      /confirmation declined/,
+    );
+    await assert.rejects(
+      readFile(`${instanceRoot}/suites/suite-declined/measurement-invalid.json`, "utf8"),
+    );
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

@@ -254,17 +254,9 @@ export const activationArtifactSchema = z
     }),
   })
   .superRefine((artifact, context) => {
-    const goalIds = new Set(artifact.events.map((event) => event.goal_id));
     for (let index = 0; index < artifact.events.length; index += 1) {
       const event = artifact.events[index];
       if (event === undefined) continue;
-      if (event.sequence !== index) {
-        context.addIssue({
-          code: "custom",
-          path: ["events", index, "sequence"],
-          message: "event sequences must be consecutive",
-        });
-      }
       if (event.activation_type !== operationActivationType[event.operation]) {
         context.addIssue({
           code: "custom",
@@ -273,21 +265,31 @@ export const activationArtifactSchema = z
         });
       }
     }
-    const last = artifact.events.at(-1);
     if (
-      goalIds.size > 1 ||
-      artifact.summary.event_count !== artifact.events.length ||
-      artifact.summary.activated !==
-        artifact.events.some((event) => event.operation === "create") ||
-      artifact.summary.terminal_phase !== (last?.phase ?? "none")
+      artifact.summary.activated !== artifact.events.some((event) => event.operation === "create")
     ) {
       context.addIssue({
         code: "custom",
         path: ["summary"],
-        message: "activation summary does not match events",
+        message: "activation summary does not match create events",
       });
     }
   });
+
+export function assertActivationArtifactSemantics(artifact: ActivationArtifact): void {
+  for (let index = 0; index < artifact.events.length; index += 1) {
+    if (artifact.events[index]?.sequence !== index) {
+      throw new Error("activation event sequences must be consecutive");
+    }
+  }
+  const last = artifact.events.at(-1);
+  if (
+    artifact.summary.event_count !== artifact.events.length ||
+    artifact.summary.terminal_phase !== (last?.phase ?? "none")
+  ) {
+    throw new Error("activation summary does not match ordered events");
+  }
+}
 
 export const exposureRecordSchema = z
   .strictObject({
@@ -331,29 +333,33 @@ export const suiteManifestSchema = z
     eval_pack_digest: sha256Schema,
     deployment_digest: sha256Schema,
     task_order: uniqueStrings(idSchema),
-    tasks: z.array(suiteTaskSchema).min(3),
+    tasks: z.array(suiteTaskSchema).length(3),
     timeout_ms_per_arm: z.number().finite().int().min(1).max(5_400_000),
     claim_strength: z.literal("multi_task_diagnostic"),
     effect_claim_eligible: z.literal(false),
   })
   .superRefine((suite, context) => {
-    const taskIds = suite.tasks.map((task) => task.task_id);
-    const campaignIds = suite.tasks.map((task) => task.campaign_id);
     const buckets = suite.tasks.map((task) => task.bucket);
-    if (
-      new Set(taskIds).size !== taskIds.length ||
-      new Set(campaignIds).size !== campaignIds.length ||
-      [...taskIds].sort().join("\n") !== [...suite.task_order].sort().join("\n") ||
-      taskIds.join("\n") !== suite.task_order.join("\n") ||
-      new Set(buckets).size !== 3
-    ) {
+    if (new Set(buckets).size !== 3) {
       context.addIssue({
         code: "custom",
         path: ["tasks"],
-        message: "Suite tasks, order, campaigns, and buckets must be one-to-one",
+        message: "Suite needs exactly one Task per bucket",
       });
     }
   });
+
+export function assertSuiteManifestSemantics(suite: SuiteManifest): void {
+  const taskIds = suite.tasks.map((task) => task.task_id);
+  const campaignIds = suite.tasks.map((task) => task.campaign_id);
+  if (
+    new Set(taskIds).size !== taskIds.length ||
+    new Set(campaignIds).size !== campaignIds.length ||
+    taskIds.join("\n") !== suite.task_order.join("\n")
+  ) {
+    throw new Error("Suite tasks, order, and campaigns must be one-to-one");
+  }
+}
 
 export const registrySnapshotSchema = z
   .strictObject({
@@ -583,15 +589,26 @@ export const suiteReportSchema = z
   })
   .superRefine(validateSuiteEvaluationShape);
 
-export const suiteInvalidEnvelopeSchema = z.strictObject({
+const suiteInvalidEnvelopeBase = {
   schema_version: z.literal(1),
   suite_id: idSchema,
   measurement_validity: z.literal("invalid"),
-  reason: z.literal("ARTIFACT_INTEGRITY_FAILURE"),
-  message: z.literal("Frozen Suite evidence failed integrity or semantic replay."),
   claim_strength: z.literal("multi_task_diagnostic"),
   effect_claim_eligible: z.literal(false),
-});
+} as const;
+
+export const suiteInvalidEnvelopeSchema = z.discriminatedUnion("reason", [
+  z.strictObject({
+    ...suiteInvalidEnvelopeBase,
+    reason: z.literal("ARTIFACT_INTEGRITY_FAILURE"),
+    message: z.literal("Frozen Suite evidence failed integrity or semantic replay."),
+  }),
+  z.strictObject({
+    ...suiteInvalidEnvelopeBase,
+    reason: z.literal("TASK_INFRASTRUCTURE_FAILURE"),
+    message: z.literal("Suite task measurement failed before a valid report could be produced."),
+  }),
+]);
 
 export type HarnessManifest = z.infer<typeof harnessManifestSchema>;
 export type Registry = z.infer<typeof registrySchema>;

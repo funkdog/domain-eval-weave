@@ -10,6 +10,8 @@ import {
 } from "../contracts/parsers.js";
 import {
   type ActivationArtifact,
+  assertActivationArtifactSemantics,
+  assertSuiteManifestSemantics,
   parseActivationArtifact,
   parseCampaignPointerArtifact,
   parseExposureRecord,
@@ -229,6 +231,11 @@ export async function reconstructSuiteReport(
   const binding = bindingArtifact.value;
   const registrySnapshot = registryArtifact.value;
   const qualification = qualificationArtifact.value;
+  try {
+    assertSuiteManifestSemantics(manifest);
+  } catch {
+    crossReferenceFailure("Suite manifest semantic bindings disagree");
+  }
   if (
     bindingArtifact.pointer.sha256 !== manifest.harness_binding_digest ||
     binding.eval_binding.registry_sha256 !== manifest.registry_digest ||
@@ -290,6 +297,12 @@ export async function reconstructSuiteReport(
         readJsonArtifact(campaignRoot, campaignPointer.exposure.control, parseExposureRecord),
         readJsonArtifact(campaignRoot, campaignPointer.exposure.treatment, parseExposureRecord),
       ]);
+    try {
+      assertActivationArtifactSemantics(controlActivation);
+      assertActivationArtifactSemantics(treatmentActivation);
+    } catch {
+      crossReferenceFailure("Stored activation artifact has invalid ordered-event semantics");
+    }
     for (const [arm, exposure, episode, pointer] of [
       ["control", controlExposure, replay.control_episode, campaignPointer.exposure.control],
       [

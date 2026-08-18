@@ -1,5 +1,5 @@
 import type { SuiteManifest, TaskEntry } from "../contracts/phase2.js";
-import { parseSuiteManifest } from "../contracts/phase2.js";
+import { assertSuiteManifestSemantics, parseSuiteManifest } from "../contracts/phase2.js";
 import type { StaticEvalBinding } from "../registry/loader.js";
 
 export interface PlannedSuiteTask {
@@ -52,27 +52,27 @@ export async function executePlannedSuite<T>(input: {
       campaignId: input.campaignIdForTask(task),
     }),
   );
-  const manifest = deepFreeze(
-    parseSuiteManifest({
-      schema_version: 1,
-      suite_id: input.suiteId,
-      created_at: input.createdAt,
-      instance_id: "clowder-ai",
-      harness_binding_digest: input.binding.digests.harness,
-      registry_digest: input.binding.digests.registry,
-      eval_pack_digest: input.binding.digests.evalPack,
-      deployment_digest: input.deploymentDigest,
-      task_order: plans.map((plan) => plan.task.task_id),
-      tasks: plans.map((plan) => ({
-        task_id: plan.task.task_id,
-        bucket: plan.task.bucket,
-        campaign_id: plan.campaignId,
-      })),
-      timeout_ms_per_arm: input.timeoutMsPerArm,
-      claim_strength: "multi_task_diagnostic",
-      effect_claim_eligible: false,
-    }),
-  );
+  const parsedManifest = parseSuiteManifest({
+    schema_version: 1,
+    suite_id: input.suiteId,
+    created_at: input.createdAt,
+    instance_id: "clowder-ai",
+    harness_binding_digest: input.binding.digests.harness,
+    registry_digest: input.binding.digests.registry,
+    eval_pack_digest: input.binding.digests.evalPack,
+    deployment_digest: input.deploymentDigest,
+    task_order: plans.map((plan) => plan.task.task_id),
+    tasks: plans.map((plan) => ({
+      task_id: plan.task.task_id,
+      bucket: plan.task.bucket,
+      campaign_id: plan.campaignId,
+    })),
+    timeout_ms_per_arm: input.timeoutMsPerArm,
+    claim_strength: "multi_task_diagnostic",
+    effect_claim_eligible: false,
+  });
+  assertSuiteManifestSemantics(parsedManifest);
+  const manifest = deepFreeze(parsedManifest);
   await input.freezeManifest(manifest);
   await input.beforeTasks?.(manifest);
   await input.holdoutGate.reserveHoldout(holdout.task_id, input.suiteId);

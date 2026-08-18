@@ -126,14 +126,19 @@ export function buildSuiteEvaluation(
         ? "insufficient"
         : "valid";
   const reasons = tasks
-    .filter(
-      (task) =>
-        task.suite_overall !== "valid" ||
-        task.activation_assessment.status === "fail" ||
-        task.activation_assessment.status === "insufficient" ||
-        task.activation_assessment.status === "invalid",
-    )
-    .map((task) => task.activation_assessment.code)
+    .flatMap((task, index) => {
+      const result: string[] = [];
+      if (task.suite_overall !== "valid") {
+        result.push(
+          ...(evidence[index]?.report.measurement_validity.reasons.map((reason) => reason.code) ??
+            []),
+        );
+      }
+      if (task.activation_assessment.status !== "pass") {
+        result.push(task.activation_assessment.code);
+      }
+      return result;
+    })
     .filter((code, index, values) => values.indexOf(code) === index);
   const byBucket = (bucket: TaskEntry["bucket"]) => tasks.find((task) => task.bucket === bucket);
   const trigger = byBucket("trigger");

@@ -92,6 +92,9 @@ export async function runPhase2Suite(input: {
   };
 }> {
   const suiteRoot = await prepareSuiteRoot(input.instanceRoot, input.suiteId);
+  const failure = {
+    stage: "pre-measurement" as "pre-measurement" | "task-measurement" | "derived-artifacts",
+  };
   try {
     const snapshot = registrySnapshot(input.binding);
     let primaryPointers:
@@ -146,7 +149,9 @@ export async function runPhase2Suite(input: {
         );
       },
       runTask: async (plan, manifest) => {
+        failure.stage = "task-measurement";
         const result = await input.runCampaign(plan, manifest);
+        failure.stage = "derived-artifacts";
         if (result.report.campaign_id !== plan.campaignId) {
           throw new Error("Phase 2 Campaign result has the wrong id");
         }
@@ -171,6 +176,7 @@ export async function runPhase2Suite(input: {
     if (!primaryPointers || !qualificationPointer) {
       throw new Error("Suite primary evidence was not frozen");
     }
+    failure.stage = "derived-artifacts";
 
     const campaignEvidence = await Promise.all(
       execution.results.map(async ({ plan, result }) => {
@@ -236,7 +242,16 @@ export async function runPhase2Suite(input: {
       },
     };
   } catch (error) {
-    await writeSuiteMeasurementInvalidEnvelope({ suiteRoot, suiteId: input.suiteId });
+    if (failure.stage !== "pre-measurement") {
+      await writeSuiteMeasurementInvalidEnvelope({
+        suiteRoot,
+        suiteId: input.suiteId,
+        reason:
+          failure.stage === "task-measurement"
+            ? "TASK_INFRASTRUCTURE_FAILURE"
+            : "ARTIFACT_INTEGRITY_FAILURE",
+      });
+    }
     throw error;
   }
 }

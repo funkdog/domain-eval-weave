@@ -70,3 +70,117 @@ test("typed activation fails closed on an invalid Goal history", () => {
     /Goal evidence is invalid/,
   );
 });
+
+test("typed activation preserves legal replacement Goal lifecycles", () => {
+  const decoded = decodeOfficialSessionJsonl(
+    syntheticSessionLog({ arm: "treatment", goalActivated: true }),
+  );
+  const lastSequence = decoded.events.at(-1)?.seq ?? 0;
+  const replacement = {
+    type: "goal/change",
+    seq: lastSequence + 1,
+    time: 20,
+    data: {
+      kind: "goal/change",
+      version: 1,
+      operation: "create",
+      goal: {
+        id: "goal-replacement",
+        revision: 1,
+        objective: "verify replacement",
+        phase: "active",
+        maxGoalRounds: 4,
+      },
+      roundsStarted: 0,
+      createdAt: 3,
+      updatedAt: 3,
+    },
+  } as const;
+
+  const activation = projectGoalActivation({
+    header: decoded.header,
+    events: [...decoded.events, replacement],
+  });
+  assert.deepEqual(
+    activation.events.map((event) => event.goal_id),
+    ["goal-treatment", "goal-treatment", "goal-replacement"],
+  );
+  assert.deepEqual(activation.summary, {
+    activated: true,
+    event_count: 3,
+    continuation_rounds: 2,
+    terminal_phase: "active",
+  });
+});
+
+test("typed activation permits clear followed by a new Goal", () => {
+  const decoded = decodeOfficialSessionJsonl(
+    syntheticSessionLog({ arm: "control", goalActivated: false }),
+  );
+  const events = [
+    ...decoded.events,
+    {
+      type: "goal/change",
+      seq: 100,
+      time: 20,
+      data: {
+        kind: "goal/change",
+        version: 1,
+        operation: "create",
+        goal: {
+          id: "goal-first",
+          revision: 1,
+          objective: "first",
+          phase: "active",
+          maxGoalRounds: 4,
+        },
+        roundsStarted: 0,
+        createdAt: 3,
+        updatedAt: 3,
+      },
+    },
+    {
+      type: "goal/change",
+      seq: 101,
+      time: 21,
+      data: {
+        kind: "goal/change",
+        version: 1,
+        operation: "clear",
+        cleared: { id: "goal-first", revision: 2 },
+        clearedAt: 4,
+      },
+    },
+    {
+      type: "goal/change",
+      seq: 102,
+      time: 22,
+      data: {
+        kind: "goal/change",
+        version: 1,
+        operation: "create",
+        goal: {
+          id: "goal-second",
+          revision: 1,
+          objective: "second",
+          phase: "active",
+          maxGoalRounds: 4,
+        },
+        roundsStarted: 0,
+        createdAt: 5,
+        updatedAt: 5,
+      },
+    },
+  ];
+
+  const activation = projectGoalActivation({ header: decoded.header, events });
+  assert.deepEqual(
+    activation.events.map(({ operation, goal_id }) => ({ operation, goal_id })),
+    [
+      { operation: "create", goal_id: "goal-first" },
+      { operation: "clear", goal_id: "goal-first" },
+      { operation: "create", goal_id: "goal-second" },
+    ],
+  );
+  assert.equal(activation.summary.terminal_phase, "active");
+});

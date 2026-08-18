@@ -119,6 +119,9 @@ summary:
 
 事件顺序、Goal transition 合法性与 summary 必须由同一个 rc.6-compatible fold 导出；不得从自由文本或工具名猜测激活。
 未知 operation、非法 revision/phase/counter/timestamp、重复 sequence 或 summary 不一致使 mechanism measurement invalid。
+同一合法 Session 可以在 Goal complete 或 clear 后创建新的 Goal，因此事件序列允许多个 `goal_id`；summary 描述整个
+Session 的 Goal 机制轨迹，而不是把第一条 Goal 当作唯一生命周期。JSON Schema 与 Zod parser 共同负责可表达的结构约束，
+连续 sequence、event count 与末态一致性等跨数组语义由 replay semantic layer 强制验证。
 
 Control 出现任何 Goal activation 是 intervention contamination。Trigger treatment 未激活是 insufficient；non-trigger
 treatment 激活是 guardrail failure；holdout 按 Task entry 的 expectation 判定。
@@ -185,6 +188,10 @@ Holdout 在 Suite 开始前必须没有任何既存 model exposure。永久 rese
 6. 每臂 freeze Session/Candidate/activation/exposure，再运行 Oracle；
 7. 生成每 task 的 Phase 1-compatible Paired Impact Report；
 8. 生成 Suite evaluation/report JSON 与 Markdown。
+
+Suite manifest 固定恰好三个 Task、每桶一个。用户取消、confirmation 拒绝、qualification 失败或 holdout preflight 拒绝都发生在
+measurement 开始前，不得生成 measurement-invalid envelope。首个 Task measurement 开始后的 carrier/Task 基础设施失败使用
+`TASK_INFRASTRUCTURE_FAILURE`；派生 artifact 或 replay 的完整性失败才使用 `ARTIFACT_INTEGRITY_FAILURE`。
 
 Suite 不根据前一 task 或 control 结果改变后续 prompt、budget、patch 或 expectation。任一 task infrastructure-invalid 时停止
 新的模型调用，保留已冻结证据并生成 Suite measurement-invalid envelope。
