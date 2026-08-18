@@ -4,7 +4,10 @@
 
 - Product boundary: `docs/plans/2026-08-17-dsh-eval-lab-product-plan.md`
 - Implementation contract: `docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md`
+- Phase 2 product contract: `docs/plans/2026-08-18-dsh-eval-lab-phase-2-product-plan.md`
 - Phase 2 implementation contract: `docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md`
+- Phase 3 product contract: `docs/plans/2026-08-19-dsh-eval-lab-phase-3-product-plan.md`
+- Phase 3A implementation contract: `docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md`
 
 Read the product boundary and the implementation contract for the phase in scope before coding.
 Do not broaden either phase beyond its frozen contract.
@@ -27,7 +30,9 @@ Do not broaden either phase beyond its frozen contract.
 - Diagnose root causes before fixes and keep evidence bound to exact revisions.
 - Do not claim completion without proportional tests and a clean candidate.
 - Do not add Web UI, an open-ended domain registry, an LLM Judge, multi-user roles,
-  remote evaluators, or automatic promotion/rollback during Phase 1 or Phase 2.
+  remote evaluators, or automatic promotion/rollback during Phase 1, Phase 2, or Phase 3A.
+- Keep Phase 3A authoring assets out of the Candidate runner surface. Domain Knowledge Packs
+  may suggest questions but never become product truth without provenance-bound owner confirmation.
 - Keep the source repository free of runtime artifacts and secrets even when a
   matching ignore rule exists; physical separation is the actual boundary.
 

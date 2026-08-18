@@ -12,6 +12,9 @@ description: "DSH Eval Lab Phase 2 产品方案：把单任务配对实验提升
 > 本文回答 Phase 2 为什么建设、用户得到什么、产品如何解释证据，以及一期明确不做什么。
 > 可执行字段、artifact schema、错误分类和实现顺序以
 > [Phase 2 Implementation Spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md) 为准。
+>
+> **状态**：implemented and independently accepted。Phase 3 不改写本阶段任何 Campaign/Suite/exposure 语义；
+> successor boundary 见 [Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)。
 
 ## 1. 产品判断
 
@@ -231,7 +234,9 @@ Phase 2 通过不要求 treatment 在每个 Task 都激活或胜过 control，�
 Phase 2 不建设 Web UI、LLM Judge、通用第三方插件沙箱、动态 Domain Registry、多人/RBAC、生产流量 A/B、
 远端 evaluator、自动 promote/rollback/sunset、统计显著性或根据 earlier result 自适应修改 later task。
 
-这些能力只有在本阶段的真实证据暴露明确需求后，才进入 Phase 3+。
+Phase 2 的真实证据只证明固定开放编码 Task 上的测量与 Harness binding；它没有证明新需求的领域真相天然完整。
+Phase 3A 因此新增 authoring-plane 的领域访谈与 Requirement binding，但不把 Phase 2 Registry 扩成开放式 Domain Registry，
+不把 Domain authoring 资产暴露给 Phase 2 Candidate runner，也不重解释任何既存 Suite。
 
 ## 13. Release acceptance evidence
 
@@ -257,3 +262,5 @@ Phase 2 rc.4 已完成并通过独立 release acceptance：
 - [Phase 1 Product Plan](./2026-08-17-dsh-eval-lab-product-plan.md)
 - [Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
 - [Phase 2 Implementation Spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
+- [Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
+- [Phase 3A Implementation Spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
