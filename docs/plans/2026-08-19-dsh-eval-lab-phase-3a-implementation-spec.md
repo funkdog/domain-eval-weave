@@ -136,13 +136,17 @@ Runner 与新增 author profile 作为一个 staged profile set 升级：
    commit-time snapshot；全部 staging 成功后、任一 live rename 前必须复核两个 snapshot。Existing root rename 到 backup 后再次
    对该 exact inode/bytes 做 CAS；
 4. Existing root 通过同 filesystem directory rename 切换。Missing root 不得使用会覆盖空目录的普通 rename：必须以 atomic
-   exclusive `mkdir` claim root、写 transaction ownership token，再从 stage 激活内容；token 移除后以 `package.json` 最后进入作为
-   ready boundary。并发创建者先赢时 claim 返回 typed concurrent failure并保留其 inode/bytes；进程在 ready boundary 前中断时，
-   下一次 `init` 把缺少 `package.json` 的 product-owned partial root 识别为 replaceable predecessor 并重放，而不是当成 current；
-5. 切换后再次验证两套 live profile 均为同一 target package set；任一失败必须倒序恢复已经切换的 profile；
-6. staging/install/verification/CAS 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
+   exclusive `mkdir` claim root、写 durable transaction ownership marker，再从 stage 激活内容，以 `package.json` 最后进入作为 ready
+   boundary。Marker 必须 canonical 绑定 transaction UUID、runner/author role、profile name、target package spec digest/version 与
+   三份 managed-file digest；recovery 只接受 marker + 允许的 staged entry 子集，任何 unknown entry 均拒绝；
+5. 并发创建者先赢时 claim 返回 typed concurrent failure并保留其 inode/bytes；进程在 ready boundary 前中断时，下一次 `init`
+   只重放上述 marker 验证通过的 product-owned partial root。无 marker 的空 root、tokenless partial 或带 owner/unknown bytes 的 root
+   一律在零 install side effect 时 fail closed，不能猜测所有权；
+6. 切换后在 marker 仍存在时再次验证两套 live profile 均为同一 target package set，通过后才移除 marker；任一失败必须倒序恢复
+   已经切换的 profile；
+7. staging/install/verification/CAS 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
    必须是无安装、无改写的幂等操作；
-7. 只替换 profile deployment bytes；既有 `cordis.yml` 必须保留，Session、Campaign、Suite、exposure、confirmation ledger 与
+8. 只替换 profile deployment bytes；既有 `cordis.yml` 必须保留，Session、Campaign、Suite、exposure、confirmation ledger 与
    OAuth/共享 settings 都不得迁移、删除或重写。
 
 该事务是产品版本部署，不是 Domain truth promotion，也不新增 rollback/治理 surface。

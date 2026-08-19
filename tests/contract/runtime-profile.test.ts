@@ -23,6 +23,7 @@ import {
   legacyPhase2RunnerProfileFiles,
   materializeFrozenFiles,
   ProfileContractError,
+  phase3ProfileClaimMarker,
   runnerProfileFiles,
   verifyFrozenFiles,
   verifySharedModelSettings,
@@ -499,6 +500,221 @@ test("Phase 3 profile preflight binds current package bytes to management", asyn
   }
 });
 
+test("Phase 3 profile preflight preserves an unowned empty author root", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-unowned-empty-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    await mkdir(authorRoot, { mode: 0o700 });
+    const ownerInode = (await lstat(authorRoot)).ino;
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+
+    assert.equal(installs, 0);
+    assert.equal((await lstat(authorRoot)).ino, ownerInode);
+    assert.deepEqual(await readdir(authorRoot), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile preflight preserves an unowned author root with unknown bytes", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-unowned-unknown-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    await mkdir(authorRoot, { mode: 0o700 });
+    await writeFile(`${authorRoot}/concurrent-owner`, "preserve-me\n", "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+
+    assert.equal(installs, 0);
+    assert.equal(await readFile(`${authorRoot}/concurrent-owner`, "utf8"), "preserve-me\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile preflight rejects a tokenless author partial", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-unowned-partial-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    await materializeFrozenFiles(
+      authorRoot,
+      new Map([...authorProfileFiles(nextSpec)].filter(([name]) => name !== "package.json")),
+    );
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+
+    assert.equal(installs, 0);
+    assert.equal(
+      await readFile(`${authorRoot}/cordis.patch.yml`, "utf8"),
+      authorProfileFiles(nextSpec).get("cordis.patch.yml"),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile recovery rejects unknown bytes beside a valid ownership marker", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-owned-unknown-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    await mkdir(authorRoot, { mode: 0o700 });
+    await writeFile(
+      `${authorRoot}/.dsh-eval-profile-transaction`,
+      phase3ProfileClaimMarker(
+        "author",
+        authorRoot,
+        nextSpec,
+        "0.3.0-alpha.1",
+        "00000000-0000-4000-8000-000000000002",
+      ),
+      { encoding: "utf8", mode: 0o600 },
+    );
+    await writeFile(`${authorRoot}/concurrent-owner`, "preserve-me\n", "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_TRANSACTION_INVALID",
+    );
+
+    assert.equal(installs, 0);
+    assert.equal(await readFile(`${authorRoot}/concurrent-owner`, "utf8"), "preserve-me\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile recovery rejects a marker bound to another profile", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-wrong-owner-marker-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    await mkdir(authorRoot, { mode: 0o700 });
+    await writeFile(
+      `${authorRoot}/.dsh-eval-profile-transaction`,
+      phase3ProfileClaimMarker(
+        "author",
+        `${root}/another-author-profile`,
+        nextSpec,
+        "0.3.0-alpha.1",
+        "00000000-0000-4000-8000-000000000003",
+      ),
+      { encoding: "utf8", mode: 0o600 },
+    );
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_TRANSACTION_INVALID",
+    );
+
+    assert.equal(installs, 0);
+    assert.match(
+      await readFile(`${authorRoot}/.dsh-eval-profile-transaction`, "utf8"),
+      /another-author-profile/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Phase 3 profile upgrade leaves both live profiles untouched when staged install fails", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
@@ -728,7 +944,17 @@ test("Phase 3 init replays an owned author claim interrupted before package read
       [...authorProfileFiles(nextSpec)].filter(([name]) => name !== "package.json"),
     );
     await materializeFrozenFiles(authorRoot, partialAuthorFiles);
-    await writeFile(`${authorRoot}/.dsh-eval-profile-transaction`, "interrupted\n", "utf8");
+    await writeFile(
+      `${authorRoot}/.dsh-eval-profile-transaction`,
+      phase3ProfileClaimMarker(
+        "author",
+        authorRoot,
+        nextSpec,
+        "0.3.0-alpha.1",
+        "00000000-0000-4000-8000-000000000001",
+      ),
+      { encoding: "utf8", mode: 0o600 },
+    );
 
     assert.deepEqual(
       await installPhase3ProfilesAtomically({

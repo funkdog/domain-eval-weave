@@ -29,6 +29,8 @@ export const LEGACY_PHASE2_EVAL_TARBALL_SHA256 =
 export const LEGACY_PHASE2_EVAL_CONTENT_SHA256 =
   "adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65";
 export const LEGACY_PHASE2_EVAL_TARBALL_SIZE = 161_769;
+const PROFILE_TRANSACTION_MARKER = ".dsh-eval-profile-transaction";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export class ProfileContractError extends Error {
   readonly code: string;
@@ -312,6 +314,35 @@ export function authorProfileFiles(packageSpec: string): ReadonlyMap<string, str
   ]);
 }
 
+export function phase3ProfileClaimMarker(
+  role: "runner" | "author",
+  profileRoot: string,
+  packageSpec: string,
+  packageVersion: string,
+  transactionId: string,
+): string {
+  assertPackageSpec(packageSpec);
+  if (!UUID_PATTERN.test(transactionId)) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_INVALID",
+      "profile transaction id must be a lowercase UUID",
+    );
+  }
+  const files =
+    role === "runner" ? runnerProfileFiles(packageSpec) : authorProfileFiles(packageSpec);
+  return frozenJson({
+    schema_version: 1,
+    transaction_id: transactionId,
+    role,
+    profile_name: basename(profileRoot),
+    package_spec_sha256: sha256Hex(packageSpec),
+    package_version: packageVersion,
+    managed_files: [...files]
+      .map(([path, content]) => ({ path, sha256: sha256Hex(content) }))
+      .sort((left, right) => left.path.localeCompare(right.path)),
+  });
+}
+
 function resolveFrozenPath(root: string, relativePath: string): string {
   if (!isAbsolute(root) || relativePath.length === 0 || relativePath.includes("\0")) {
     throw new ProfileContractError(
@@ -526,6 +557,7 @@ interface PreparedProfileTarget extends Phase3ProfileTarget {
   readonly existed: boolean;
   readonly liveSnapshot: string;
   backup?: string;
+  ownershipMarkerPath?: string;
 }
 
 interface ProfilePreflight extends Phase3ProfileTarget {
@@ -795,6 +827,7 @@ async function captureProfileLiveSnapshot(target: Phase3ProfileTarget): Promise<
       ]),
       cordis: await optionalPhysicalFileDigest(target.root, "cordis.yml"),
       lockfile: await optionalPhysicalFileDigest(target.root, "pnpm-lock.yaml"),
+      transaction_marker: await optionalPhysicalFileDigest(target.root, PROFILE_TRANSACTION_MARKER),
       node_modules:
         modulesEntry === undefined ? null : [modulesEntry.dev, modulesEntry.ino, modulesEntry.size],
       eval_package: await optionalPhysicalPackageDigest(target.root, "node_modules/dsh-eval-lab"),
@@ -821,6 +854,95 @@ async function assertProfileSnapshotUnchanged(
   );
 }
 
+type ClaimedProfileState = "absent" | "partial" | "complete";
+
+async function inspectClaimedProfile(
+  target: Phase3ProfileTarget,
+  packageSpec: string,
+  packageVersion: string,
+  verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
+): Promise<ClaimedProfileState> {
+  const markerPath = resolveFrozenPath(target.root, PROFILE_TRANSACTION_MARKER);
+  const markerEntry = await lstatOrUndefined(markerPath);
+  if (markerEntry === undefined) return "absent";
+  if (
+    markerEntry.isSymbolicLink() ||
+    !markerEntry.isFile() ||
+    (Number(markerEntry.mode) & 0o777) !== 0o600
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_INVALID",
+      "profile transaction marker must be a physical regular file",
+    );
+  }
+  const marker = await readFile(markerPath, "utf8");
+  let transactionId: string | undefined;
+  try {
+    const decoded = mapping(JSON.parse(marker));
+    transactionId =
+      typeof decoded?.transaction_id === "string" ? decoded.transaction_id : undefined;
+  } catch {
+    transactionId = undefined;
+  }
+  if (
+    transactionId === undefined ||
+    marker !==
+      phase3ProfileClaimMarker(target.role, target.root, packageSpec, packageVersion, transactionId)
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_INVALID",
+      "profile transaction marker does not bind the target profile",
+    );
+  }
+  const allowed = new Set([
+    PROFILE_TRANSACTION_MARKER,
+    ...target.files.keys(),
+    "pnpm-lock.yaml",
+    "node_modules",
+  ]);
+  const entries = await readdir(target.root);
+  if (entries.some((name) => !allowed.has(name))) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_INVALID",
+      "claimed profile root contains entries outside the staged profile grammar",
+    );
+  }
+  const actual = await readManagedFiles(target.root, target.files);
+  for (const [relativePath, content] of actual) {
+    if (content !== undefined && content !== target.files.get(relativePath)) {
+      throw new ProfileContractError(
+        "PROFILE_TRANSACTION_INVALID",
+        `claimed profile managed file drifted: ${relativePath}`,
+      );
+    }
+  }
+  const packageReady = actual.get("package.json") !== undefined;
+  if (!packageReady) return "partial";
+  if (
+    [...target.files.keys()].some((relativePath) => actual.get(relativePath) === undefined) ||
+    !entries.includes("pnpm-lock.yaml") ||
+    !entries.includes("node_modules") ||
+    (await profileInstallState(target.root, packageSpec, packageVersion, verifyPackageContent)) !==
+      "ready"
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_INVALID",
+      "claimed profile crossed its ready boundary without a complete install",
+    );
+  }
+  return "complete";
+}
+
+async function assertKnownUnclaimedProfileEntries(target: Phase3ProfileTarget): Promise<void> {
+  const allowed = new Set([...target.files.keys(), "pnpm-lock.yaml", "node_modules", "cordis.yml"]);
+  if ((await readdir(target.root)).some((name) => !allowed.has(name))) {
+    throw new ProfileContractError(
+      "PROFILE_CONTENT_MISMATCH",
+      `${target.role} profile contains an unknown root entry`,
+    );
+  }
+}
+
 async function inspectPhase3ProfileTarget(
   target: Phase3ProfileTarget,
   packageSpec: string,
@@ -835,18 +957,36 @@ async function inspectPhase3ProfileTarget(
   const rootEntry = await lstatOrUndefined(target.root);
   if (rootEntry === undefined) return "replace";
   await assertPhysicalDirectory(target.root);
+  if (
+    (await inspectClaimedProfile(target, packageSpec, packageVersion, verifyPackageContent)) !==
+    "absent"
+  ) {
+    return "replace";
+  }
+  await assertKnownUnclaimedProfileEntries(target);
   const actual = await readManagedFiles(target.root, target.files);
   if (frozenFilesMatch(actual, target.files)) {
-    return (await profileInstallState(
-      target.root,
-      packageSpec,
-      packageVersion,
-      verifyPackageContent,
-    )) === "ready"
-      ? "current"
-      : "replace";
+    if (
+      (await profileInstallState(
+        target.root,
+        packageSpec,
+        packageVersion,
+        verifyPackageContent,
+      )) === "ready"
+    ) {
+      return "current";
+    }
+    throw new ProfileContractError(
+      "PROFILE_CONTENT_MISMATCH",
+      `${target.role} profile is incomplete without a valid transaction marker`,
+    );
   }
-  if (frozenFilesAreCompatiblePartial(actual, target.files)) return "replace";
+  if (frozenFilesAreCompatiblePartial(actual, target.files)) {
+    throw new ProfileContractError(
+      "PROFILE_CONTENT_MISMATCH",
+      `${target.role} profile partial is not owned by a valid transaction marker`,
+    );
+  }
   if (target.role === "runner") {
     const previousSpec = profilePackageSpec(actual.get("package.json"));
     if (previousSpec !== undefined) {
@@ -925,6 +1065,9 @@ async function prepareProfileTarget(
 
 async function activateClaimedMissingProfile(
   target: PreparedProfileTarget,
+  packageSpec: string,
+  packageVersion: string,
+  transactionId: string,
   beforeClaim?: (profileRoot: string) => Promise<void>,
 ): Promise<void> {
   await beforeClaim?.(target.root);
@@ -939,10 +1082,20 @@ async function activateClaimedMissingProfile(
     }
     throw error;
   }
-  const tokenPath = resolveFrozenPath(target.root, ".dsh-eval-profile-transaction");
+  const markerPath = resolveFrozenPath(target.root, PROFILE_TRANSACTION_MARKER);
   const moved: string[] = [];
   try {
-    await writeFile(tokenPath, `${randomUUID()}\n`, { flag: "wx", mode: 0o600 });
+    await writeFile(
+      markerPath,
+      phase3ProfileClaimMarker(
+        target.role,
+        target.root,
+        packageSpec,
+        packageVersion,
+        transactionId,
+      ),
+      { flag: "wx", mode: 0o600 },
+    );
     const names = (await readdir(target.stage))
       .filter((name) => name !== "package.json")
       .sort((left, right) => left.localeCompare(right));
@@ -950,15 +1103,15 @@ async function activateClaimedMissingProfile(
       await rename(join(target.stage, name), join(target.root, name));
       moved.push(name);
     }
-    await unlink(tokenPath);
     await rename(join(target.stage, "package.json"), join(target.root, "package.json"));
     moved.push("package.json");
     await rmdir(target.stage);
+    target.ownershipMarkerPath = markerPath;
   } catch (error) {
     for (const name of [...moved].reverse()) {
       await rename(join(target.root, name), join(target.stage, name)).catch(() => undefined);
     }
-    await unlink(tokenPath).catch(() => undefined);
+    await unlink(markerPath).catch(() => undefined);
     try {
       await rmdir(target.root);
     } catch {
@@ -1058,6 +1211,7 @@ export async function installPhase3ProfilesAtomically(
     }
 
     const committed: PreparedProfileTarget[] = [];
+    const transactionId = randomUUID();
     try {
       for (const target of preflight) {
         await assertProfileSnapshotUnchanged(target, target.liveSnapshot);
@@ -1085,13 +1239,34 @@ export async function installPhase3ProfilesAtomically(
             throw error;
           }
         } else {
-          await activateClaimedMissingProfile(target, input.beforeMissingRootClaim);
+          await activateClaimedMissingProfile(
+            target,
+            input.packageSpec,
+            input.packageVersion,
+            transactionId,
+            input.beforeMissingRootClaim,
+          );
         }
         committed.push(target);
       }
       for (const target of preflight) {
         try {
-          if (
+          const claimed = committed.find(
+            (candidate) =>
+              candidate.root === target.root && candidate.ownershipMarkerPath !== undefined,
+          );
+          if (claimed !== undefined) {
+            if (
+              (await inspectClaimedProfile(
+                target,
+                input.packageSpec,
+                input.packageVersion,
+                input.verifyPackageContent,
+              )) !== "complete"
+            ) {
+              throw new Error("claimed profile did not cross its ready boundary");
+            }
+          } else if (
             (await inspectPhase3ProfileTarget(
               target,
               input.packageSpec,
@@ -1110,6 +1285,12 @@ export async function installPhase3ProfilesAtomically(
             "PROFILE_CONCURRENT_MODIFICATION",
             `${target.role} profile set changed during transaction commit`,
           );
+        }
+      }
+      for (const target of committed) {
+        if (target.ownershipMarkerPath !== undefined) {
+          await unlink(target.ownershipMarkerPath);
+          delete target.ownershipMarkerPath;
         }
       }
     } catch (error) {
