@@ -223,6 +223,22 @@ test("successor validation keeps retired Claims terminal", () => {
     }),
   );
   const retired = issueDraft(retiredCandidate, "retired-v2");
+  const carried = {
+    ...retiredCandidate,
+    version: 3,
+    predecessor: {
+      ref: "contracts/synthetic-commerce-contract/v2.json",
+      sha256: canonicalJsonDigest(retired),
+    },
+    claims: retiredCandidate.claims.map(({ transition: _transition, ...claim }) => claim),
+  } as const;
+  assert.doesNotThrow(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef: "contracts/synthetic-commerce-contract/v2.json",
+      predecessor: retired,
+      successor: carried,
+    }),
+  );
   const reactivated = {
     ...retiredCandidate,
     version: 3,

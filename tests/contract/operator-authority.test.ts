@@ -393,6 +393,95 @@ test("authority preflight rejects cross-product/risk Contract drift and forged q
   }
 });
 
+test("operator carries a retired Claim forward without reopening or repeating its transition", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const project = await mkdtemp(`${parent}/authority-retired-carry-project-`);
+  try {
+    const { packRoot, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const versionOne = JSON.parse(
+      await readFile(`${packRoot}/contracts/synthetic-commerce-contract/v1.json`, "utf8"),
+    ) as Record<string, unknown>;
+    const {
+      state: _state,
+      confirmation: _confirmation,
+      decided_by: _by,
+      decided_at: _at,
+      ...versionOneBase
+    } = versionOne;
+    const versionTwoCandidate = {
+      ...versionOneBase,
+      version: 2,
+      predecessor: {
+        ref: "contracts/synthetic-commerce-contract/v1.json",
+        sha256: canonicalJsonDigest(versionOne),
+      },
+      claims: (versionOneBase.claims as Array<Record<string, unknown>>).map((claim) => ({
+        ...claim,
+        lifecycle: "retired",
+        transition: {
+          kind: "retires",
+          predecessor: { claim_id: claim.claim_id, contract_version: 1 },
+        },
+      })),
+    };
+    const versionTwoCandidateRef = "candidates/retire-contract-v2.json";
+    await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+    await writeFile(
+      `${packRoot}/${versionTwoCandidateRef}`,
+      `${canonicalJson(versionTwoCandidate)}\n`,
+      { mode: 0o600 },
+    );
+    const versionTwoResult = await recordOperatorAuthority({
+      projectRoot: project,
+      packPath: "domain-eval",
+      candidatePath: versionTwoCandidateRef,
+      targetKind: "product_domain_contract",
+      actorId: "domain-owner-commerce",
+      occurredAt: "2026-08-19T04:18:00.000Z",
+      ledger: confirmationLedger,
+    });
+    assert.equal(versionTwoResult.status, "complete");
+    const versionTwo = versionTwoResult.artifact?.value as Record<string, unknown>;
+
+    const versionThreeCandidate = {
+      ...versionTwoCandidate,
+      version: 3,
+      predecessor: {
+        ref: "contracts/synthetic-commerce-contract/v2.json",
+        sha256: canonicalJsonDigest(versionTwo),
+      },
+      claims: (versionTwoCandidate.claims as Array<Record<string, unknown>>).map(
+        ({ transition: _transition, ...claim }) => claim,
+      ),
+    };
+    const versionThreeCandidateRef = "candidates/carry-retired-contract-v3.json";
+    await writeFile(
+      `${packRoot}/${versionThreeCandidateRef}`,
+      `${canonicalJson(versionThreeCandidate)}\n`,
+      { mode: 0o600 },
+    );
+    const versionThreeResult = await recordOperatorAuthority({
+      projectRoot: project,
+      packPath: "domain-eval",
+      candidatePath: versionThreeCandidateRef,
+      targetKind: "product_domain_contract",
+      actorId: "domain-owner-commerce",
+      occurredAt: "2026-08-19T04:19:00.000Z",
+      ledger: confirmationLedger,
+    });
+    assert.equal(versionThreeResult.status, "complete");
+    assert.ok(versionThreeResult.artifact);
+    assert.equal(
+      (versionThreeResult.artifact.value as { claims: Array<{ lifecycle: string }> }).claims[0]
+        ?.lifecycle,
+      "retired",
+    );
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("symlinked authority output parents fail before ledger mutation", async () => {
   const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(parent, { recursive: true, mode: 0o700 });

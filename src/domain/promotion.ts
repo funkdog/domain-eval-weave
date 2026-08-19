@@ -60,7 +60,20 @@ export function assertProductDomainContractSuccessor(input: {
   readonly successor: unknown;
 }): void {
   const predecessor = parseProductDomainContract(input.predecessor);
-  const successor = parseProductDomainContractCandidate(input.successor);
+  let successor: ProductDomainContractCandidate;
+  try {
+    successor = parseProductDomainContractCandidate(input.successor);
+  } catch {
+    const issued = parseProductDomainContract(input.successor);
+    const {
+      state: _state,
+      confirmation: _confirmation,
+      decided_by: _decidedBy,
+      decided_at: _decidedAt,
+      ...candidate
+    } = issued;
+    successor = parseProductDomainContractCandidate(candidate);
+  }
   if (
     successor.contract_id !== predecessor.contract_id ||
     successor.product_id !== predecessor.product_id ||

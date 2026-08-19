@@ -469,6 +469,10 @@ active@vN --retires-----> retired@vN+1
 retired --(no implicit transition)--> retired
 ```
 
+单对象 schema 必须允许 later-version `retired` Claim 不带 transition，以表达 terminal carry-forward；跨版本 shared successor
+validator 再唯一判定：`active→retired` 必须 `retires`，`retired→retired` 必须无 transition 且 semantics 不变，
+`retired→active` 永远拒绝。
+
 ### 4.7 RequirementChangeSet
 
 ```ts

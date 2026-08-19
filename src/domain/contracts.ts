@@ -457,19 +457,12 @@ function validateContractCandidate(
         message: "contract truth cannot rely only on domain knowledge",
       });
     }
-    if (claim.transition === undefined) {
-      if (contract.version > 1 && claim.lifecycle === "retired") {
-        context.addIssue({
-          code: "custom",
-          path: ["claims", index, "transition"],
-          message: "retired Claims require an explicit transition",
-        });
-      }
-    } else if (
-      contract.version === 1 ||
-      claim.transition.predecessor.claim_id !== claim.claim_id ||
-      claim.transition.predecessor.contract_version !== contract.version - 1 ||
-      (claim.transition.kind === "retires") !== (claim.lifecycle === "retired")
+    if (
+      claim.transition !== undefined &&
+      (contract.version === 1 ||
+        claim.transition.predecessor.claim_id !== claim.claim_id ||
+        claim.transition.predecessor.contract_version !== contract.version - 1 ||
+        (claim.transition.kind === "retires") !== (claim.lifecycle === "retired"))
     ) {
       context.addIssue({
         code: "custom",

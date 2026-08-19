@@ -151,6 +151,37 @@ test("draft Requirement ChangeSets cannot self-attach confirmation evidence", ()
   assert.throws(() => parseRequirementChangeSet(requirement));
 });
 
+test("retired Claim carry-forward is representable in candidate and issued schemas", async () => {
+  const predecessor = {
+    ref: "contracts/synthetic-commerce-contract/v2.json",
+    sha256: "a".repeat(64),
+  };
+  const candidate = {
+    ...validProductDomainContractCandidate,
+    version: 3,
+    predecessor,
+    claims: validProductDomainContractCandidate.claims.map((claim) => ({
+      ...claim,
+      lifecycle: "retired" as const,
+    })),
+  };
+  const issued = {
+    ...validProductDomainContract,
+    version: 3,
+    predecessor,
+    claims: validProductDomainContract.claims.map((claim) => ({
+      ...claim,
+      lifecycle: "retired" as const,
+    })),
+  };
+  const candidateValidator = await validator("product-domain-contract-candidate.schema.json");
+  const issuedValidator = await validator("product-domain-contract.schema.json");
+  assert.doesNotThrow(() => parseProductDomainContractCandidate(candidate));
+  assert.equal(candidateValidator(candidate), true, JSON.stringify(candidateValidator.errors));
+  assert.doesNotThrow(() => parseProductDomainContract(issued));
+  assert.equal(issuedValidator(issued), true, JSON.stringify(issuedValidator.errors));
+});
+
 test("interview completion and readiness overall remain semantically bound", () => {
   const interview = structuredClone(validInterviewSession) as Record<string, unknown>;
   delete interview.ended_at;
