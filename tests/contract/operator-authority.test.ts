@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
-import { canonicalJson, canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
+import {
+  canonicalJson,
+  canonicalJsonDigest,
+  sha256Hex,
+} from "../../src/contracts/canonical-json.js";
 import {
   ConfirmationLedgerError,
   OwnerConfirmationLedger,
@@ -13,6 +17,7 @@ import {
   recordOperatorAuthority,
 } from "../../src/domain/operator-authority.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { writeSyntheticDomainPack } from "../helpers/domain-pack-fixture.js";
 import {
   validContractConfirmation,
   validDecisionQuestion,
@@ -34,6 +39,19 @@ test("operator authority writes a protected receipt and the next immutable Card 
   const candidate = structuredClone(validEvidenceCard) as Record<string, unknown>;
   candidate.status = "proposed";
   delete candidate.confirmation;
+  const policyBytes = "Cash refunds never exceed captured cash payment.\n";
+  candidate.source_refs = [
+    {
+      source_id: "refund-policy-doc",
+      kind: "product_doc",
+      artifact_ref: "sources/refund-policy.md",
+      digest: sha256Hex(policyBytes),
+    },
+  ];
+  candidate.authority_ref_ids = ["refund-policy-doc"];
+  candidate.observation_ref_ids = [];
+  await mkdir(`${packRoot}/sources`, { recursive: true, mode: 0o700 });
+  await writeFile(`${packRoot}/sources/refund-policy.md`, policyBytes, { mode: 0o600 });
   await writeFile(`${packRoot}/${candidateRef}`, `${canonicalJson(candidate)}\n`, { mode: 0o600 });
 
   try {
@@ -167,6 +185,175 @@ test("authority preflight rejects unbacked Contract Claims and blocking Requirem
   }
 });
 
+test("authority preflight verifies Card sources before persisting confirmation", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const project = await mkdtemp(`${parent}/authority-card-source-project-`);
+  const ledgerRoot = await mkdtemp(`${parent}/authority-card-source-ledger-`);
+  const packRoot = `${project}/domain-eval`;
+  const candidateRef = "candidates/card-missing-source.json";
+  await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+  const { confirmation: _confirmation, ...cardBase } = validEvidenceCard;
+  const candidate = {
+    ...cardBase,
+    status: "proposed",
+    source_refs: [
+      {
+        ...validEvidenceCard.source_refs[0],
+        artifact_ref: "sources/does-not-exist.md",
+      },
+    ],
+    authority_ref_ids: [validEvidenceCard.source_refs[0].source_id],
+    observation_ref_ids: [],
+  } as const;
+  await writeFile(`${packRoot}/${candidateRef}`, `${canonicalJson(candidate)}\n`, { mode: 0o600 });
+  try {
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: candidateRef,
+        targetKind: "evidence_card",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:12:00.000Z",
+        ledger: new OwnerConfirmationLedger(ledgerRoot),
+      }),
+    );
+    assert.deepEqual(await readdir(ledgerRoot), []);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+    await rm(ledgerRoot, { recursive: true, force: true });
+  }
+});
+
+test("authority preflight rejects cross-product/risk Contract drift and forged question resolution", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const project = await mkdtemp(`${parent}/authority-identity-project-`);
+  try {
+    const { packRoot, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const contract = JSON.parse(
+      await readFile(`${packRoot}/contracts/synthetic-commerce-contract/v1.json`, "utf8"),
+    ) as Record<string, unknown>;
+    const {
+      state: _state,
+      confirmation: _confirmation,
+      decided_by: _by,
+      decided_at: _at,
+      ...draft
+    } = contract;
+    const claims = (draft.claims as Array<Record<string, unknown>>).map((claim) => ({
+      ...claim,
+      false_accept_risk: "low",
+      false_reject_risk: "low",
+    }));
+    const contractCandidate = {
+      ...draft,
+      contract_id: "cross-product-contract",
+      product_id: "other-product",
+      claims,
+    };
+    const contractCandidateRef = "candidates/cross-product-contract.json";
+    await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+    await writeFile(
+      `${packRoot}/${contractCandidateRef}`,
+      `${canonicalJson(contractCandidate)}\n`,
+      { mode: 0o600 },
+    );
+    const beforeContract = await readdir(`${project}/test-runtime/domain-confirmations`);
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: contractCandidateRef,
+        targetKind: "product_domain_contract",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:13:00.000Z",
+        ledger: confirmationLedger,
+      }),
+    );
+    assert.deepEqual(await readdir(`${project}/test-runtime/domain-confirmations`), beforeContract);
+
+    const forgedQuestion = {
+      ...validDecisionQuestion,
+      product_id: "other-product",
+      requirement_id: "other-requirement",
+      blocking: true,
+      status: "resolved",
+      resolution_confirmation: {
+        confirmation_id: "missing-question-confirmation",
+        sha256: "a".repeat(64),
+      },
+    } as const;
+    const questionRef = "decision-questions/forged/r1.json";
+    await mkdir(`${packRoot}/decision-questions/forged`, { recursive: true, mode: 0o700 });
+    await writeFile(`${packRoot}/${questionRef}`, `${canonicalJson(forgedQuestion)}\n`, {
+      mode: 0o600,
+    });
+    const requirement = JSON.parse(
+      await readFile(`${packRoot}/requirements/order-cancellation-v1/v1.json`, "utf8"),
+    ) as Record<string, unknown>;
+    delete requirement.confirmation;
+    requirement.requirement_id = "forged-question-requirement";
+    requirement.status = "draft";
+    requirement.decision_question_refs = [
+      { ref: questionRef, sha256: canonicalJsonDigest(forgedQuestion) },
+    ];
+    const requirementCandidateRef = "candidates/forged-question-requirement.json";
+    await writeFile(`${packRoot}/${requirementCandidateRef}`, `${canonicalJson(requirement)}\n`, {
+      mode: 0o600,
+    });
+    const beforeQuestion = await readdir(`${project}/test-runtime/domain-confirmations`);
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: requirementCandidateRef,
+        targetKind: "requirement_change_set",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:14:00.000Z",
+        ledger: confirmationLedger,
+      }),
+    );
+    assert.deepEqual(await readdir(`${project}/test-runtime/domain-confirmations`), beforeQuestion);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+test("symlinked authority output parents fail before ledger mutation", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const project = await mkdtemp(`${parent}/authority-symlink-project-`);
+  const outside = await mkdtemp(`${parent}/authority-symlink-outside-`);
+  const ledgerRoot = await mkdtemp(`${parent}/authority-symlink-ledger-`);
+  const packRoot = `${project}/domain-eval`;
+  const candidateRef = "candidates/card-symlink-output.json";
+  await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+  const { confirmation: _confirmation, ...cardBase } = validEvidenceCard;
+  const candidate = { ...cardBase, status: "proposed" } as const;
+  await writeFile(`${packRoot}/${candidateRef}`, `${canonicalJson(candidate)}\n`, { mode: 0o600 });
+  await symlink(outside, `${packRoot}/evidence-cards`);
+  try {
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: candidateRef,
+        targetKind: "evidence_card",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:15:00.000Z",
+        ledger: new OwnerConfirmationLedger(ledgerRoot),
+      }),
+    );
+    assert.deepEqual(await readdir(ledgerRoot), []);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+    await rm(ledgerRoot, { recursive: true, force: true });
+  }
+});
+
 test("post-ledger write failure returns typed incomplete and a later gesture can retry", async () => {
   const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(parent, { recursive: true, mode: 0o700 });
@@ -179,6 +366,19 @@ test("post-ledger write failure returns typed incomplete and a later gesture can
   const candidate = structuredClone(validEvidenceCard) as Record<string, unknown>;
   candidate.status = "proposed";
   delete candidate.confirmation;
+  const policyBytes = "Cash refunds never exceed captured cash payment.\n";
+  candidate.source_refs = [
+    {
+      source_id: "refund-policy-doc",
+      kind: "product_doc",
+      artifact_ref: "sources/refund-policy.md",
+      digest: sha256Hex(policyBytes),
+    },
+  ];
+  candidate.authority_ref_ids = ["refund-policy-doc"];
+  candidate.observation_ref_ids = [];
+  await mkdir(`${packRoot}/sources`, { recursive: true, mode: 0o700 });
+  await writeFile(`${packRoot}/sources/refund-policy.md`, policyBytes, { mode: 0o600 });
   await writeFile(`${packRoot}/${candidateRef}`, `${canonicalJson(candidate)}\n`, { mode: 0o600 });
 
   class SabotagingLedger extends OwnerConfirmationLedger {

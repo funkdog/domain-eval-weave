@@ -31,11 +31,16 @@ export function assertProfileRoles(
   const byId = new Map(rows.map((row) => [row.id, row]));
   const appDisabled = byId.get("dsh-eval-app")?.disabled;
   const bridgeDisabled = byId.get("dsh-eval-bridge")?.disabled;
+  const authorBridgeDisabled = byId.get("dsh-eval-author-bridge")?.disabled;
   const expected =
     role === "management"
       ? { appDisabled: false, bridgeDisabled: true }
       : { appDisabled: true, bridgeDisabled: false };
-  if (appDisabled !== expected.appDisabled || bridgeDisabled !== expected.bridgeDisabled) {
+  if (
+    appDisabled !== expected.appDisabled ||
+    bridgeDisabled !== expected.bridgeDisabled ||
+    authorBridgeDisabled !== true
+  ) {
     throw new ProfileContractError(
       "PROFILE_ROLE_INVALID",
       `${role} profile has an invalid app/bridge role composition`,
@@ -48,6 +53,7 @@ export function assertAuthorProfileRoles(rows: readonly ComposedRoleRow[]): void
   const required = new Map<string, boolean>([
     ["dsh-eval-app", true],
     ["dsh-eval-bridge", true],
+    ["dsh-eval-author-bridge", false],
     ["dsh-eval-domain-skill", false],
     ["tool-bash", true],
     ["tool-pwsh", true],
@@ -137,6 +143,8 @@ export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, str
         "  disabled: true",
         "- id: dsh-eval-bridge",
         "  disabled: false",
+        "- id: dsh-eval-author-bridge",
+        "  disabled: true",
         "",
       ].join("\n"),
     ],
@@ -189,6 +197,8 @@ export function authorProfileFiles(packageSpec: string): ReadonlyMap<string, str
         "  disabled: true",
         "- id: dsh-eval-bridge",
         "  disabled: true",
+        "- id: dsh-eval-author-bridge",
+        "  disabled: false",
         "- id: dsh-eval-domain-skill",
         "  disabled: false",
         "- id: session-persistence-jsonl",

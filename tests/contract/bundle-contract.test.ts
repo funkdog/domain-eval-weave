@@ -22,6 +22,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   assert.equal("bin" in manifest, false);
   assert.deepEqual(manifest.exports, {
     "./app": "./dist/app/index.js",
+    "./author-bridge": "./dist/author-bridge/index.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
   });
@@ -56,6 +57,11 @@ test("bundle defaults to management app only and keeps Candidate/authoring surfa
         { id: "dsh-eval-app", name: "dsh-eval-lab/app", disabled: false },
         { id: "dsh-eval-bridge", name: "dsh-eval-lab/bridge", disabled: true },
         {
+          id: "dsh-eval-author-bridge",
+          name: "dsh-eval-lab/author-bridge",
+          disabled: true,
+        },
+        {
           id: "dsh-eval-domain-skill",
           name: "dsh-eval-lab/domain-skill",
           disabled: true,
@@ -66,12 +72,14 @@ test("bundle defaults to management app only and keeps Candidate/authoring surfa
 });
 
 test("all DSH entrypoints default-export side-effect-free plugin functions", async () => {
-  const [app, bridge, domainSkill] = await Promise.all([
+  const [app, authorBridge, bridge, domainSkill] = await Promise.all([
     import("../../src/app/index.js"),
+    import("../../src/author-bridge/index.js"),
     import("../../src/bridge/index.js"),
     import("../../src/domain/skill-provider.js"),
   ]);
   assert.equal(typeof app.default, "function");
+  assert.equal(typeof authorBridge.default, "function");
   assert.equal(typeof bridge.default, "function");
   assert.equal(typeof domainSkill.default, "function");
   assert.deepEqual(
@@ -112,13 +120,15 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       cwd: packageRoot,
     });
 
-    const [app, bridge, domainSkill, skillBody] = await Promise.all([
+    const [app, authorBridge, bridge, domainSkill, skillBody] = await Promise.all([
       import(pathToFileURL(join(packageRoot, "dist/app/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/author-bridge/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/bridge/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/domain/skill-provider.js")).href),
       readFile(join(packageRoot, "skills/design-domain-grader/SKILL.md"), "utf8"),
     ]);
     assert.equal(typeof app.default, "function");
+    assert.equal(typeof authorBridge.default, "function");
     assert.equal(typeof bridge.default, "function");
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);

@@ -196,6 +196,17 @@ test("representable authority-state invariants have JSON Schema and parser parit
       parseProductDomainContract,
     ],
     [
+      "product-domain-contract-candidate.schema.json",
+      {
+        ...validProductDomainContractCandidate,
+        predecessor: {
+          ref: "contracts/synthetic-commerce-contract/v0.json",
+          sha256: "a".repeat(64),
+        },
+      },
+      parseProductDomainContractCandidate,
+    ],
+    [
       "requirement-change-set.schema.json",
       (() => {
         const value = structuredClone(validRequirementChangeSet) as Record<string, unknown>;

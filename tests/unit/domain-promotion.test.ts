@@ -4,6 +4,7 @@ import test from "node:test";
 import { canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
 import { confirmationProjectionDigest } from "../../src/domain/confirmation.js";
 import {
+  assertProductDomainContractSuccessor,
   draftProductDomainContract,
   issueProductDomainContract,
 } from "../../src/domain/promotion.js";
@@ -124,6 +125,14 @@ test("successor draft preserves unmentioned Claims and binds the exact predecess
   });
   const successor = issueDraft(draft, "v2");
 
+  assert.doesNotThrow(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef: "history/product-domain-contract-v1.json",
+      predecessor: validProductDomainContract,
+      successor: draft,
+    }),
+  );
+
   assert.equal(successor.version, 2);
   assert.deepEqual(successor.predecessor, {
     ref: "history/product-domain-contract-v1.json",
@@ -132,6 +141,51 @@ test("successor draft preserves unmentioned Claims and binds the exact predecess
   assert.deepEqual(
     successor.claims.map((claim) => claim.claim_id),
     ["cancel-idempotency", "refund-cash-limit"],
+  );
+});
+
+test("successor validation rejects silent Claim mutation and skipped transition history", () => {
+  const predecessorRef = "history/product-domain-contract-v1.json";
+  const successor = {
+    schema_version: 1,
+    contract_id: validProductDomainContract.contract_id,
+    product_id: validProductDomainContract.product_id,
+    version: 2,
+    predecessor: {
+      ref: predecessorRef,
+      sha256: canonicalJsonDigest(validProductDomainContract),
+    },
+    source_snapshot_digest: validProductDomainContract.source_snapshot_digest,
+    claims: validProductDomainContract.claims.map((claim) => ({
+      ...claim,
+      statement: `${claim.statement} Mutated without transition.`,
+    })),
+  } as const;
+  assert.throws(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef,
+      predecessor: validProductDomainContract,
+      successor,
+    }),
+  );
+
+  const skipped = {
+    ...successor,
+    version: 3,
+    claims: successor.claims.map((claim) => ({
+      ...claim,
+      transition: {
+        kind: "supersedes" as const,
+        predecessor: { claim_id: claim.claim_id, contract_version: 1 },
+      },
+    })),
+  };
+  assert.throws(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef,
+      predecessor: validProductDomainContract,
+      successor: skipped,
+    }),
   );
 });
 

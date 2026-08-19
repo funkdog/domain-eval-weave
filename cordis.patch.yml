@@ -5,6 +5,9 @@
     - id: dsh-eval-bridge
       name: dsh-eval-lab/bridge
       disabled: true
+    - id: dsh-eval-author-bridge
+      name: dsh-eval-lab/author-bridge
+      disabled: true
     - id: dsh-eval-domain-skill
       name: dsh-eval-lab/domain-skill
       disabled: true

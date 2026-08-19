@@ -195,6 +195,8 @@ Evaluation plane（Phase 3B+）
 都不得进入被测 Candidate 的 prompt、workspace、tool surface 或 Session lineage。
 
 Phase 3A 在独立 authoring profile 中运行；既有 `eval-clowder-runner` 继续保持 skill/tool 禁用边界。
+Author profile 的通用文件工具必须经过 project-root read / `domain-eval/` write containment guard；仅依赖 DSH mutation sandbox
+不足以隔离读取，因为上游 filesystem sandbox 不限制 absolute-path view。
 
 ## 7. Phase 3B — Deterministic Grader Compiler & Admission
 

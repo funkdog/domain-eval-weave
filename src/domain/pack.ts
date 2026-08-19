@@ -28,6 +28,7 @@ import {
   type RequirementChangeSet,
 } from "./contracts.js";
 import { buildClaimDependencyGraph } from "./graph.js";
+import { assertProductDomainContractSuccessor } from "./promotion.js";
 import { buildDomainTruthReadiness } from "./readiness.js";
 
 export class DomainPackError extends Error {
@@ -177,7 +178,10 @@ function jsonPointerValue(document: unknown, pointer: string): unknown {
   return current;
 }
 
-async function verifySourceRef(packRoot: string, source: DomainSourceRef): Promise<void> {
+export async function verifyDomainSourceRef(
+  packRoot: string,
+  source: DomainSourceRef,
+): Promise<void> {
   const path = await resolvePhysicalFile(packRoot, source.artifact_ref);
   const bytes = await readFile(path);
   let actual: string;
@@ -440,7 +444,9 @@ async function validateDomainPackInner(
   const uniqueSources = new Map(
     allSources.map((source) => [`${source.source_id}\0${canonicalJson(source)}`, source]),
   );
-  await Promise.all([...uniqueSources.values()].map((source) => verifySourceRef(packRoot, source)));
+  await Promise.all(
+    [...uniqueSources.values()].map((source) => verifyDomainSourceRef(packRoot, source)),
+  );
 
   const confirmationsByRef = new Map(
     confirmations.map((artifact) => [artifact.value.confirmation_id, artifact.value]),
@@ -478,10 +484,13 @@ async function validateDomainPackInner(
       card === undefined ||
       card.status !== "confirmed" ||
       canonicalJsonDigest(card) !== claim.evidence_card.sha256 ||
+      card.product_id !== contract.product_id ||
       card.claim_id !== claim.claim_id ||
       card.domain_id !== claim.domain_id ||
       card.statement !== claim.statement ||
-      card.applicability !== claim.applicability
+      card.applicability !== claim.applicability ||
+      card.false_accept_risk !== claim.false_accept_risk ||
+      card.false_reject_risk !== claim.false_reject_risk
     ) {
       throw new DomainPackError(
         "DOMAIN_CONTRACT_PROMOTION_INVALID",
@@ -489,38 +498,21 @@ async function validateDomainPackInner(
       );
     }
   }
-  const contractsByVersion = new Map(
-    contractHistory.map((artifact) => [artifact.value.version, artifact.value]),
-  );
   for (let index = 0; index < contractHistory.length - 1; index += 1) {
     const current = contractHistory[index]?.value;
-    const predecessor = contractHistory[index + 1]?.value;
+    const predecessor = contractHistory[index + 1];
     if (current === undefined || predecessor === undefined) continue;
-    const currentClaims = new Map(current.claims.map((claim) => [claim.claim_id, claim]));
-    for (const historicalClaim of predecessor.claims) {
-      if (!currentClaims.has(historicalClaim.claim_id)) {
-        throw new DomainPackError(
-          "DOMAIN_CONTRACT_HISTORY_INVALID",
-          `successor Contract silently deletes Claim ${historicalClaim.claim_id}`,
-        );
-      }
-    }
-  }
-  for (const artifact of contractHistory) {
-    for (const claim of artifact.value.claims) {
-      if (claim.transition === undefined) continue;
-      const historicalContract = contractsByVersion.get(
-        claim.transition.predecessor.contract_version,
+    try {
+      assertProductDomainContractSuccessor({
+        predecessorRef: predecessor.ref,
+        predecessor: predecessor.value,
+        successor: current,
+      });
+    } catch {
+      throw new DomainPackError(
+        "DOMAIN_CONTRACT_HISTORY_INVALID",
+        `Contract successor history is invalid: ${contractHistory[index]?.ref}`,
       );
-      const historicalClaim = historicalContract?.claims.find(
-        (candidate) => candidate.claim_id === claim.transition?.predecessor.claim_id,
-      );
-      if (historicalClaim === undefined) {
-        throw new DomainPackError(
-          "DOMAIN_CONTRACT_HISTORY_INVALID",
-          `Claim transition invents missing history: ${claim.claim_id}`,
-        );
-      }
     }
   }
   if (contract.state !== "issued") {
@@ -579,6 +571,23 @@ async function validateDomainPackInner(
   const questionByRef = new Map(
     decisionQuestions.map((artifact) => [artifact.ref, artifact.value]),
   );
+  for (const artifact of requirements) {
+    for (const pointer of artifact.value.decision_question_refs) {
+      const question = questionByRef.get(pointer.ref);
+      if (
+        question === undefined ||
+        canonicalJsonDigest(question) !== pointer.sha256 ||
+        question.product_id !== artifact.value.product_id ||
+        (question.requirement_id !== undefined &&
+          question.requirement_id !== artifact.value.requirement_id)
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_DECISION_INVALID",
+          "Requirement decision-question pointer or ownership drifted",
+        );
+      }
+    }
+  }
   for (const interview of interviews) {
     for (const pointer of interview.value.evidence_card_refs) {
       const card = cardsByRef.get(pointer.ref);

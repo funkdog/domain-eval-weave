@@ -81,6 +81,9 @@ src/domain/
 ├── pack.ts
 ├── readiness.ts
 └── skill-provider.ts
+
+src/author-bridge/
+└── index.ts
 ```
 
 Skill 目录是发布物的一部分。不得把领域政策塞进 `SKILL.md`；差异化知识由显式 Domain Knowledge Pack 或用户证据提供。
@@ -99,7 +102,8 @@ Author profile 使用 DSH headless/standard Agent surface，启用：
 
 - package 内 embedded `design-domain-grader` Skill；
 - normal skill catalog/loader；
--受 DSH workspace policy 约束的文件读取与编辑；
+- `dsh-eval-author-bridge` 在所有 model-facing tool body 前执行 realpath containment：只允许读取当前选定 project workspace，
+  只允许在其 `domain-eval/` 内写入；通用 editor 的 absolute-path read 不得绕过该 guard；
 - 与现有 transport 相同的 pinned provider/model/effort。
 
 它固定禁用：

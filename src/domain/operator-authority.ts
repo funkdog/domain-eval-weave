@@ -22,7 +22,12 @@ import {
   parseRequirementChangeSet,
 } from "./contracts.js";
 import { buildClaimDependencyGraph } from "./graph.js";
-import { issueProductDomainContract, type ProductDomainContractDraft } from "./promotion.js";
+import { verifyDomainSourceRef } from "./pack.js";
+import {
+  assertProductDomainContractSuccessor,
+  issueProductDomainContract,
+  type ProductDomainContractDraft,
+} from "./promotion.js";
 
 export class OperatorAuthorityError extends Error {
   readonly code: string;
@@ -147,6 +152,17 @@ async function preflightImmutable(
 ): Promise<void> {
   const path = resolve(root, packageRelativeRefSchema.parse(artifact.ref));
   if (!contained(root, path)) throw new Error("authority output escapes pack root");
+  let parent = root;
+  for (const segment of relative(root, dirname(path)).split("/")) {
+    if (segment === "") continue;
+    parent = resolve(parent, segment);
+    try {
+      await physicalDirectory(parent);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") break;
+      throw error;
+    }
+  }
   try {
     const entry = await lstat(path);
     if (entry.isSymbolicLink() || !entry.isFile()) {
@@ -188,20 +204,46 @@ async function preflightAuthorityClosure(input: {
   readonly artifact: { readonly ref: string; readonly value: unknown };
   readonly ledger: OwnerConfirmationLedger;
 }): Promise<void> {
+  if (input.targetKind === "evidence_card") {
+    const card = parseDomainEvidenceCard(input.candidate);
+    await Promise.all(card.source_refs.map((source) => verifyDomainSourceRef(input.root, source)));
+    return;
+  }
+
   if (input.targetKind === "product_domain_contract") {
     const draft = parseProductDomainContractCandidate(input.candidate);
+    if (draft.predecessor !== undefined) {
+      const predecessor = await readBoundArtifact(
+        input.root,
+        draft.predecessor,
+        parseProductDomainContract,
+      );
+      const predecessorEvent = await input.ledger.read(predecessor.confirmation);
+      assertOwnerConfirmation(predecessorEvent, "product_domain_contract", predecessor, "confirm");
+      assertProductDomainContractSuccessor({
+        predecessorRef: draft.predecessor.ref,
+        predecessor,
+        successor: draft,
+      });
+    }
     for (const claim of draft.claims) {
       const card = await readBoundArtifact(
         input.root,
         claim.evidence_card,
         parseDomainEvidenceCard,
       );
+      await Promise.all(
+        card.source_refs.map((source) => verifyDomainSourceRef(input.root, source)),
+      );
       if (
         card.status !== "confirmed" ||
+        card.product_id !== draft.product_id ||
         card.claim_id !== claim.claim_id ||
         card.domain_id !== claim.domain_id ||
         card.statement !== claim.statement ||
         card.applicability !== claim.applicability ||
+        card.false_accept_risk !== claim.false_accept_risk ||
+        card.false_reject_risk !== claim.false_reject_risk ||
         canonicalJson(selectedSources(card, card.authority_ref_ids)) !==
           canonicalJson(claim.authority_refs) ||
         canonicalJson(selectedSources(card, card.observation_ref_ids)) !==
@@ -227,6 +269,17 @@ async function preflightAuthorityClosure(input: {
     assertOwnerConfirmation(contractEvent, "product_domain_contract", contract, "confirm");
     for (const pointer of requirement.decision_question_refs) {
       const question = await readBoundArtifact(input.root, pointer, parseDomainDecisionQuestion);
+      if (
+        question.product_id !== requirement.product_id ||
+        (question.requirement_id !== undefined &&
+          question.requirement_id !== requirement.requirement_id)
+      ) {
+        throw new Error(`Requirement DecisionQuestion ownership drifted: ${question.question_id}`);
+      }
+      if (question.status === "resolved") {
+        const questionEvent = await input.ledger.read(question.resolution_confirmation);
+        assertOwnerConfirmation(questionEvent, "decision_question", question, "confirm");
+      }
       if (question.status === "open" && question.blocking) {
         throw new Error(`Requirement has open blocking DecisionQuestion ${question.question_id}`);
       }

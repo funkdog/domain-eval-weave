@@ -1,4 +1,4 @@
-import { canonicalJsonDigest } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { assertOwnerConfirmation } from "./confirmation.js";
 import {
   type DomainEvidenceCard,
@@ -40,6 +40,60 @@ export interface PromoteEvidenceCardsInput extends DraftProductDomainContractInp
 }
 
 export type ProductDomainContractDraft = ProductDomainContractCandidate;
+
+function claimSemantics(claim: ProductDomainContract["claims"][number]) {
+  return {
+    domain_id: claim.domain_id,
+    statement: claim.statement,
+    applicability: claim.applicability,
+    false_accept_risk: claim.false_accept_risk,
+    false_reject_risk: claim.false_reject_risk,
+    lifecycle: claim.lifecycle,
+    dependency_claim_ids: claim.dependencies.map((dependency) => dependency.claim_id).sort(),
+  };
+}
+
+export function assertProductDomainContractSuccessor(input: {
+  readonly predecessorRef: string;
+  readonly predecessor: unknown;
+  readonly successor: unknown;
+}): void {
+  const predecessor = parseProductDomainContract(input.predecessor);
+  const successor = parseProductDomainContractCandidate(input.successor);
+  if (
+    successor.contract_id !== predecessor.contract_id ||
+    successor.product_id !== predecessor.product_id ||
+    successor.version !== predecessor.version + 1 ||
+    successor.predecessor?.ref !== input.predecessorRef ||
+    successor.predecessor.sha256 !== canonicalJsonDigest(predecessor)
+  ) {
+    throw new Error("successor Contract does not bind its exact previous version");
+  }
+  const previousClaims = new Map(predecessor.claims.map((claim) => [claim.claim_id, claim]));
+  const successorClaims = new Map(successor.claims.map((claim) => [claim.claim_id, claim]));
+  for (const previous of predecessor.claims) {
+    const current = successorClaims.get(previous.claim_id);
+    if (current === undefined) {
+      throw new Error(`successor Contract silently deletes Claim ${previous.claim_id}`);
+    }
+    const changed =
+      canonicalJson(claimSemantics(current)) !== canonicalJson(claimSemantics(previous));
+    if (changed && current.transition === undefined) {
+      throw new Error(`successor Contract silently mutates Claim ${previous.claim_id}`);
+    }
+  }
+  for (const current of successor.claims) {
+    if (current.transition === undefined) continue;
+    const previous = previousClaims.get(current.transition.predecessor.claim_id);
+    if (
+      previous === undefined ||
+      current.transition.predecessor.claim_id !== current.claim_id ||
+      current.transition.predecessor.contract_version !== predecessor.version
+    ) {
+      throw new Error(`Claim transition invents or skips history: ${current.claim_id}`);
+    }
+  }
+}
 
 function selectedSources(card: DomainEvidenceCard, ids: readonly string[]) {
   const byId = new Map(card.source_refs.map((source) => [source.source_id, source]));

@@ -71,6 +71,28 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["version"],
+        "properties": { "version": { "const": 1 } }
+      },
+      "then": {
+        "type": "object",
+        "not": {
+          "type": "object",
+          "required": ["predecessor"],
+          "properties": { "predecessor": true }
+        }
+      },
+      "else": {
+        "type": "object",
+        "required": ["predecessor"],
+        "properties": { "predecessor": true }
+      }
+    }
+  ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },

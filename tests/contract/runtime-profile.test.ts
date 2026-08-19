@@ -34,6 +34,7 @@ test("runner profile files freeze the exact package and opposite app/bridge role
     [
       { id: "dsh-eval-app", disabled: true },
       { id: "dsh-eval-bridge", disabled: false },
+      { id: "dsh-eval-author-bridge", disabled: true },
     ],
     "runner",
   );
@@ -43,6 +44,7 @@ test("runner profile files freeze the exact package and opposite app/bridge role
         [
           { id: "dsh-eval-app", disabled: false },
           { id: "dsh-eval-bridge", disabled: false },
+          { id: "dsh-eval-author-bridge", disabled: true },
         ],
         "runner",
       ),
@@ -69,6 +71,7 @@ test("author profile enables only the domain Skill authoring surface", () => {
   const authorRows = [
     { id: "dsh-eval-app", disabled: true },
     { id: "dsh-eval-bridge", disabled: true },
+    { id: "dsh-eval-author-bridge", disabled: false },
     { id: "dsh-eval-domain-skill", disabled: false },
     {
       id: "session-persistence-jsonl",

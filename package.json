@@ -10,6 +10,7 @@
   "packageManager": "pnpm@11.7.0",
   "exports": {
     "./app": "./dist/app/index.js",
+    "./author-bridge": "./dist/author-bridge/index.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js"
   },

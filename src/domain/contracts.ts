@@ -467,7 +467,7 @@ function validateContractCandidate(
     } else if (
       contract.version === 1 ||
       claim.transition.predecessor.claim_id !== claim.claim_id ||
-      claim.transition.predecessor.contract_version >= contract.version ||
+      claim.transition.predecessor.contract_version !== contract.version - 1 ||
       (claim.transition.kind === "retires") !== (claim.lifecycle === "retired")
     ) {
       context.addIssue({
