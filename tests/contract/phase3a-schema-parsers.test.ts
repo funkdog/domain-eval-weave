@@ -102,6 +102,13 @@ test("SourceRef locator and confirm-only authority invariants have schema parity
   event.decision = "reject";
   assert.throws(() => parseOwnerConfirmationEvent(event));
   assert.equal(eventValidator(event), false, JSON.stringify(eventValidator.errors));
+
+  const offsetEvent = {
+    ...validOwnerConfirmation,
+    occurred_at: "2026-08-19T08:00:00.000+08:00",
+  };
+  assert.throws(() => parseOwnerConfirmationEvent(offsetEvent));
+  assert.equal(eventValidator(offsetEvent), false, JSON.stringify(eventValidator.errors));
 });
 
 test("confirmed Evidence Cards require owner confirmation and non-knowledge authority", () => {

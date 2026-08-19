@@ -25,7 +25,11 @@
     "state": { "const": "issued" },
     "confirmation": { "$ref": "#/$defs/confirmationPointer" },
     "decided_by": { "$ref": "#/$defs/id" },
-    "decided_at": { "type": "string", "format": "date-time" },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
     "source_snapshot_digest": { "$ref": "#/$defs/sha256" },
     "claims": {
       "type": "array",

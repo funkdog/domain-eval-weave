@@ -162,7 +162,8 @@ Skill 不得自行签发 Contract；它只生成 candidate artifacts，Domain Ow
 ## 4. JSON contract
 
 所有 schema 使用 `schema_version: 1`、strict object、canonical JSON 与 SHA-256。拒绝未知字段、重复 id、绝对路径、
-反斜杠、`..`、空 segment、非有限数字和不认识的 enum。时间必须是规范 UTC ISO-8601。
+反斜杠、`..`、空 segment、非有限数字和不认识的 enum。时间必须是唯一字节表示的 UTC
+`YYYY-MM-DDTHH:mm:ss.SSSZ`；offset 与省略毫秒的等价写法都拒绝。
 
 ### 4.0 Shared nested types and domain pointer protocol
 

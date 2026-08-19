@@ -141,6 +141,47 @@ test("domain pack replays contiguous predecessor revisions instead of trusting o
   }
 });
 
+test("domain pack replays outbound pointers from historical Interview revisions", async () => {
+  const project = await scratchProject("domain-pack-historical-outbound");
+  try {
+    const { packRoot, manifestRef, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const manifestPath = `${packRoot}/${manifestRef}`;
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      interviews: Array<{ ref: string; sha256: string }>;
+    };
+    const revisionOnePointer = manifest.interviews[0];
+    assert.ok(revisionOnePointer);
+    const revisionOnePath = `${packRoot}/${revisionOnePointer.ref}`;
+    const original = JSON.parse(await readFile(revisionOnePath, "utf8")) as Record<string, unknown>;
+    const historical = {
+      ...original,
+      evidence_card_refs: [{ ref: "evidence-cards/missing/r1.json", sha256: "a".repeat(64) }],
+    };
+    await writeFile(revisionOnePath, `${canonicalJson(historical)}\n`, { mode: 0o600 });
+    const revisionTwo = {
+      ...original,
+      revision: 2,
+      predecessor: {
+        ref: revisionOnePointer.ref,
+        sha256: canonicalJsonDigest(historical),
+      },
+    };
+    const revisionTwoRef = "interviews/commerce-onboard-v1/r2.json";
+    await writeFile(`${packRoot}/${revisionTwoRef}`, `${canonicalJson(revisionTwo)}\n`, {
+      mode: 0o600,
+    });
+    manifest.interviews = [{ ref: revisionTwoRef, sha256: canonicalJsonDigest(revisionTwo) }];
+    await writeFile(manifestPath, `${canonicalJson(manifest)}\n`, { mode: 0o600 });
+
+    await assert.rejects(
+      validateDomainPack(project, "domain-eval", manifestRef, { confirmationLedger }),
+      DomainPackError,
+    );
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("domain pack path rejects traversal, absolute paths, and symlink roots", async () => {
   const project = await scratchProject("domain-pack-path");
   const outside = await scratchProject("domain-pack-outside");

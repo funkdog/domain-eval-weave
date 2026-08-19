@@ -60,7 +60,11 @@
     },
     "overall": { "enum": ["green", "yellow", "red"] },
     "claim_strength": { "const": "domain_truth_ready" },
-    "generated_at": { "type": "string", "format": "date-time" }
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    }
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },

@@ -10,7 +10,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const idSchema = z.string().regex(ID_PATTERN);
 const nodeIdSchema = z.string().regex(NODE_ID_PATTERN);
 const sha256Schema = z.string().regex(SHA256_PATTERN);
-const dateTimeSchema = z.iso.datetime({ offset: true });
+const dateTimeSchema = z.iso.datetime({ offset: false, precision: 3 });
 const riskSchema = z.enum(["low", "medium", "high", "critical"]);
 
 const unique = <T extends z.ZodType>(item: T, minimum = 0) =>

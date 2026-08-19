@@ -478,24 +478,27 @@ async function validateDomainPackInner(
   }
 
   const cardsByRef = new Map(evidenceCards.map((artifact) => [artifact.ref, artifact.value]));
-  for (const claim of contract.claims) {
-    const card = cardsByRef.get(claim.evidence_card.ref);
-    if (
-      card === undefined ||
-      card.status !== "confirmed" ||
-      canonicalJsonDigest(card) !== claim.evidence_card.sha256 ||
-      card.product_id !== contract.product_id ||
-      card.claim_id !== claim.claim_id ||
-      card.domain_id !== claim.domain_id ||
-      card.statement !== claim.statement ||
-      card.applicability !== claim.applicability ||
-      card.false_accept_risk !== claim.false_accept_risk ||
-      card.false_reject_risk !== claim.false_reject_risk
-    ) {
-      throw new DomainPackError(
-        "DOMAIN_CONTRACT_PROMOTION_INVALID",
-        `Contract Claim is not backed by its confirmed Evidence Card: ${claim.claim_id}`,
-      );
+  for (const contractArtifact of contractHistory) {
+    for (const claim of contractArtifact.value.claims) {
+      const cardArtifact = await readPointer(claim.evidence_card, parseDomainEvidenceCard);
+      const card = cardArtifact.value;
+      if (
+        cardArtifact.ref !== `evidence-cards/${card.card_id}/r${card.revision}.json` ||
+        card.status !== "confirmed" ||
+        card.product_id !== contractArtifact.value.product_id ||
+        card.claim_id !== claim.claim_id ||
+        card.domain_id !== claim.domain_id ||
+        card.statement !== claim.statement ||
+        card.applicability !== claim.applicability ||
+        card.false_accept_risk !== claim.false_accept_risk ||
+        card.false_reject_risk !== claim.false_reject_risk
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_CONTRACT_PROMOTION_INVALID",
+          `Contract Claim is not backed by its confirmed Evidence Card: ${claim.claim_id}`,
+        );
+      }
+      assertOwnerConfirmation(confirmationFor(card.confirmation), "evidence_card", card, "confirm");
     }
   }
   for (let index = 0; index < contractHistory.length - 1; index += 1) {
@@ -571,6 +574,76 @@ async function validateDomainPackInner(
   const questionByRef = new Map(
     decisionQuestions.map((artifact) => [artifact.ref, artifact.value]),
   );
+  for (const history of interviewHistories) {
+    for (const artifact of history) {
+      for (const pointer of artifact.value.evidence_card_refs) {
+        const card = (await readPointer(pointer, parseDomainEvidenceCard)).value;
+        if (card.product_id !== artifact.value.product_id) {
+          throw new DomainPackError(
+            "DOMAIN_EVIDENCE_INVALID",
+            "historical Interview evidence-card ownership drifted",
+          );
+        }
+      }
+      for (const pointer of artifact.value.decision_question_refs) {
+        const question = (await readPointer(pointer, parseDomainDecisionQuestion)).value;
+        if (question.product_id !== artifact.value.product_id) {
+          throw new DomainPackError(
+            "DOMAIN_DECISION_INVALID",
+            "historical Interview decision-question ownership drifted",
+          );
+        }
+        if (question.status === "resolved") {
+          assertOwnerConfirmation(
+            confirmationFor(question.resolution_confirmation),
+            "decision_question",
+            question,
+            "confirm",
+          );
+        }
+      }
+    }
+  }
+  for (const history of requirementHistories) {
+    for (const artifact of history) {
+      const baseContract = (
+        await readPointer(artifact.value.base_contract, parseProductDomainContract)
+      ).value;
+      if (baseContract.product_id !== artifact.value.product_id) {
+        throw new DomainPackError(
+          "DOMAIN_REQUIREMENT_INVALID",
+          "historical Requirement base Contract ownership drifted",
+        );
+      }
+      assertOwnerConfirmation(
+        confirmationFor(baseContract.confirmation),
+        "product_domain_contract",
+        baseContract,
+        "confirm",
+      );
+      for (const pointer of artifact.value.decision_question_refs) {
+        const question = (await readPointer(pointer, parseDomainDecisionQuestion)).value;
+        if (
+          question.product_id !== artifact.value.product_id ||
+          (question.requirement_id !== undefined &&
+            question.requirement_id !== artifact.value.requirement_id)
+        ) {
+          throw new DomainPackError(
+            "DOMAIN_DECISION_INVALID",
+            "historical Requirement decision-question ownership drifted",
+          );
+        }
+        if (question.status === "resolved") {
+          assertOwnerConfirmation(
+            confirmationFor(question.resolution_confirmation),
+            "decision_question",
+            question,
+            "confirm",
+          );
+        }
+      }
+    }
+  }
   for (const artifact of requirements) {
     for (const pointer of artifact.value.decision_question_refs) {
       const question = questionByRef.get(pointer.ref);
