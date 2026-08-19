@@ -1,14 +1,32 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { sha256Hex } from "../contracts/canonical-json.js";
+import { fingerprintPackageContent } from "../fingerprint/deployment.js";
 import { PHASE3A_AUTHOR } from "../instance.js";
 
 export const PINNED_DSH_VERSION = "0.1.0-rc.6";
 export const PINNED_CODEX_CONNECT_VERSION = "0.1.0-alpha.4.7";
 export const LEGACY_PHASE2_EVAL_VERSION = "0.2.0-rc.4";
+export const LEGACY_PHASE2_EVAL_TARBALL_SHA256 =
+  "a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5";
+export const LEGACY_PHASE2_EVAL_CONTENT_SHA256 =
+  "adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65";
+export const LEGACY_PHASE2_EVAL_TARBALL_SIZE = 161_769;
 
 export class ProfileContractError extends Error {
   readonly code: string;
@@ -485,12 +503,32 @@ export interface Phase3ProfileInstallInput {
   readonly packageVersion: string;
   readonly install: (profileRoot: string) => Promise<void>;
   readonly verifyPackageContent: (installedPackageRoot: string) => Promise<void>;
+  readonly legacyPackageEvidence?: LegacyPhase2PackageEvidence;
 }
+
+export interface LegacyPhase2PackageEvidence {
+  readonly tarballSha256: string;
+  readonly tarballSize: number;
+  readonly contentSha256: string;
+}
+
+const ACCEPTED_LEGACY_PHASE2_PACKAGE: LegacyPhase2PackageEvidence = {
+  tarballSha256: LEGACY_PHASE2_EVAL_TARBALL_SHA256,
+  tarballSize: LEGACY_PHASE2_EVAL_TARBALL_SIZE,
+  contentSha256: LEGACY_PHASE2_EVAL_CONTENT_SHA256,
+};
 
 interface PreparedProfileTarget extends Phase3ProfileTarget {
   readonly stage: string;
   readonly existed: boolean;
+  readonly liveSnapshot: string;
   backup?: string;
+}
+
+interface ProfilePreflight extends Phase3ProfileTarget {
+  readonly state: "current" | "replace";
+  readonly existed: boolean;
+  readonly liveSnapshot: string;
 }
 
 async function lstatOrUndefined(
@@ -649,11 +687,143 @@ async function profileInstallState(
   return "ready";
 }
 
+async function verifyLegacyPhase2Package(
+  installedPackageRoot: string,
+  packageSpec: string,
+  evidence: LegacyPhase2PackageEvidence,
+): Promise<void> {
+  let tarballPath: string;
+  try {
+    const url = new URL(packageSpec);
+    if (
+      url.protocol !== "file:" ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.search !== "" ||
+      url.hash !== ""
+    ) {
+      throw new Error("legacy package spec must be a local file URL");
+    }
+    tarballPath = fileURLToPath(url);
+  } catch {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_MISMATCH",
+      "legacy Phase 2 package spec is not the accepted local tarball",
+    );
+  }
+  const tarballEntry = await lstatOrUndefined(tarballPath);
+  if (
+    tarballEntry === undefined ||
+    tarballEntry.isSymbolicLink() ||
+    !tarballEntry.isFile() ||
+    tarballEntry.size !== evidence.tarballSize ||
+    (await realpath(tarballPath)) !== resolve(tarballPath) ||
+    sha256Hex(await readFile(tarballPath)) !== evidence.tarballSha256 ||
+    (await fingerprintPackageContent(installedPackageRoot)) !== evidence.contentSha256
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_MISMATCH",
+      "legacy Phase 2 tarball or installed package bytes do not match release acceptance",
+    );
+  }
+}
+
+async function optionalPhysicalFileDigest(
+  root: string,
+  relativePath: string,
+): Promise<string | null> {
+  const path = resolveFrozenPath(root, relativePath);
+  const entry = await lstatOrUndefined(path);
+  if (entry === undefined) return null;
+  if (entry.isSymbolicLink() || !entry.isFile()) {
+    throw new ProfileContractError(
+      "PROFILE_ENTRY_INVALID",
+      `profile snapshot entry is not a physical file: ${relativePath}`,
+    );
+  }
+  return `${entry.dev}:${entry.ino}:${entry.size}:${sha256Hex(await readFile(path))}`;
+}
+
+async function optionalPhysicalPackageDigest(
+  root: string,
+  relativePath: string,
+): Promise<string | null> {
+  const path = resolveFrozenPath(root, relativePath);
+  const entry = await lstatOrUndefined(path);
+  if (entry === undefined) return null;
+  if (entry.isSymbolicLink() || !entry.isDirectory() || (await realpath(path)) !== resolve(path)) {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_INVALID",
+      `profile snapshot package is not a physical directory: ${relativePath}`,
+    );
+  }
+  return `${entry.dev}:${entry.ino}:${await fingerprintPackageContent(path)}`;
+}
+
+async function captureProfileLiveSnapshot(target: Phase3ProfileTarget): Promise<{
+  readonly existed: boolean;
+  readonly value: string;
+}> {
+  const rootEntry = await lstatOrUndefined(target.root);
+  if (rootEntry === undefined) return { existed: false, value: "missing" };
+  await assertPhysicalDirectory(target.root);
+  const managed = await readManagedFiles(target.root, target.files);
+  const modulesPath = resolveFrozenPath(target.root, "node_modules");
+  const modulesEntry = await lstatOrUndefined(modulesPath);
+  if (
+    modulesEntry !== undefined &&
+    (modulesEntry.isSymbolicLink() ||
+      !modulesEntry.isDirectory() ||
+      (await realpath(modulesPath)) !== resolve(modulesPath))
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_INVALID",
+      "profile snapshot node_modules is not a physical directory",
+    );
+  }
+  return {
+    existed: true,
+    value: JSON.stringify({
+      root: [rootEntry.dev, rootEntry.ino],
+      entries: (await readdir(target.root)).sort(),
+      managed: [...managed].map(([path, content]) => [
+        path,
+        content === undefined ? null : sha256Hex(content),
+      ]),
+      cordis: await optionalPhysicalFileDigest(target.root, "cordis.yml"),
+      lockfile: await optionalPhysicalFileDigest(target.root, "pnpm-lock.yaml"),
+      node_modules:
+        modulesEntry === undefined ? null : [modulesEntry.dev, modulesEntry.ino, modulesEntry.size],
+      eval_package: await optionalPhysicalPackageDigest(target.root, "node_modules/dsh-eval-lab"),
+      codex_package: await optionalPhysicalPackageDigest(
+        target.root,
+        "node_modules/dsh-codex-connect",
+      ),
+    }),
+  };
+}
+
+async function assertProfileSnapshotUnchanged(
+  target: Phase3ProfileTarget,
+  expected: string,
+): Promise<void> {
+  try {
+    if ((await captureProfileLiveSnapshot(target)).value === expected) return;
+  } catch {
+    // Normalize every mutation shape to the transaction CAS error below.
+  }
+  throw new ProfileContractError(
+    "PROFILE_CONCURRENT_MODIFICATION",
+    `${target.role} profile changed after transaction preflight`,
+  );
+}
+
 async function inspectPhase3ProfileTarget(
   target: Phase3ProfileTarget,
   packageSpec: string,
   packageVersion: string,
   verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
+  legacyPackageEvidence: LegacyPhase2PackageEvidence,
 ): Promise<"current" | "replace"> {
   if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
     throw new ProfileContractError("PROFILE_PATH_INVALID", "profile root must be absolute");
@@ -688,6 +858,11 @@ async function inspectPhase3ProfileTarget(
             "legacy Phase 2 runner is not a complete installed profile",
           );
         }
+        await verifyLegacyPhase2Package(
+          resolveFrozenPath(target.root, "node_modules/dsh-eval-lab"),
+          previousSpec,
+          legacyPackageEvidence,
+        );
         return "replace";
       }
     }
@@ -716,12 +891,13 @@ async function preserveCordisRoot(sourceRoot: string, stageRoot: string): Promis
 
 async function prepareProfileTarget(
   target: Phase3ProfileTarget,
+  existed: boolean,
+  liveSnapshot: string,
   packageSpec: string,
   packageVersion: string,
   install: (profileRoot: string) => Promise<void>,
   verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
 ): Promise<PreparedProfileTarget> {
-  const existed = (await lstatOrUndefined(target.root)) !== undefined;
   const stage = await mkdtemp(join(dirname(target.root), `.${basename(target.root)}.upgrade-`));
   try {
     await materializeFrozenFiles(stage, target.files);
@@ -737,7 +913,7 @@ async function prepareProfileTarget(
         "staged profile install did not produce a complete package closure",
       );
     }
-    return { ...target, stage, existed };
+    return { ...target, stage, existed, liveSnapshot };
   } catch (error) {
     await rm(stage, { recursive: true, force: true }).catch(() => undefined);
     throw error;
@@ -784,18 +960,34 @@ export async function installPhase3ProfilesAtomically(
     { root: input.runnerRoot, files: runnerProfileFiles(input.packageSpec), role: "runner" },
     { root: input.authorRoot, files: authorProfileFiles(input.packageSpec), role: "author" },
   ];
-  const states: Array<"current" | "replace"> = [];
+  const legacyPackageEvidence = input.legacyPackageEvidence ?? ACCEPTED_LEGACY_PHASE2_PACKAGE;
+  const preflight: ProfilePreflight[] = [];
   for (const target of targets) {
-    states.push(
-      await inspectPhase3ProfileTarget(
+    const state = await inspectPhase3ProfileTarget(
+      target,
+      input.packageSpec,
+      input.packageVersion,
+      input.verifyPackageContent,
+      legacyPackageEvidence,
+    );
+    const snapshot = await captureProfileLiveSnapshot(target);
+    if (
+      (await inspectPhase3ProfileTarget(
         target,
         input.packageSpec,
         input.packageVersion,
         input.verifyPackageContent,
-      ),
-    );
+        legacyPackageEvidence,
+      )) !== state
+    ) {
+      throw new ProfileContractError(
+        "PROFILE_CONCURRENT_MODIFICATION",
+        `${target.role} profile changed during transaction preflight`,
+      );
+    }
+    preflight.push({ ...target, state, existed: snapshot.existed, liveSnapshot: snapshot.value });
   }
-  const replacements = targets.filter((_, index) => states[index] === "replace");
+  const replacements = preflight.filter((target) => target.state === "replace");
   if (replacements.length === 0) return [];
 
   const prepared: PreparedProfileTarget[] = [];
@@ -804,6 +996,8 @@ export async function installPhase3ProfilesAtomically(
       prepared.push(
         await prepareProfileTarget(
           target,
+          target.existed,
+          target.liveSnapshot,
           input.packageSpec,
           input.packageVersion,
           input.install,
@@ -814,6 +1008,9 @@ export async function installPhase3ProfilesAtomically(
 
     const committed: PreparedProfileTarget[] = [];
     try {
+      for (const target of preflight) {
+        await assertProfileSnapshotUnchanged(target, target.liveSnapshot);
+      }
       for (const target of prepared) {
         if (target.existed) {
           target.backup = join(
@@ -821,6 +1018,20 @@ export async function installPhase3ProfilesAtomically(
             `.${basename(target.root)}.previous-${randomUUID()}`,
           );
           await rename(target.root, target.backup);
+          try {
+            await assertProfileSnapshotUnchanged(
+              { ...target, root: target.backup },
+              target.liveSnapshot,
+            );
+          } catch (error) {
+            await rename(target.backup, target.root);
+            throw error;
+          }
+        } else if ((await lstatOrUndefined(target.root)) !== undefined) {
+          throw new ProfileContractError(
+            "PROFILE_CONCURRENT_MODIFICATION",
+            `${target.role} profile appeared after transaction preflight`,
+          );
         }
         try {
           await rename(target.stage, target.root);
@@ -829,6 +1040,29 @@ export async function installPhase3ProfilesAtomically(
           throw error;
         }
         committed.push(target);
+      }
+      for (const target of preflight) {
+        try {
+          if (
+            (await inspectPhase3ProfileTarget(
+              target,
+              input.packageSpec,
+              input.packageVersion,
+              input.verifyPackageContent,
+              legacyPackageEvidence,
+            )) !== "current"
+          ) {
+            throw new Error("profile did not reach the current state");
+          }
+          if (target.state === "current") {
+            await assertProfileSnapshotUnchanged(target, target.liveSnapshot);
+          }
+        } catch {
+          throw new ProfileContractError(
+            "PROFILE_CONCURRENT_MODIFICATION",
+            `${target.role} profile set changed during transaction commit`,
+          );
+        }
       }
     } catch (error) {
       await rollbackCommittedProfiles(committed);

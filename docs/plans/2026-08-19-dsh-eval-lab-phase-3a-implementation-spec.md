@@ -120,7 +120,10 @@ Runner profile `eval-clowder-runner` 必须继续禁用 `tool-skill`、filesyste
 
 `init` 必须支持已有、已验证的 Phase 2 `eval-clowder-runner`，不能要求用户删除 profile、迁移 `DSH_HOME` 或丢弃
 既有 Session/Campaign/Suite artifact。允许升级的 predecessor 只有 exact Phase 2 runner profile：固定的 package/profile
-identity、rc.4 installed package、workspace policy 与 Phase 2 app/bridge patch；任意其他现有字节继续按 drift fail closed。
+identity、rc.4 installed package、workspace policy 与 Phase 2 app/bridge patch；其 local tar SHA-256 固定为
+`a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，installed package content digest 固定为
+`adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`。同名同版本但 tar 或 installed bytes 不同仍是
+drift，必须在零 install side effect 时拒绝。
 
 Runner 与新增 author profile 作为一个 staged profile set 升级：
 
@@ -129,10 +132,14 @@ Runner 与新增 author profile 作为一个 staged profile set 升级：
    exact package spec/version 与 pinned `dsh-codex-connect`；`node_modules`、两个 package directory 及 manifest 的每一层
    都必须 no-follow 验证为 profile 内 physical entry，lockfile 必须结构化绑定 root importer，已安装 Eval Lab bytes 必须与
    management package content digest 相同；
-3. 只有全部 staging 成功后才通过同 filesystem directory rename 切换 live roots；同步切换错误必须倒序恢复已经切换的 profile；
-4. staging/install/verification 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
+3. Preflight 为 runner/author 的 missing/present identity、managed bytes、`cordis.yml`、lockfile 与 package contents 冻结
+   commit-time snapshot；全部 staging 成功后、任一 live rename 前必须复核两个 snapshot。Existing root rename 到 backup 后再次
+   对该 exact inode/bytes 做 CAS；missing root 若在窗口内出现则拒绝，不能覆盖空目录；
+4. 只有上述 CAS 成功后才通过同 filesystem directory rename 切换 live roots；切换后再次验证两套 live profile 均为同一
+   target package set，任一失败必须倒序恢复已经切换的 profile；
+5. staging/install/verification/CAS 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
    必须是无安装、无改写的幂等操作；
-5. 只替换 profile deployment bytes；既有 `cordis.yml` 必须保留，Session、Campaign、Suite、exposure、confirmation ledger 与
+6. 只替换 profile deployment bytes；既有 `cordis.yml` 必须保留，Session、Campaign、Suite、exposure、confirmation ledger 与
    OAuth/共享 settings 都不得迁移、删除或重写。
 
 该事务是产品版本部署，不是 Domain truth promotion，也不新增 rollback/治理 surface。
