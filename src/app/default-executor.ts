@@ -62,7 +62,7 @@ import {
   assertAuthorProfileRoles,
   assertProfileRoles,
   authorProfileFiles,
-  materializeFrozenFiles,
+  installPhase3ProfilesAtomically,
   runnerProfileFiles,
   verifyFrozenFiles,
   verifySharedModelSettings,
@@ -360,24 +360,28 @@ async function initializeRuntime(): Promise<void> {
   await ensurePhase2InstanceLayout();
   await ensurePhase3AuthorLayout();
   const packageSpec = await managementPackageSpec();
-  const profiles = [
-    { root: runnerProfileRoot(), files: runnerProfileFiles(packageSpec) },
-    { root: authorProfileRoot(), files: authorProfileFiles(packageSpec) },
-  ] as const;
-  for (const profile of profiles) await materializeFrozenFiles(profile.root, profile.files);
+  const packageVersion = String(
+    JSON.parse(await readFile(`${packageRoot()}/package.json`, "utf8")).version ?? "",
+  );
   await verifySharedModelSettings(DEDICATED_DSH_HOME);
-  for (const profile of profiles) {
-    await execFileAsync(
-      "pnpm",
-      ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],
-      { cwd: profile.root, env: childEnvironment() },
-    );
-    await execFileAsync(
-      "pnpm",
-      ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
-      { cwd: profile.root, env: childEnvironment() },
-    );
-  }
+  await installPhase3ProfilesAtomically({
+    runnerRoot: runnerProfileRoot(),
+    authorRoot: authorProfileRoot(),
+    packageSpec,
+    packageVersion,
+    install: async (profileRoot) => {
+      await execFileAsync(
+        "pnpm",
+        ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],
+        { cwd: profileRoot, env: childEnvironment() },
+      );
+      await execFileAsync(
+        "pnpm",
+        ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
+        { cwd: profileRoot, env: childEnvironment() },
+      );
+    },
+  });
 }
 
 async function phase2CalibrationTargets() {

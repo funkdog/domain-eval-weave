@@ -1,4 +1,5 @@
-import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { parse } from "yaml";
@@ -7,6 +8,7 @@ import { PHASE3A_AUTHOR } from "../instance.js";
 
 export const PINNED_DSH_VERSION = "0.1.0-rc.6";
 export const PINNED_CODEX_CONNECT_VERSION = "0.1.0-alpha.4.7";
+export const LEGACY_PHASE2_EVAL_VERSION = "0.2.0-rc.4";
 
 export class ProfileContractError extends Error {
   readonly code: string;
@@ -97,10 +99,14 @@ function frozenJson(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, string> {
+function assertPackageSpec(packageSpec: string): void {
   if (packageSpec.length === 0 || packageSpec.includes("\0")) {
     throw new ProfileContractError("PACKAGE_SPEC_INVALID", "package spec must be non-empty");
   }
+}
+
+export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, string> {
+  assertPackageSpec(packageSpec);
   return new Map([
     [
       "package.json",
@@ -151,10 +157,58 @@ export function runnerProfileFiles(packageSpec: string): ReadonlyMap<string, str
   ]);
 }
 
+export function legacyPhase2RunnerProfileFiles(packageSpec: string): ReadonlyMap<string, string> {
+  assertPackageSpec(packageSpec);
+  return new Map([
+    [
+      "package.json",
+      frozenJson({
+        name: "dsh-profile-eval-clowder-runner",
+        private: true,
+        dependencies: {
+          "dsh-codex-connect": PINNED_CODEX_CONNECT_VERSION,
+          "dsh-eval-lab": packageSpec,
+        },
+        dsh: {
+          profile: {
+            bundles: [
+              "@deepseek-ai/dsh-base",
+              "@deepseek-ai/dsh-headless",
+              "dsh-codex-connect",
+              "dsh-eval-lab",
+            ],
+          },
+        },
+      }),
+    ],
+    [
+      "pnpm-workspace.yaml",
+      [
+        "packages:",
+        "  - .",
+        "",
+        "nodeLinker: hoisted",
+        "autoInstallPeers: false",
+        "minimumReleaseAgeExclude:",
+        `  - dsh-codex-connect@${PINNED_CODEX_CONNECT_VERSION}`,
+        "",
+      ].join("\n"),
+    ],
+    [
+      "cordis.patch.yml",
+      [
+        "- id: dsh-eval-app",
+        "  disabled: true",
+        "- id: dsh-eval-bridge",
+        "  disabled: false",
+        "",
+      ].join("\n"),
+    ],
+  ]);
+}
+
 export function authorProfileFiles(packageSpec: string): ReadonlyMap<string, string> {
-  if (packageSpec.length === 0 || packageSpec.includes("\0")) {
-    throw new ProfileContractError("PACKAGE_SPEC_INVALID", "package spec must be non-empty");
-  }
+  assertPackageSpec(packageSpec);
   return new Map([
     [
       "package.json",
@@ -412,6 +466,328 @@ export async function verifyFrozenFiles(
         "PROFILE_CONTENT_MISMATCH",
         `profile file does not match the frozen content: ${relativePath}`,
       );
+    }
+  }
+}
+
+type ProfileInstallState = "ready" | "missing";
+
+interface Phase3ProfileTarget {
+  readonly root: string;
+  readonly files: ReadonlyMap<string, string>;
+  readonly role: "runner" | "author";
+}
+
+export interface Phase3ProfileInstallInput {
+  readonly runnerRoot: string;
+  readonly authorRoot: string;
+  readonly packageSpec: string;
+  readonly packageVersion: string;
+  readonly install: (profileRoot: string) => Promise<void>;
+}
+
+interface PreparedProfileTarget extends Phase3ProfileTarget {
+  readonly stage: string;
+  readonly existed: boolean;
+  backup?: string;
+}
+
+async function lstatOrUndefined(
+  path: string,
+): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+async function readManagedFiles(
+  root: string,
+  files: ReadonlyMap<string, string>,
+): Promise<ReadonlyMap<string, string | undefined>> {
+  const actual = new Map<string, string | undefined>();
+  for (const relativePath of files.keys()) {
+    const path = resolveFrozenPath(root, relativePath);
+    const entry = await lstatOrUndefined(path);
+    if (entry === undefined) {
+      actual.set(relativePath, undefined);
+      continue;
+    }
+    if (entry.isSymbolicLink() || !entry.isFile()) {
+      throw new ProfileContractError(
+        "PROFILE_ENTRY_INVALID",
+        `existing profile entry is not a readable regular file: ${relativePath}`,
+      );
+    }
+    actual.set(relativePath, await readFile(path, "utf8"));
+  }
+  return actual;
+}
+
+function frozenFilesMatch(
+  actual: ReadonlyMap<string, string | undefined>,
+  expected: ReadonlyMap<string, string>,
+): boolean {
+  return [...expected].every(([relativePath, content]) => actual.get(relativePath) === content);
+}
+
+function frozenFilesAreCompatiblePartial(
+  actual: ReadonlyMap<string, string | undefined>,
+  expected: ReadonlyMap<string, string>,
+): boolean {
+  return [...expected].every(([relativePath, content]) => {
+    const value = actual.get(relativePath);
+    return value === undefined || value === content;
+  });
+}
+
+function profilePackageSpec(packageJson: string | undefined): string | undefined {
+  if (packageJson === undefined) return undefined;
+  let manifest: unknown;
+  try {
+    manifest = JSON.parse(packageJson);
+  } catch {
+    return undefined;
+  }
+  const spec = mapping(mapping(manifest)?.dependencies)?.["dsh-eval-lab"];
+  return typeof spec === "string" && spec.length > 0 && !spec.includes("\0") ? spec : undefined;
+}
+
+async function profileInstallState(
+  root: string,
+  packageSpec: string,
+  packageVersion: string,
+): Promise<ProfileInstallState> {
+  const lockPath = resolveFrozenPath(root, "pnpm-lock.yaml");
+  const modulesPath = resolveFrozenPath(root, "node_modules");
+  const evalManifestPath = resolveFrozenPath(root, "node_modules/dsh-eval-lab/package.json");
+  const codexManifestPath = resolveFrozenPath(root, "node_modules/dsh-codex-connect/package.json");
+  const entries = await Promise.all([
+    lstatOrUndefined(lockPath),
+    lstatOrUndefined(modulesPath),
+    lstatOrUndefined(evalManifestPath),
+    lstatOrUndefined(codexManifestPath),
+  ]);
+  if (entries.some((entry) => entry === undefined)) return "missing";
+  const [lockEntry, modulesEntry, evalEntry, codexEntry] = entries;
+  if (
+    lockEntry?.isSymbolicLink() ||
+    !lockEntry?.isFile() ||
+    modulesEntry?.isSymbolicLink() ||
+    !modulesEntry?.isDirectory() ||
+    (await realpath(modulesPath)) !== resolve(modulesPath) ||
+    evalEntry?.isSymbolicLink() ||
+    !evalEntry?.isFile() ||
+    codexEntry?.isSymbolicLink() ||
+    !codexEntry?.isFile()
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_INVALID",
+      "profile lockfile and installed packages must be physical entries",
+    );
+  }
+  let evalManifest: unknown;
+  let codexManifest: unknown;
+  try {
+    evalManifest = JSON.parse(await readFile(evalManifestPath, "utf8"));
+    codexManifest = JSON.parse(await readFile(codexManifestPath, "utf8"));
+  } catch {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_INVALID",
+      "installed profile package manifests must be readable JSON",
+    );
+  }
+  const lockfile = await readFile(lockPath, "utf8");
+  if (
+    mapping(evalManifest)?.name !== "dsh-eval-lab" ||
+    mapping(evalManifest)?.version !== packageVersion ||
+    mapping(codexManifest)?.name !== "dsh-codex-connect" ||
+    mapping(codexManifest)?.version !== PINNED_CODEX_CONNECT_VERSION ||
+    !lockfile.includes(packageSpec) ||
+    !lockfile.includes(`dsh-codex-connect@${PINNED_CODEX_CONNECT_VERSION}`)
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_MISMATCH",
+      "installed profile package versions or lockfile do not match the frozen profile",
+    );
+  }
+  return "ready";
+}
+
+async function inspectPhase3ProfileTarget(
+  target: Phase3ProfileTarget,
+  packageSpec: string,
+  packageVersion: string,
+): Promise<"current" | "replace"> {
+  if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
+    throw new ProfileContractError("PROFILE_PATH_INVALID", "profile root must be absolute");
+  }
+  await assertPhysicalDirectory(dirname(target.root));
+  const rootEntry = await lstatOrUndefined(target.root);
+  if (rootEntry === undefined) return "replace";
+  await assertPhysicalDirectory(target.root);
+  const actual = await readManagedFiles(target.root, target.files);
+  if (frozenFilesMatch(actual, target.files)) {
+    return (await profileInstallState(target.root, packageSpec, packageVersion)) === "ready"
+      ? "current"
+      : "replace";
+  }
+  if (frozenFilesAreCompatiblePartial(actual, target.files)) return "replace";
+  if (target.role === "runner") {
+    const previousSpec = profilePackageSpec(actual.get("package.json"));
+    if (previousSpec !== undefined) {
+      const previous = legacyPhase2RunnerProfileFiles(previousSpec);
+      if (frozenFilesMatch(actual, previous)) {
+        if (
+          (await profileInstallState(target.root, previousSpec, LEGACY_PHASE2_EVAL_VERSION)) !==
+          "ready"
+        ) {
+          throw new ProfileContractError(
+            "PROFILE_INSTALL_MISMATCH",
+            "legacy Phase 2 runner is not a complete installed profile",
+          );
+        }
+        return "replace";
+      }
+    }
+  }
+  throw new ProfileContractError(
+    "PROFILE_CONTENT_MISMATCH",
+    `existing ${target.role} profile is neither the frozen target nor the accepted Phase 2 predecessor`,
+  );
+}
+
+async function preserveCordisRoot(sourceRoot: string, stageRoot: string): Promise<void> {
+  const source = resolveFrozenPath(sourceRoot, "cordis.yml");
+  const entry = await lstatOrUndefined(source);
+  if (entry === undefined) return;
+  if (entry.isSymbolicLink() || !entry.isFile()) {
+    throw new ProfileContractError(
+      "PROFILE_ENTRY_INVALID",
+      "existing cordis.yml is not a physical regular file",
+    );
+  }
+  await writeFile(resolveFrozenPath(stageRoot, "cordis.yml"), await readFile(source), {
+    flag: "wx",
+    mode: 0o600,
+  });
+}
+
+async function prepareProfileTarget(
+  target: Phase3ProfileTarget,
+  packageSpec: string,
+  packageVersion: string,
+  install: (profileRoot: string) => Promise<void>,
+): Promise<PreparedProfileTarget> {
+  const existed = (await lstatOrUndefined(target.root)) !== undefined;
+  const stage = await mkdtemp(join(dirname(target.root), `.${basename(target.root)}.upgrade-`));
+  try {
+    await materializeFrozenFiles(stage, target.files);
+    if (existed) await preserveCordisRoot(target.root, stage);
+    await install(stage);
+    await verifyFrozenFiles(stage, target.files);
+    if ((await profileInstallState(stage, packageSpec, packageVersion)) !== "ready") {
+      throw new ProfileContractError(
+        "PROFILE_INSTALL_INVALID",
+        "staged profile install did not produce a complete package closure",
+      );
+    }
+    return { ...target, stage, existed };
+  } catch (error) {
+    await rm(stage, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function rollbackCommittedProfiles(
+  committed: readonly PreparedProfileTarget[],
+): Promise<void> {
+  let rollbackFailure: unknown;
+  for (const target of [...committed].reverse()) {
+    try {
+      await rename(target.root, target.stage);
+      if (target.backup !== undefined) await rename(target.backup, target.root);
+      await rm(target.stage, { recursive: true, force: true });
+    } catch (error) {
+      rollbackFailure ??= error;
+    }
+  }
+  if (rollbackFailure !== undefined) {
+    throw new ProfileContractError(
+      "PROFILE_TRANSACTION_ROLLBACK_FAILED",
+      "profile transaction failed and could not restore every live profile",
+    );
+  }
+}
+
+/**
+ * Reconcile the runner and author as one staged profile set. Existing Phase 2
+ * runner bytes remain live until both replacement installs have passed their
+ * frozen-file, lockfile, and package-version checks.
+ */
+export async function installPhase3ProfilesAtomically(
+  input: Phase3ProfileInstallInput,
+): Promise<readonly string[]> {
+  assertPackageSpec(input.packageSpec);
+  if (input.packageVersion.length === 0 || input.packageVersion.includes("\0")) {
+    throw new ProfileContractError("PACKAGE_SPEC_INVALID", "package version must be non-empty");
+  }
+  if (input.runnerRoot === input.authorRoot) {
+    throw new ProfileContractError("PROFILE_PATH_INVALID", "runner and author roots must differ");
+  }
+  const targets: readonly Phase3ProfileTarget[] = [
+    { root: input.runnerRoot, files: runnerProfileFiles(input.packageSpec), role: "runner" },
+    { root: input.authorRoot, files: authorProfileFiles(input.packageSpec), role: "author" },
+  ];
+  const states: Array<"current" | "replace"> = [];
+  for (const target of targets) {
+    states.push(await inspectPhase3ProfileTarget(target, input.packageSpec, input.packageVersion));
+  }
+  const replacements = targets.filter((_, index) => states[index] === "replace");
+  if (replacements.length === 0) return [];
+
+  const prepared: PreparedProfileTarget[] = [];
+  try {
+    for (const target of replacements) {
+      prepared.push(
+        await prepareProfileTarget(target, input.packageSpec, input.packageVersion, input.install),
+      );
+    }
+
+    const committed: PreparedProfileTarget[] = [];
+    try {
+      for (const target of prepared) {
+        if (target.existed) {
+          target.backup = join(
+            dirname(target.root),
+            `.${basename(target.root)}.previous-${randomUUID()}`,
+          );
+          await rename(target.root, target.backup);
+        }
+        try {
+          await rename(target.stage, target.root);
+        } catch (error) {
+          if (target.backup !== undefined) await rename(target.backup, target.root);
+          throw error;
+        }
+        committed.push(target);
+      }
+    } catch (error) {
+      await rollbackCommittedProfiles(committed);
+      throw error;
+    }
+
+    for (const target of committed) {
+      if (target.backup !== undefined) {
+        await rm(target.backup, { recursive: true, force: true }).catch(() => undefined);
+      }
+    }
+    return committed.map((target) => target.root);
+  } finally {
+    for (const target of prepared) {
+      await rm(target.stage, { recursive: true, force: true }).catch(() => undefined);
     }
   }
 }

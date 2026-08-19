@@ -116,6 +116,25 @@ Author profile 使用 DSH headless/standard Agent surface，启用：
 Runner profile `eval-clowder-runner` 必须继续禁用 `tool-skill`、filesystem/shell/web 等既有禁止工具，且
 `design-domain-grader` provider row 为 disabled。Contract test 必须证明 authoring bytes 不进入 Candidate composed surface。
 
+### 2.1 Phase 2 → Phase 3A profile upgrade
+
+`init` 必须支持已有、已验证的 Phase 2 `eval-clowder-runner`，不能要求用户删除 profile、迁移 `DSH_HOME` 或丢弃
+既有 Session/Campaign/Suite artifact。允许升级的 predecessor 只有 exact Phase 2 runner profile：固定的 package/profile
+identity、rc.4 installed package、workspace policy 与 Phase 2 app/bridge patch；任意其他现有字节继续按 drift fail closed。
+
+Runner 与新增 author profile 作为一个 staged profile set 升级：
+
+1. 在写 live profile 前完成两个目标的 path、predecessor/current bytes 与 shared model settings preflight；
+2. 在 profiles parent 下的隔离 sibling directory 物化三份 frozen profile 文件，生成 lockfile、安装 package closure，并验证
+   exact package spec/version 与 pinned `dsh-codex-connect`；
+3. 只有全部 staging 成功后才通过同 filesystem directory rename 切换 live roots；同步切换错误必须倒序恢复已经切换的 profile；
+4. staging/install/verification 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
+   必须是无安装、无改写的幂等操作；
+5. 只替换 profile deployment bytes；既有 `cordis.yml` 必须保留，Session、Campaign、Suite、exposure、confirmation ledger 与
+   OAuth/共享 settings 都不得迁移、删除或重写。
+
+该事务是产品版本部署，不是 Domain truth promotion，也不新增 rollback/治理 surface。
+
 ## 3. Skill contract
 
 Skill 名固定为 `design-domain-grader`，frontmatter 仅包含 `name` 与 `description`。正文低于 500 行，详细合同和

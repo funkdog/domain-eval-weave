@@ -1,17 +1,53 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import test from "node:test";
 import { PHASE3A_AUTHOR } from "../../src/instance.js";
 import {
   assertAuthorProfileRoles,
   assertProfileRoles,
   authorProfileFiles,
+  installPhase3ProfilesAtomically,
+  legacyPhase2RunnerProfileFiles,
   materializeFrozenFiles,
   ProfileContractError,
   runnerProfileFiles,
+  verifyFrozenFiles,
   verifySharedModelSettings,
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+
+async function writeSyntheticInstalledProfile(
+  root: string,
+  packageSpec: string,
+  version: string,
+): Promise<void> {
+  await mkdir(`${root}/node_modules/dsh-eval-lab`, { recursive: true, mode: 0o700 });
+  await mkdir(`${root}/node_modules/dsh-codex-connect`, { recursive: true, mode: 0o700 });
+  await writeFile(
+    `${root}/pnpm-lock.yaml`,
+    `lockfileVersion: '9.0'\n${packageSpec}\ndsh-codex-connect@0.1.0-alpha.4.7\n`,
+    "utf8",
+  );
+  await writeFile(
+    `${root}/node_modules/dsh-eval-lab/package.json`,
+    `${JSON.stringify({ name: "dsh-eval-lab", version })}\n`,
+    "utf8",
+  );
+  await writeFile(
+    `${root}/node_modules/dsh-codex-connect/package.json`,
+    `${JSON.stringify({ name: "dsh-codex-connect", version: "0.1.0-alpha.4.7" })}\n`,
+    "utf8",
+  );
+}
 
 test("runner profile files freeze the exact package and opposite app/bridge roles", async () => {
   const files = runnerProfileFiles("file:/tmp/dsh-eval-lab.tgz");
@@ -133,6 +169,176 @@ test("profile materialization is idempotent and never overwrites drift", async (
         error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
     );
     assert.equal(await readFile(`${root}/package.json`, "utf8"), "{}\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 init atomically upgrades a Phase 2 runner and creates the author profile", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const previousSpec = "file:/runtime/packages/phase2/dsh-eval-lab-0.2.0-rc.4.tgz";
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(previousSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, previousSpec, "0.2.0-rc.4");
+    await writeFile(`${runnerRoot}/cordis.yml`, "[]\n", "utf8");
+
+    const changed = await installPhase3ProfilesAtomically({
+      runnerRoot,
+      authorRoot,
+      packageSpec: nextSpec,
+      packageVersion: "0.3.0-alpha.1",
+      install: async (profileRoot) => {
+        installs += 1;
+        await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+      },
+    });
+
+    assert.deepEqual(changed, [runnerRoot, authorRoot]);
+    assert.equal(installs, 2);
+    await verifyFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await verifyFrozenFiles(authorRoot, authorProfileFiles(nextSpec));
+    assert.equal(await readFile(`${runnerRoot}/cordis.yml`, "utf8"), "[]\n");
+
+    assert.deepEqual(
+      await installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      [],
+    );
+    assert.equal(installs, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile upgrade rejects unrecognized drift before staging", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-drift-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const previousSpec = "file:/runtime/packages/phase2/dsh-eval-lab-0.2.0-rc.4.tgz";
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(previousSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, previousSpec, "0.2.0-rc.4");
+    await writeFile(`${runnerRoot}/cordis.patch.yml`, "- id: unauthorized-drift\n", "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(
+      await readFile(`${runnerRoot}/cordis.patch.yml`, "utf8"),
+      "- id: unauthorized-drift\n",
+    );
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
+    assert.deepEqual(await readdir(root), ["eval-clowder-runner"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile upgrade leaves both live profiles untouched when staged install fails", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-install-failure-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const previousSpec = "file:/runtime/packages/phase2/dsh-eval-lab-0.2.0-rc.4.tgz";
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(previousSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, previousSpec, "0.2.0-rc.4");
+    const previousPackage = await readFile(`${runnerRoot}/package.json`, "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        install: async (profileRoot) => {
+          installs += 1;
+          if (installs === 2) throw new Error("synthetic install failure");
+          await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+        },
+      }),
+      /synthetic install failure/,
+    );
+
+    assert.equal(installs, 2);
+    assert.equal(await readFile(`${runnerRoot}/package.json`, "utf8"), previousPackage);
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
+    assert.deepEqual(await readdir(root), ["eval-clowder-runner"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile upgrade rolls the runner back when the author switch conflicts", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-commit-failure-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const previousSpec = "file:/runtime/packages/phase2/dsh-eval-lab-0.2.0-rc.4.tgz";
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(previousSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, previousSpec, "0.2.0-rc.4");
+    const previousPackage = await readFile(`${runnerRoot}/package.json`, "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        install: async (profileRoot) => {
+          installs += 1;
+          await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+          if (installs === 2) {
+            await mkdir(authorRoot, { mode: 0o700 });
+            await writeFile(`${authorRoot}/concurrent-owner`, "preserve\n", "utf8");
+          }
+        },
+      }),
+      (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOTEMPTY",
+    );
+
+    assert.equal(await readFile(`${runnerRoot}/package.json`, "utf8"), previousPackage);
+    assert.equal(await readFile(`${authorRoot}/concurrent-owner`, "utf8"), "preserve\n");
+    assert.deepEqual((await readdir(root)).sort(), ["eval-clowder-author", "eval-clowder-runner"]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
