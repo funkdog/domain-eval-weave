@@ -209,6 +209,8 @@ workspace 外零副作用失败。credential path/content 不能靠 provider 枚
 再按结构化 key 位置分类。高置信 terminal（`token|secret|password|passphrase|verifier`）不依赖 provider prefix；歧义较高的
 `key|code` 必须同时带认证上下文 token（如 `auth|authentication|authn|authz|api|oauth|access|client|consumer|private`）。JSON 递归 object key 与
 YAML quoted/block/list/flow key、env/header/assignment key 都必须进入同一 classifier；YAML 使用受 source-size 上限约束的线性 lexer。
+Double-quoted mapping key 只正常解码 JSON-compatible escape；YAML-only named/hex/long-unicode escape 或 malformed/truncated escape
+不得静默跳过，只要其 lexical candidate 后接 mapping `:` 就按 sensitive ambiguity fail closed。
 路径 basename 的每个 dot-delimited component 分别复用同一 terminal 判定，使复合 backup/version suffix 不能遮蔽此前的 credential identifier。普通 prose
 中无 key 位置的 `token` 不得仅因单词出现而失败。保留 private-key、credential-store 等结构性禁项；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
 confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receipt、graph、readiness 或 manifest。

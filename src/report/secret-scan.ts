@@ -116,7 +116,7 @@ function skipHorizontalWhitespace(text: string, start: number): number {
 function readQuotedYamlKey(
   text: string,
   start: number,
-): { key: string; cursor: number } | undefined {
+): { key?: string; cursor: number; ambiguous?: true } | undefined {
   const quote = text[start];
   if (quote !== '"' && quote !== "'") return undefined;
   let cursor = start + 1;
@@ -139,7 +139,7 @@ function readQuotedYamlKey(
       try {
         key = JSON.parse(encoded);
       } catch {
-        return undefined;
+        return { cursor: cursor + 1, ambiguous: true };
       }
     } else {
       key = encoded.slice(1, -1).replaceAll("''", "'");
@@ -149,7 +149,28 @@ function readQuotedYamlKey(
   return undefined;
 }
 
-function readYamlMappingKeyAt(text: string, start: number): string | undefined {
+type YamlMappingKey = { key: string } | { ambiguous: true };
+
+function hasMappingColonBeforeBoundary(text: string, start: number): boolean {
+  let cursor = start;
+  while (cursor < text.length) {
+    const character = text[cursor];
+    if (character === ":") return true;
+    if (
+      character === "\n" ||
+      character === "\r" ||
+      character === "," ||
+      character === "}" ||
+      character === "]"
+    ) {
+      return false;
+    }
+    cursor += 1;
+  }
+  return false;
+}
+
+function readYamlMappingKeyAt(text: string, start: number): YamlMappingKey | undefined {
   let cursor = skipHorizontalWhitespace(text, start);
   if (
     (text[cursor] === "-" || text[cursor] === "?") &&
@@ -158,10 +179,16 @@ function readYamlMappingKeyAt(text: string, start: number): string | undefined {
     cursor = skipHorizontalWhitespace(text, cursor + 1);
   }
 
-  const quoted = readQuotedYamlKey(text, cursor);
-  if (quoted !== undefined) {
+  if (text[cursor] === '"' || text[cursor] === "'") {
+    const quoted = readQuotedYamlKey(text, cursor);
+    if (quoted === undefined) {
+      return hasMappingColonBeforeBoundary(text, cursor + 1) ? { ambiguous: true } : undefined;
+    }
     cursor = skipHorizontalWhitespace(text, quoted.cursor);
-    return text[cursor] === ":" ? quoted.key : undefined;
+    if (text[cursor] !== ":") return undefined;
+    return quoted.ambiguous === true || quoted.key === undefined
+      ? { ambiguous: true }
+      : { key: quoted.key };
   }
 
   const keyStart = cursor;
@@ -169,7 +196,7 @@ function readYamlMappingKeyAt(text: string, start: number): string | undefined {
     const character = text[cursor];
     if (character === ":") {
       const key = text.slice(keyStart, cursor).trim();
-      return key.length > 0 ? key : undefined;
+      return key.length > 0 ? { key } : undefined;
     }
     if (
       character === "\n" ||
@@ -195,8 +222,8 @@ function containsYamlCredentialKey(text: string): boolean {
     }
   }
   return candidateOffsets.some((offset) => {
-    const key = readYamlMappingKeyAt(text, offset);
-    return key !== undefined && isCredentialKey(key);
+    const candidate = readYamlMappingKeyAt(text, offset);
+    return candidate !== undefined && ("ambiguous" in candidate || isCredentialKey(candidate.key));
   });
 }
 

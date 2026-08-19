@@ -79,6 +79,7 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.doesNotThrow(() => assertSecretFreeText("diagnostic report without secrets"));
   assert.doesNotThrow(() => assertSecretFreeText("the token concept is discussed in prose"));
   assert.doesNotThrow(() => assertSecretFreeText('{"policyName":"refund","status":"active"}'));
+  assert.doesNotThrow(() => assertSecretFreeText('"policy name": refund'));
   assert.doesNotThrow(() => assertSecretFreeText('{"code":"ARTIFACT_INTEGRITY_FAILURE"}'));
   assert.doesNotThrow(() => assertSecretFreeText('{"exit_code":0,"primaryKey":"claim-id"}'));
   assert.equal(isCredentialPathSegment("primaryKey.json"), false);
@@ -110,6 +111,16 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.throws(() => assertSecretFreeText("githubToken: synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText('"github token": synthetic'), SecretScanError);
   assert.throws(() => assertSecretFreeText('- "github token": synthetic'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('"github\\u0054oken": synthetic'), SecretScanError);
+  assert.throws(() => assertSecretFreeText("'github''Token': synthetic"), SecretScanError);
+  for (const escapedYamlKey of [
+    '"github\\x54oken": synthetic',
+    '"github\\U00000054oken": synthetic',
+    '"github\\NToken": synthetic',
+    '"github\\x5oken": synthetic',
+  ]) {
+    assert.throws(() => assertSecretFreeText(escapedYamlKey), SecretScanError);
+  }
   assert.throws(
     () => assertSecretFreeText("credentials: { githubToken: synthetic }"),
     SecretScanError,

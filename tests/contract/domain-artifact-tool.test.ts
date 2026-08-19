@@ -496,6 +496,11 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
       '"github token": synthetic-opaque-value\n',
       { mode: 0o600 },
     );
+    await writeFile(
+      `${workspace}/provider-config-escape.yaml`,
+      '"github\\x54oken": synthetic-opaque-value\n',
+      { mode: 0o600 },
+    );
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
 
     for (const sourcePath of [
@@ -653,6 +658,20 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     );
     await assert.rejects(
       readFile(`${workspace}/domain-eval/sources/provider-config.yaml`),
+      /ENOENT/,
+    );
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "provider-config-escape.yaml",
+        artifact_ref: "sources/provider-config-escape.yaml",
+        source_id: "escaped-yaml-credential-source",
+        kind: "product_doc",
+      }),
+      "SECRET_PATTERN_DETECTED",
+    );
+    await assert.rejects(
+      readFile(`${workspace}/domain-eval/sources/provider-config-escape.yaml`),
       /ENOENT/,
     );
     expectFailure(
