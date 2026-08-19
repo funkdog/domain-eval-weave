@@ -116,14 +116,25 @@ Author profile 使用 DSH headless/standard Agent surface，启用：
 Runner profile `eval-clowder-runner` 必须继续禁用 `tool-skill`、filesystem/shell/web 等既有禁止工具，且
 `design-domain-grader` provider row 为 disabled。Contract test 必须证明 authoring bytes 不进入 Candidate composed surface。
 
-### 2.1 Phase 2 → Phase 3A profile upgrade
+### 2.1 Phase 2 / accepted Phase 3A → current release profile upgrade
 
 `init` 必须支持已有、已验证的 Phase 2 `eval-clowder-runner`，不能要求用户删除 profile、迁移 `DSH_HOME` 或丢弃
-既有 Session/Campaign/Suite artifact。允许升级的 predecessor 只有 exact Phase 2 runner profile：固定的 package/profile
-identity、rc.4 installed package、workspace policy 与 Phase 2 app/bridge patch；其 local tar SHA-256 固定为
-`a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，installed package content digest 固定为
-`adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`。同名同版本但 tar 或 installed bytes 不同仍是
-drift，必须在零 install side effect 时拒绝。
+既有 Session/Campaign/Suite artifact；已进入 Phase 3A 后，也必须支持从前一份已验收 package set 原位升级。Predecessor
+allowlist 只包含：
+
+1. exact Phase 2 runner profile：固定 package/profile identity、rc.4 installed package、workspace policy 与 Phase 2
+   app/bridge patch；local tar SHA-256
+   `a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，size `161769` bytes，installed package
+   content digest `adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`；
+2. exact accepted Phase 3A runner+author set at main `2f011c92bcd1a65a408733ff7b4d97ab6ce7a290`：version
+   `0.3.0-alpha.1`，local tar SHA-256
+   `20963cf1c124c315353b48a06f1ba5f2e23acbe24c421ab1635c5240b4219cef`，size `229647` bytes，installed package
+   content digest `5a1648272f1feede209b643cd1ff2be2970271df67e30d605515ab9782aaecc0`，且两套 profile managed files 必须
+   分别精确匹配同一个 tar spec。
+
+同名同版本但 tar、installed bytes、profile bytes 或 runner/author package spec 不同仍是 drift，必须在零 install side
+effect 时拒绝。每次签发新的 reviewed runtime tar，都必须在本节推进 predecessor evidence，不能回退为任意历史版本或
+任意本地 tar。
 
 Runner 与新增 author profile 作为一个 staged profile set 升级：
 

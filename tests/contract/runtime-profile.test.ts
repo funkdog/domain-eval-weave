@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   access,
+  copyFile,
   lstat,
   mkdir,
   mkdtemp,
@@ -109,6 +110,36 @@ async function prepareSyntheticLegacyProfile(
   const packageSpec = pathToFileURL(tarball).href;
   await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(packageSpec));
   await writeSyntheticInstalledProfile(runnerRoot, packageSpec, "0.2.0-rc.4");
+  return {
+    packageSpec,
+    evidence: {
+      tarballSha256: sha256Hex(tarballBytes),
+      tarballSize: tarballBytes.byteLength,
+      contentSha256: await fingerprintPackageContent(`${runnerRoot}/node_modules/dsh-eval-lab`),
+    },
+  };
+}
+
+async function prepareSyntheticPhase3Predecessor(
+  root: string,
+  runnerRoot: string,
+  authorRoot: string,
+): Promise<{
+  readonly packageSpec: string;
+  readonly evidence: {
+    readonly tarballSha256: string;
+    readonly tarballSize: number;
+    readonly contentSha256: string;
+  };
+}> {
+  const tarball = `${root}/accepted-phase3a.tgz`;
+  const tarballBytes = Buffer.from("synthetic accepted Phase 3A package\n", "utf8");
+  await writeFile(tarball, tarballBytes, { mode: 0o600 });
+  const packageSpec = pathToFileURL(tarball).href;
+  await materializeFrozenFiles(runnerRoot, runnerProfileFiles(packageSpec));
+  await materializeFrozenFiles(authorRoot, authorProfileFiles(packageSpec));
+  await writeSyntheticInstalledProfile(runnerRoot, packageSpec, "0.3.0-alpha.1");
+  await writeSyntheticInstalledProfile(authorRoot, packageSpec, "0.3.0-alpha.1");
   return {
     packageSpec,
     evidence: {
@@ -495,6 +526,141 @@ test("Phase 3 profile preflight binds current package bytes to management", asyn
     );
     assert.equal(installs, 0);
     await assert.rejects(access(authorRoot), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 init upgrades the exact accepted Phase 3A predecessor set", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence } = await prepareSyntheticPhase3Predecessor(root, runnerRoot, authorRoot);
+    await writeFile(`${runnerRoot}/cordis.yml`, "# runner-local\n[]\n", "utf8");
+    await writeFile(`${authorRoot}/cordis.yml`, "# author-local\n[]\n", "utf8");
+    const input = {
+      runnerRoot,
+      authorRoot,
+      packageSpec: nextSpec,
+      packageVersion: "0.3.0-alpha.1",
+      acceptedPhase3PackageEvidence: evidence,
+      verifyPackageContent: acceptSyntheticPackageContent,
+      install: async (profileRoot: string) => {
+        installs += 1;
+        await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+      },
+    };
+
+    assert.deepEqual(await installPhase3ProfilesAtomically(input), [runnerRoot, authorRoot]);
+    assert.equal(installs, 2);
+    await verifyFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await verifyFrozenFiles(authorRoot, authorProfileFiles(nextSpec));
+    assert.equal(await readFile(`${runnerRoot}/cordis.yml`, "utf8"), "# runner-local\n[]\n");
+    assert.equal(await readFile(`${authorRoot}/cordis.yml`, "utf8"), "# author-local\n[]\n");
+    assert.deepEqual(await installPhase3ProfilesAtomically(input), []);
+    assert.equal(installs, 2);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 successor preflight rejects tampered accepted Phase 3A package bytes", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-tamper-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence } = await prepareSyntheticPhase3Predecessor(root, runnerRoot, authorRoot);
+    await mkdir(`${runnerRoot}/node_modules/dsh-eval-lab/dist`, { mode: 0o700 });
+    await writeFile(
+      `${runnerRoot}/node_modules/dsh-eval-lab/dist/tampered.js`,
+      "export const tampered = true;\n",
+      "utf8",
+    );
+    const input = {
+      runnerRoot,
+      authorRoot,
+      packageSpec: nextSpec,
+      packageVersion: "0.3.0-alpha.1",
+      acceptedPhase3PackageEvidence: evidence,
+      verifyPackageContent: acceptSyntheticPackageContent,
+      install: async () => {
+        installs += 1;
+      },
+    };
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically(input),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_INSTALL_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(
+      await readFile(`${runnerRoot}/node_modules/dsh-eval-lab/dist/tampered.js`, "utf8"),
+      "export const tampered = true;\n",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 successor preflight rejects split runner and author predecessor specs", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-split-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence, packageSpec } = await prepareSyntheticPhase3Predecessor(
+      root,
+      runnerRoot,
+      authorRoot,
+    );
+    const copiedTarball = `${root}/accepted-phase3a-copy.tgz`;
+    const copiedSpec = pathToFileURL(copiedTarball).href;
+    await copyFile(`${root}/accepted-phase3a.tgz`, copiedTarball);
+    await rm(authorRoot, { recursive: true });
+    await materializeFrozenFiles(authorRoot, authorProfileFiles(copiedSpec));
+    await writeSyntheticInstalledProfile(authorRoot, copiedSpec, "0.3.0-alpha.1");
+    const input = {
+      runnerRoot,
+      authorRoot,
+      packageSpec: nextSpec,
+      packageVersion: "0.3.0-alpha.1",
+      acceptedPhase3PackageEvidence: evidence,
+      verifyPackageContent: acceptSyntheticPackageContent,
+      install: async () => {
+        installs += 1;
+      },
+    };
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically(input),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(
+      JSON.parse(await readFile(`${runnerRoot}/package.json`, "utf8")).dependencies["dsh-eval-lab"],
+      packageSpec,
+    );
+    assert.equal(
+      JSON.parse(await readFile(`${authorRoot}/package.json`, "utf8")).dependencies["dsh-eval-lab"],
+      copiedSpec,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

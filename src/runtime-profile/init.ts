@@ -29,6 +29,12 @@ export const LEGACY_PHASE2_EVAL_TARBALL_SHA256 =
 export const LEGACY_PHASE2_EVAL_CONTENT_SHA256 =
   "adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65";
 export const LEGACY_PHASE2_EVAL_TARBALL_SIZE = 161_769;
+export const ACCEPTED_PHASE3A_EVAL_VERSION = "0.3.0-alpha.1";
+export const ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256 =
+  "20963cf1c124c315353b48a06f1ba5f2e23acbe24c421ab1635c5240b4219cef";
+export const ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256 =
+  "5a1648272f1feede209b643cd1ff2be2970271df67e30d605515ab9782aaecc0";
+export const ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE = 229_647;
 const PROFILE_TRANSACTION_MARKER = ".dsh-eval-profile-transaction";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -537,19 +543,28 @@ export interface Phase3ProfileInstallInput {
   readonly install: (profileRoot: string) => Promise<void>;
   readonly verifyPackageContent: (installedPackageRoot: string) => Promise<void>;
   readonly legacyPackageEvidence?: LegacyPhase2PackageEvidence;
+  readonly acceptedPhase3PackageEvidence?: AcceptedPackageEvidence;
   readonly beforeMissingRootClaim?: (profileRoot: string) => Promise<void>;
 }
 
-export interface LegacyPhase2PackageEvidence {
+export interface AcceptedPackageEvidence {
   readonly tarballSha256: string;
   readonly tarballSize: number;
   readonly contentSha256: string;
 }
 
-const ACCEPTED_LEGACY_PHASE2_PACKAGE: LegacyPhase2PackageEvidence = {
+export type LegacyPhase2PackageEvidence = AcceptedPackageEvidence;
+
+const ACCEPTED_LEGACY_PHASE2_PACKAGE: AcceptedPackageEvidence = {
   tarballSha256: LEGACY_PHASE2_EVAL_TARBALL_SHA256,
   tarballSize: LEGACY_PHASE2_EVAL_TARBALL_SIZE,
   contentSha256: LEGACY_PHASE2_EVAL_CONTENT_SHA256,
+};
+
+const ACCEPTED_PHASE3A_PREDECESSOR_PACKAGE: AcceptedPackageEvidence = {
+  tarballSha256: ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
+  tarballSize: ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE,
+  contentSha256: ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
 };
 
 interface PreparedProfileTarget extends Phase3ProfileTarget {
@@ -722,10 +737,11 @@ async function profileInstallState(
   return "ready";
 }
 
-async function verifyLegacyPhase2Package(
+async function verifyAcceptedPackage(
   installedPackageRoot: string,
   packageSpec: string,
-  evidence: LegacyPhase2PackageEvidence,
+  evidence: AcceptedPackageEvidence,
+  label: string,
 ): Promise<void> {
   let tarballPath: string;
   try {
@@ -743,7 +759,7 @@ async function verifyLegacyPhase2Package(
   } catch {
     throw new ProfileContractError(
       "PROFILE_INSTALL_MISMATCH",
-      "legacy Phase 2 package spec is not the accepted local tarball",
+      `${label} package spec is not the accepted local tarball`,
     );
   }
   const tarballEntry = await lstatOrUndefined(tarballPath);
@@ -758,7 +774,7 @@ async function verifyLegacyPhase2Package(
   ) {
     throw new ProfileContractError(
       "PROFILE_INSTALL_MISMATCH",
-      "legacy Phase 2 tarball or installed package bytes do not match release acceptance",
+      `${label} tarball or installed package bytes do not match release acceptance`,
     );
   }
 }
@@ -948,7 +964,8 @@ async function inspectPhase3ProfileTarget(
   packageSpec: string,
   packageVersion: string,
   verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
-  legacyPackageEvidence: LegacyPhase2PackageEvidence,
+  legacyPackageEvidence: AcceptedPackageEvidence,
+  acceptedPhase3PackageEvidence: AcceptedPackageEvidence,
 ): Promise<"current" | "replace"> {
   if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
     throw new ProfileContractError("PROFILE_PATH_INVALID", "profile root must be absolute");
@@ -1001,18 +1018,47 @@ async function inspectPhase3ProfileTarget(
             "legacy Phase 2 runner is not a complete installed profile",
           );
         }
-        await verifyLegacyPhase2Package(
+        await verifyAcceptedPackage(
           resolveFrozenPath(target.root, "node_modules/dsh-eval-lab"),
           previousSpec,
           legacyPackageEvidence,
+          "legacy Phase 2",
         );
         return "replace";
       }
     }
   }
+  const previousPhase3Spec = profilePackageSpec(actual.get("package.json"));
+  if (previousPhase3Spec !== undefined) {
+    const previousPhase3Files =
+      target.role === "runner"
+        ? runnerProfileFiles(previousPhase3Spec)
+        : authorProfileFiles(previousPhase3Spec);
+    if (frozenFilesMatch(actual, previousPhase3Files)) {
+      if (
+        (await profileInstallState(
+          target.root,
+          previousPhase3Spec,
+          ACCEPTED_PHASE3A_EVAL_VERSION,
+        )) !== "ready"
+      ) {
+        throw new ProfileContractError(
+          "PROFILE_INSTALL_MISMATCH",
+          "accepted Phase 3A predecessor is not a complete installed profile",
+        );
+      }
+      await verifyAcceptedPackage(
+        resolveFrozenPath(target.root, "node_modules/dsh-eval-lab"),
+        previousPhase3Spec,
+        acceptedPhase3PackageEvidence,
+        "accepted Phase 3A predecessor",
+      );
+      return "replace";
+    }
+  }
   throw new ProfileContractError(
     "PROFILE_CONTENT_MISMATCH",
-    `existing ${target.role} profile is neither the frozen target nor the accepted Phase 2 predecessor`,
+    `existing ${target.role} profile is neither the frozen target nor an accepted release predecessor`,
   );
 }
 
@@ -1146,9 +1192,9 @@ async function rollbackCommittedProfiles(
 }
 
 /**
- * Reconcile the runner and author as one staged profile set. Existing Phase 2
- * runner bytes remain live until both replacement installs have passed their
- * frozen-file, lockfile, and package-version checks.
+ * Reconcile the runner and author as one staged profile set. Accepted release
+ * predecessor bytes remain live until both replacement installs have passed
+ * their frozen-file, lockfile, and package-version checks.
  */
 export async function installPhase3ProfilesAtomically(
   input: Phase3ProfileInstallInput,
@@ -1165,6 +1211,8 @@ export async function installPhase3ProfilesAtomically(
     { root: input.authorRoot, files: authorProfileFiles(input.packageSpec), role: "author" },
   ];
   const legacyPackageEvidence = input.legacyPackageEvidence ?? ACCEPTED_LEGACY_PHASE2_PACKAGE;
+  const acceptedPhase3PackageEvidence =
+    input.acceptedPhase3PackageEvidence ?? ACCEPTED_PHASE3A_PREDECESSOR_PACKAGE;
   const preflight: ProfilePreflight[] = [];
   for (const target of targets) {
     const state = await inspectPhase3ProfileTarget(
@@ -1173,6 +1221,7 @@ export async function installPhase3ProfilesAtomically(
       input.packageVersion,
       input.verifyPackageContent,
       legacyPackageEvidence,
+      acceptedPhase3PackageEvidence,
     );
     const snapshot = await captureProfileLiveSnapshot(target);
     if (
@@ -1182,6 +1231,7 @@ export async function installPhase3ProfilesAtomically(
         input.packageVersion,
         input.verifyPackageContent,
         legacyPackageEvidence,
+        acceptedPhase3PackageEvidence,
       )) !== state
     ) {
       throw new ProfileContractError(
@@ -1190,6 +1240,22 @@ export async function installPhase3ProfilesAtomically(
       );
     }
     preflight.push({ ...target, state, existed: snapshot.existed, liveSnapshot: snapshot.value });
+  }
+  const existingPackageSpecs = new Set<string>();
+  for (const target of preflight) {
+    if (!target.existed) continue;
+    const actual = await readManagedFiles(target.root, target.files);
+    const installedSpec = profilePackageSpec(actual.get("package.json"));
+    if (installedSpec !== undefined) existingPackageSpecs.add(installedSpec);
+  }
+  const predecessorPackageSpecs = [...existingPackageSpecs].filter(
+    (installedSpec) => installedSpec !== input.packageSpec,
+  );
+  if (predecessorPackageSpecs.length > 1) {
+    throw new ProfileContractError(
+      "PROFILE_CONTENT_MISMATCH",
+      "runner and author predecessors do not bind the same Eval Lab package spec",
+    );
   }
   const replacements = preflight.filter((target) => target.state === "replace");
   if (replacements.length === 0) return [];
@@ -1273,6 +1339,7 @@ export async function installPhase3ProfilesAtomically(
               input.packageVersion,
               input.verifyPackageContent,
               legacyPackageEvidence,
+              acceptedPhase3PackageEvidence,
             )) !== "current"
           ) {
             throw new Error("profile did not reach the current state");
