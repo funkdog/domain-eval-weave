@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
-
+import {
+  parseDomainDecisionQuestion,
+  parseDomainEvidenceCard,
+  parseDomainInterviewSession,
+  parseRequirementChangeSet,
+} from "../../src/domain/contracts.js";
 import applyDomainSkill, { loadBundledDomainSkill } from "../../src/domain/skill-provider.js";
 import { DEDICATED_DSH_HOME } from "../../src/runtime-root.js";
 
@@ -14,6 +20,35 @@ test("bundled domain Skill strips frontmatter and preserves a directory resource
   assert.equal(skill.source, "bundled");
   assert.equal(skill.resourceBase.kind, "directory");
   assert.match(skill.resourceBase.path, /skills\/design-domain-grader$/);
+});
+
+test("authoring assets use exact schema-shaped snake_case inputs for domain_artifact", async () => {
+  const asset = async (name: string): Promise<unknown> =>
+    JSON.parse(
+      await readFile(
+        new URL(`../../skills/design-domain-grader/assets/domain-eval/${name}`, import.meta.url),
+        "utf8",
+      ),
+    );
+  const [evidenceCard, interview, question, requirement] = await Promise.all([
+    asset("domain-evidence-card.json"),
+    asset("domain-interview-session.json"),
+    asset("domain-decision-question.json"),
+    asset("requirement-change-set.json"),
+  ]);
+  assert.doesNotThrow(() => parseDomainEvidenceCard(evidenceCard));
+  assert.doesNotThrow(() => parseDomainInterviewSession(interview));
+  assert.doesNotThrow(() => parseDomainDecisionQuestion(question));
+  assert.doesNotThrow(() => parseRequirementChangeSet(requirement));
+
+  const contractCandidate = (await asset("product-domain-contract-candidate.json")) as Record<
+    string,
+    unknown
+  >;
+  assert.equal("source_snapshot_digest" in contractCandidate, false);
+  assert.equal("state" in contractCandidate, false);
+  assert.equal("confirmation" in contractCandidate, false);
+  assert.equal("artifactType" in contractCandidate, false);
 });
 
 test("domain Skill registers only in the exact author profile", async () => {

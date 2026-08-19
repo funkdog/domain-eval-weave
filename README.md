@@ -10,8 +10,8 @@ replayable multi-task diagnostic evidence without a general uplift claim.
 Phase 3 upgrades that trusted measurement kernel into requirements-delivery
 evaluation. The active Phase 3A slice adds a separate domain-authoring plane:
 adaptive domain interviews, provenance-bound product truth, requirement deltas,
-and deterministic impact closure. It does not yet generate graders or run a
-Semantic Judge.
+deterministic source/artifact handoff, and deterministic impact closure. It does
+not yet generate graders or run a Semantic Judge.
 
 ## Canonical plans
 
@@ -104,7 +104,8 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A is the active implementation
 contract. The local `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
-an isolated author Skill/profile, and a management-only confirmation ledger; it is not yet release-accepted.
+an isolated author Skill/profile with an author-only `domain_artifact` helper, and a management-only confirmation ledger; it is not yet
+release-accepted.
 The Phase 2 rc.4 release implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "card_id": "replace-me-card",
+  "revision": 1,
+  "product_id": "replace-me-product",
+  "domain_id": "replace-me-domain",
+  "claim_id": "replace-me-claim",
+  "statement": "Replace with the evidence-backed candidate truth.",
+  "applicability": "Replace with the exact applicability boundary.",
+  "status": "proposed",
+  "source_refs": [
+    {
+      "source_id": "replace-with-helper-source-id",
+      "kind": "product_doc",
+      "artifact_ref": "sources/replace-with-helper-source.md",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "authority_ref_ids": ["replace-with-helper-source-id"],
+  "observation_ref_ids": [],
+  "false_accept_risk": "high",
+  "false_reject_risk": "high"
+}

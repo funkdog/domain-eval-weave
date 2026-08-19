@@ -6,13 +6,26 @@ import {
   assertPhase3AuthorLayout,
   resolvePhase2Instance,
 } from "../instance.js";
+import { createDomainArtifactDefinition } from "./domain-artifact.js";
 
 export const name = "dsh-eval-author-bridge";
 export const inject = ["tools"] as const;
 
-const ALLOWED_PATHLESS_TOOLS = new Set(["skill"]);
+const ALLOWED_PATHLESS_TOOLS = new Set(["skill", "domain_artifact"]);
 const EDITOR_COMMANDS = new Set(["view", "create", "str_replace", "insert"]);
 const MUTATING_EDITOR_COMMANDS = new Set(["create", "str_replace", "insert"]);
+const PROTECTED_DOMAIN_NAMESPACES = new Set([
+  "sources",
+  "candidates",
+  "interviews",
+  "evidence-cards",
+  "decision-questions",
+  "contracts",
+  "requirements",
+  "graphs",
+  "readiness",
+  "manifests",
+]);
 
 function sameOrNested(root: string, candidate: string): boolean {
   const relation = relative(root, candidate);
@@ -60,6 +73,12 @@ export function createAuthorToolGuard(input: {
     if (MUTATING_EDITOR_COMMANDS.has(command) && !sameOrNested(domainRoot, resolved)) {
       return "author writes are allowed only under domain-eval/";
     }
+    if (MUTATING_EDITOR_COMMANDS.has(command) && sameOrNested(domainRoot, resolved)) {
+      const namespace = relative(domainRoot, resolved).split("/")[0];
+      if (namespace !== undefined && PROTECTED_DOMAIN_NAMESPACES.has(namespace)) {
+        return "schema-governed domain artifacts must be written with domain_artifact";
+      }
+    }
     return undefined;
   };
 }
@@ -68,6 +87,7 @@ export interface DshEvalAuthorBridgeContext {
   readonly root: { readonly baseUrl?: string };
   readonly tools: {
     guard(guard: (execution: GuardedToolExecution) => string | undefined): unknown;
+    register(definition: ReturnType<typeof createDomainArtifactDefinition>): unknown;
   };
 }
 
@@ -86,6 +106,9 @@ async function applyDshEvalAuthorBridge(
   await (config.assertLayout ?? assertPhase3AuthorLayout)();
   context.tools.guard(
     createAuthorToolGuard({ workspaceRoot: config.workspaceRoot ?? process.cwd() }),
+  );
+  context.tools.register(
+    createDomainArtifactDefinition({ workspaceRoot: config.workspaceRoot ?? process.cwd() }),
   );
 }
 

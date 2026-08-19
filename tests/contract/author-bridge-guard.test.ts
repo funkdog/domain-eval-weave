@@ -31,7 +31,15 @@ test("author guard confines all editor reads and domain-eval writes to the selec
       } satisfies GuardedToolExecution);
 
     assert.equal(editor("view", `${workspace}/README.md`), undefined);
-    assert.equal(editor("create", `${workspace}/domain-eval/candidates/card.json`), undefined);
+    assert.match(
+      editor("create", `${workspace}/domain-eval/candidates/card.json`) ?? "",
+      /domain_artifact/,
+    );
+    assert.match(
+      editor("str_replace", `${workspace}/domain-eval/sources/policy.md`) ?? "",
+      /domain_artifact/,
+    );
+    assert.equal(editor("create", `${workspace}/domain-eval/decision-packet.json`), undefined);
     assert.match(editor("create", `${workspace}/notes.json`) ?? "", /domain-eval/);
     assert.match(editor("view", `${outside}/secret.txt`) ?? "", /outside/);
     assert.match(editor("view", `${workspace}/escape/secret.txt`) ?? "", /outside/);
@@ -47,11 +55,15 @@ test("author bridge installs the guard only in the exact author profile", async 
   await mkdir(parent, { recursive: true, mode: 0o700 });
   const workspace = await mkdtemp(`${parent}/author-bridge-`);
   let installed: ((execution: GuardedToolExecution) => string | undefined) | undefined;
+  let registered: { readonly name?: string } | undefined;
   try {
     await applyDshEvalAuthorBridge(
       {
         root: { baseUrl: authorProfileBaseUrl },
-        tools: { guard: (value) => (installed = value) },
+        tools: {
+          guard: (value) => (installed = value),
+          register: (value) => (registered = value),
+        },
       },
       {
         workspaceRoot: workspace,
@@ -60,15 +72,20 @@ test("author bridge installs the guard only in the exact author profile", async 
       },
     );
     assert.ok(installed);
+    assert.equal(registered?.name, "domain_artifact");
 
     let wrongProfileInstalled = false;
+    let wrongProfileRegistered = false;
     await assert.rejects(
       applyDshEvalAuthorBridge(
         {
           root: {
             baseUrl: pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-clowder-runner/`).href,
           },
-          tools: { guard: () => (wrongProfileInstalled = true) },
+          tools: {
+            guard: () => (wrongProfileInstalled = true),
+            register: () => (wrongProfileRegistered = true),
+          },
         },
         {
           workspaceRoot: workspace,
@@ -79,6 +96,7 @@ test("author bridge installs the guard only in the exact author profile", async 
       /eval-clowder-author/,
     );
     assert.equal(wrongProfileInstalled, false);
+    assert.equal(wrongProfileRegistered, false);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

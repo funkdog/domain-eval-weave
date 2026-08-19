@@ -20,10 +20,23 @@ State the selected mode and why. For `delta` or `audit`, validate and read the c
 1. Confirm the authorized project root and use `<project>/domain-eval` unless the user selected another in-project path.
 2. Read only user-authorized product documents, requirements, code, tests, external contracts, and synthetic/runtime observations.
 3. Never read credentials, ambient agent homes, production data, hidden Candidate Oracle assets, or unrelated runtime state.
-4. Snapshot every cited source under the selected pack, then record it as a portable pack-root-relative reference plus exact digest and optional anchor/JSON pointer/symbol. Preserve source bytes exactly.
+4. Call `domain_artifact` with `action=snapshot_source` for every cited source. Pass a project-relative `source_path` for a file, or `content`
+   only for the explicit owner statement just received. Use the returned SourceRef verbatim; never calculate, copy, or invent a digest.
 5. Treat Domain Knowledge Packs and model knowledge as question generators only. They cannot be authority refs.
 
 Before writing artifacts, read [references/artifact-contracts.md](references/artifact-contracts.md). When conducting an interview, also read [references/interview-protocol.md](references/interview-protocol.md). Load [references/failure-modes.md](references/failure-modes.md) before issuing readiness.
+
+## Use the deterministic artifact helper
+
+Build values with the exact snake_case fields shown in the package schemas/templates, then call `domain_artifact` with
+`action=write_artifact`. Use only SourceRefs and artifact pointers returned by earlier successful helper calls. Do not use the editor to write
+`sources/`, `candidates/`, or primary artifact namespaces, and do not substitute camelCase envelopes, `identity-utf8`, placeholder hashes, or
+non-canonical JSON when the helper returns diagnostics. Correct the reported field/path and retry; a failed call writes nothing.
+
+Persist a non-confirmed Evidence Card or open DecisionQuestion at its canonical revision path first. Only when the operator intends to confirm
+that object, call `stage_confirmation_candidate` with the returned primary pointer and a single-level `candidates/<candidate-id>.json` ref.
+Product Domain Contract and Requirement ChangeSet drafts go directly through `write_artifact` using their candidate kinds. The helper never
+grants authority; continue to use management `domain confirm` for every protected transition.
 
 ## Interview adaptively
 
@@ -70,15 +83,16 @@ If blocking questions remain, emit draft artifacts and report readiness as `red`
 
 ### Onboard
 
-Create immutable InterviewSession revisions and Evidence Card candidates at single-level `candidates/<candidate-id>.json` paths. Ask the
-operator to run the management `domain confirm` command; never write or imitate OwnerConfirmationEvents. After the protected ledger receipt
-validates, use the management-produced Evidence Card revision and write a new InterviewSession revision that references it. Promote only selected
-confirmed Cards into Product Domain Contract version 1. Leave every other Card outside the Contract.
+Use the helper to snapshot evidence, write immutable InterviewSession/Evidence Card/DecisionQuestion primary revisions, and stage only selected
+Card/Question pointers as confirmation candidates. Ask the operator to run the management `domain confirm` command; never write or imitate
+OwnerConfirmationEvents. After the protected ledger receipt validates, use the management-produced Evidence Card revision and write a new
+InterviewSession revision that references it. Promote only selected confirmed Cards into Product Domain Contract version 1. Leave every other
+Card outside the Contract.
 
 ### Delta
 
 Pin the exact versioned base Contract. Use its impact graph to scope affected Claims; do not re-ask unrelated confirmed truth. Create one
-Requirement ChangeSet at a single-level `candidates/<candidate-id>.json` path using only `uses`, `preserves`, `introduces`, `modifies`,
+Requirement ChangeSet with the helper's candidate kind at a single-level `candidates/<candidate-id>.json` path using only `uses`, `preserves`, `introduces`, `modifies`,
 `deprecates`, and `conflicts_with`. Persist unresolved choices as revisioned DecisionQuestion artifacts and ask the operator to confirm the final
 Requirement through the protected management surface. Before confirmation, compute graph/readiness previews only for the report; do not persist
 candidate graph, readiness, or manifest objects in ad hoc namespaces. Requirement-scoped proposals never mutate the base Contract.

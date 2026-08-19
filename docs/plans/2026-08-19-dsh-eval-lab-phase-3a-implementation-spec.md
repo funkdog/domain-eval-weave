@@ -83,6 +83,7 @@ src/domain/
 └── skill-provider.ts
 
 src/author-bridge/
+├── domain-artifact.ts
 └── index.ts
 ```
 
@@ -102,6 +103,7 @@ Author profile 使用 DSH headless/standard Agent surface，启用：
 
 - package 内 embedded `design-domain-grader` Skill；
 - normal skill catalog/loader；
+- author-only deterministic `domain_artifact` tool；
 - `dsh-eval-author-bridge` 在所有 model-facing tool body 前执行 realpath containment：只允许读取当前选定 project workspace，
   只允许在其 `domain-eval/` 内写入；通用 editor 的 absolute-path read 不得绕过该 guard；
 - 与现有 transport 相同的 pinned provider/model/effort。
@@ -126,10 +128,10 @@ allowlist 只包含：
    app/bridge patch；local tar SHA-256
    `a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，size `161769` bytes，installed package
    content digest `adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`；
-2. exact accepted Phase 3A runner+author set at main `2f011c92bcd1a65a408733ff7b4d97ab6ce7a290`：version
+2. exact accepted Phase 3A runner+author set at main `eb2505d11a3d3e247328b7adc04de8965608b66a`：version
    `0.3.0-alpha.1`，local tar SHA-256
-   `20963cf1c124c315353b48a06f1ba5f2e23acbe24c421ab1635c5240b4219cef`，size `229647` bytes，installed package
-   content digest `5a1648272f1feede209b643cd1ff2be2970271df67e30d605515ab9782aaecc0`，且两套 profile managed files 必须
+   `9be34174e00f0089c43f9951dcc21f62a374be2dfb4b73061dd993f29c3d47f3`，size `231008` bytes，installed package
+   content digest `afafa65b48da6a080a3bfd9c9b816e087befe06f206cfb4fce68403b76b96822`，且两套 profile managed files 必须
    分别精确匹配同一个 tar spec。该 predecessor 只能作为完整 runner+author cohort 被接受；任一 peer 缺失或与 current target
    混合都不是可恢复 predecessor。
 
@@ -163,6 +165,51 @@ Runner 与新增 author profile 作为一个 staged profile set 升级：
 
 该事务是产品版本部署，不是 Domain truth promotion，也不新增 rollback/治理 surface。
 
+### 2.2 Deterministic author artifact helper
+
+Author bridge 注册一个固定名 `domain_artifact` 的 model-facing tool。它只在 exact `eval-clowder-author` profile、完成 layout
+校验且选定 physical project workspace 后可用；`eval-clowder-runner` 不注册该 tool。它不是 shell/process，也不接受任意命令。
+
+Tool 只冻结三个 action：
+
+1. `snapshot_source`
+   - 输入 `artifact_ref`、`source_id`、`kind`、可选 `locator`，以及 `source_path` / `content` 二选一；`source_path` 必须是
+     project-root-relative、physical、regular UTF-8 file，`content` 只允许保存本轮明确的 `owner_statement`；两者都最大 1 MiB，
+     且不得命中 credential/OAuth-sensitive path 或 content；
+   - `artifact_ref` 必须位于 `domain-eval/sources/` 对应的 pack-relative `sources/...` namespace；helper 将 exact source bytes
+     immutable 写入该路径；
+   - 无 JSON Pointer locator 时 digest 为 exact snapshot bytes 的 SHA-256；`locator` 以 `/` 开始时，source 必须是 JSON，
+     digest 为该 pointer value 的 canonical JSON SHA-256；其他 portable anchor/symbol 保持 whole-file digest；
+   - 成功返回 strict `DomainSourceRef`，模型不得提供或覆盖 digest。
+2. `write_artifact`
+   - 输入 `kind`、`artifact_ref` 与 schema-shaped `value`。`kind` 只允许 `interview_session`、`evidence_card`、
+     `decision_question`、`product_domain_contract_candidate`、`requirement_change_set_candidate`；
+   - helper 用 frozen Zod parser 校验 object，并验证所有 SourceRef、DomainArtifactPointer、product/object identity、predecessor
+     及 source snapshot closure。`interview_session`、`evidence_card`、`decision_question` 必须分别使用 canonical
+     `interviews/<id>/r<n>.json`、`evidence-cards/<id>/r<n>.json`、`decision-questions/<id>/r<n>.json`；Contract/Requirement
+     candidate 必须使用 `candidates/<candidate-id>.json`；
+   - author 写入的 Evidence Card 必须非 `confirmed` 且无 confirmation，DecisionQuestion 必须 `open` 且无 resolution receipt，
+     Requirement 必须 `draft` 且无 confirmation；Contract candidate 不含 issued/decision fields；
+   - Contract candidate 的 `source_snapshot_digest` 由 helper 从已绑定的 completed Interview 推导；调用方应省略该字段，若提供
+     则必须与推导值相同；
+   - 成功以 exclusive-create 写 `${canonicalJson(parsed)}\n`，同路径同 bytes 幂等，不同 bytes typed fail，并返回可直接嵌入
+     后继对象的 `{ ref, sha256 }` DomainArtifactPointer。
+3. `stage_confirmation_candidate`
+   - 输入 `target_kind=evidence_card|decision_question`、已由 helper 写出的 exact primary `artifact` pointer 与
+     `candidate_ref=candidates/<candidate-id>.json`；
+   - helper 重新解析、验证 pointer/source closure；Card 只有 `proposed|unresolved` 可 stage，Question 必须 `open`，再把 exact
+     canonical bytes immutable stage 到 candidate namespace。模型不重复提交 object value，management `domain confirm` 消费该
+     candidate。
+
+所有 action 成功返回 `{ ok: true, ... }`；输入、schema、closure、path、secret 或 immutable conflict 失败返回
+`{ ok: false, action, diagnostics: [{ code, path, message }] }`，不得留下目标文件或半写 bytes。Path resolution 必须逐层
+no-follow，拒绝 absolute/traversal/NUL/symlink/escape；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
+confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receipt、graph、readiness 或 manifest。
+
+通用 `str_replace_editor` 可读取 `domain-eval/`，但 mutation guard 必须拒绝 `sources/`、`candidates/`、`interviews/`、
+`evidence-cards/`、`decision-questions/`、`contracts/`、`requirements/`、`graphs/`、`readiness/` 与 `manifests/`；
+非契约 author notes（例如 decision packet）仍可写。这样 deterministic bytes 是 author profile 的能力边界，而不是提示词约定。
+
 ## 3. Skill contract
 
 Skill 名固定为 `design-domain-grader`，frontmatter 仅包含 `name` 与 `description`。正文低于 500 行，详细合同和
@@ -173,6 +220,10 @@ module named export。Contract gate 必须从 clean packed tar 导入该 default
 挂载并验证 exact `eval-clowder-author` profile identity 下的 Skill registration；直接调用 apply 函数不构成 loader 证据。
 真实 profile acceptance 还必须证明 author composed tree 可启动并发现该 Skill，而 runner composed tree 保持 provider disabled，
 全程在模型调用前完成。
+
+Skill 必须用 `domain_artifact snapshot_source` 取得 SourceRef，用 `write_artifact` 生成 primary/candidate，并仅在需要 operator
+确认 Evidence Card/DecisionQuestion 时用 `stage_confirmation_candidate`。不得让模型手算 SHA-256、发明 envelope、用 editor
+直接写 schema-governed namespace，或在失败后降级为非 canonical JSON。
 
 ### 3.1 触发与模式
 
@@ -733,6 +784,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - initialize `design-domain-grader` with the canonical skill scaffold；
 - concise SKILL.md + one-level references/assets；
 - embedded provider and author profile materialization；
+- author-only deterministic source snapshot/canonical artifact helper、typed diagnostics 与 editor anti-bypass；
 - packed-default real Cordis mount、author registration 与 runner visibility regression test；
 - operator-only `domain confirm` + artifact-only `domain validate/impact` CLI。
 
@@ -749,7 +801,8 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 
 ## 8. Acceptance criteria
 
-- **P3A-AC1** Skill supports onboard/delta/audit and persists every question/answer/evidence transition.
+- **P3A-AC1** Skill supports onboard/delta/audit and persists every question/answer/evidence transition through real-SHA,
+  schema-valid canonical artifacts produced by the author helper.
 - **P3A-AC2** Only Evidence Cards backed by verified OwnerConfirmationEvents enter an issued ProductDomainContract.
 - **P3A-AC3** ProductDomainContract and RequirementChangeSet retain independent versions/lifecycles.
 - **P3A-AC4** All six requirement edge kinds validate, and requirement-scoped proposals do not mutate the base Contract.

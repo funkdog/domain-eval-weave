@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "interview_id": "replace-me-interview",
+  "revision": 1,
+  "mode": "onboard",
+  "product_id": "replace-me-product",
+  "domain_ids": ["replace-me-domain"],
+  "source_snapshot": [
+    {
+      "source_id": "replace-with-helper-source-id",
+      "kind": "product_doc",
+      "artifact_ref": "sources/replace-with-helper-source.md",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "turns": [],
+  "evidence_card_refs": [],
+  "decision_question_refs": [],
+  "status": "completed",
+  "started_at": "1970-01-01T00:00:00.000Z",
+  "ended_at": "1970-01-01T00:00:00.000Z"
+}

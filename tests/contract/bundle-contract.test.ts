@@ -117,6 +117,15 @@ test("all DSH entrypoints default-export side-effect-free plugin functions", asy
     "the Cordis loader unwraps the default export, so bridge injection metadata must live on it",
   );
   assert.deepEqual(
+    (
+      authorBridge.default as typeof authorBridge.default & {
+        readonly inject?: readonly string[];
+      }
+    ).inject,
+    authorBridge.inject,
+    "the packed author bridge must expose tool injection metadata on its default export",
+  );
+  assert.deepEqual(
     (domainSkill.default as typeof domainSkill.default & { readonly inject?: readonly string[] })
       .inject,
     domainSkill.inject,
@@ -172,6 +181,14 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       bridge.inject,
     );
     assert.deepEqual(
+      (
+        authorBridge.default as typeof authorBridge.default & {
+          readonly inject?: readonly string[];
+        }
+      ).inject,
+      authorBridge.inject,
+    );
+    assert.deepEqual(
       (domainSkill.default as typeof domainSkill.default & { readonly inject?: readonly string[] })
         .inject,
       domainSkill.inject,
@@ -181,16 +198,33 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     const cordis = new CordisContext();
     cordis.baseUrl = authorProfileBaseUrl;
     let registeredSkill: unknown;
+    let registeredTool: unknown;
+    let installedGuard: unknown;
     try {
       await cordis
-        .plugin((context: { provide(name: string, value: unknown): void }) =>
+        .plugin((context: { provide(name: string, value: unknown): void }) => {
           context.provide("skills", {
             register: (skill: unknown) => {
               registeredSkill = skill;
               return () => undefined;
             },
-          }),
-        )
+          });
+          context.provide("tools", {
+            guard: (guard: unknown) => {
+              installedGuard = guard;
+            },
+            register: (tool: unknown) => {
+              registeredTool = tool;
+            },
+          });
+        })
+        .await();
+      await cordis
+        .plugin(authorBridge.default, {
+          workspaceRoot: packageRoot,
+          env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+          assertLayout: async () => undefined,
+        })
         .await();
       await cordis
         .plugin(domainSkill.default, {
@@ -198,6 +232,8 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
         })
         .await();
       assert.equal((registeredSkill as { readonly name?: string })?.name, "design-domain-grader");
+      assert.equal((registeredTool as { readonly name?: string })?.name, "domain_artifact");
+      assert.equal(typeof installedGuard, "function");
     } finally {
       await cordis.fiber.dispose();
     }

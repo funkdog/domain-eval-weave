@@ -147,12 +147,19 @@ Skill 是领域真相接入的交互入口，不是固定问卷。它支持：
 Skill 可以读取 Domain Knowledge Pack 提醒常见风险，但必须把“知识包建议”和“产品权威真相”分开。
 信息不足时输出决策包并停止晋升，禁止使用模型训练先验补业务政策。
 
+Skill 不负责手算 digest 或手写 artifact envelope。Author profile 提供唯一的 deterministic `domain_artifact` helper：
+模型只提交 schema-shaped content，helper 负责把授权 workspace source snapshot 为 immutable bytes、计算真实 SHA-256、
+校验对象 schema/证据闭包并写 canonical JSON。Helper 只能生成 authoring primary artifact 或待确认 candidate，不能写
+OwnerConfirmationEvent、confirmation receipt 或已签发 truth；管理面的显式 `domain confirm` 仍是唯一 authority transition。
+
 ### 5.2 持久化领域与需求契约
 
 访谈产物进入版本化 JSON artifact，而不是只留在 Session：
 
 ```text
 domain-eval/
+├── sources/...
+├── candidates/<candidate-id>.json
 ├── interviews/<session-id>/r<revision>.json
 ├── evidence-cards/<card-id>/r<revision>.json
 ├── decision-questions/<question-id>/r<revision>.json
@@ -196,7 +203,9 @@ Evaluation plane（Phase 3B+）
 
 Phase 3A 在独立 authoring profile 中运行；既有 `eval-clowder-runner` 继续保持 skill/tool 禁用边界。
 Author profile 的通用文件工具必须经过 project-root read / `domain-eval/` write containment guard；仅依赖 DSH mutation sandbox
-不足以隔离读取，因为上游 filesystem sandbox 不限制 absolute-path view。
+不足以隔离读取，因为上游 filesystem sandbox 不限制 absolute-path view。Schema-governed `sources/`、`candidates/` 与 primary
+artifact namespace 只能由 author-only `domain_artifact` helper immutable 写入，通用 editor 仅可读取这些 bytes；runner 不注册
+该 helper。
 
 ## 7. Phase 3B — Deterministic Grader Compiler & Admission
 

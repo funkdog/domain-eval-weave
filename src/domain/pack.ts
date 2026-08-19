@@ -178,6 +178,19 @@ function jsonPointerValue(document: unknown, pointer: string): unknown {
   return current;
 }
 
+export function domainSourceDigest(bytes: Uint8Array, locator?: string): string {
+  if (locator?.startsWith("/")) {
+    let document: unknown;
+    try {
+      document = JSON.parse(Buffer.from(bytes).toString("utf8"));
+      return canonicalJsonDigest(jsonPointerValue(document, locator));
+    } catch {
+      throw new DomainPackError("DOMAIN_SOURCE_INVALID", "source JSON pointer cannot be resolved");
+    }
+  }
+  return sha256Hex(bytes);
+}
+
 export async function verifyDomainSourceRef(
   packRoot: string,
   source: DomainSourceRef,
@@ -185,19 +198,13 @@ export async function verifyDomainSourceRef(
   const path = await resolvePhysicalFile(packRoot, source.artifact_ref);
   const bytes = await readFile(path);
   let actual: string;
-  if (source.locator?.startsWith("/")) {
-    let document: unknown;
-    try {
-      document = JSON.parse(bytes.toString("utf8"));
-      actual = canonicalJsonDigest(jsonPointerValue(document, source.locator));
-    } catch {
-      throw new DomainPackError(
-        "DOMAIN_SOURCE_INVALID",
-        `source JSON pointer cannot be resolved: ${source.source_id}`,
-      );
+  try {
+    actual = domainSourceDigest(bytes, source.locator);
+  } catch (error) {
+    if (error instanceof DomainPackError) {
+      throw new DomainPackError(error.code, `${error.message}: ${source.source_id}`);
     }
-  } else {
-    actual = sha256Hex(bytes);
+    throw error;
   }
   if (actual !== source.digest) {
     throw new DomainPackError("DOMAIN_SOURCE_DRIFT", `source digest drifted: ${source.source_id}`);

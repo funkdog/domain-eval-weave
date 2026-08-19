@@ -14,8 +14,11 @@
 - Code behavior is treated as intended truth despite conflicting product docs.
 - A fluent owner answer is summarized without a persisted source ref.
 - Missing observation is converted into Candidate failure.
+- The model invents camelCase envelopes, placeholder hashes, or `identity-utf8` instead of using `domain_artifact` results.
+- A helper diagnostic is bypassed by writing protected artifact paths with the generic editor.
 
-Keep these proposed, conflicted, unresolved, or observability-gap respectively.
+Keep the truth cases proposed, conflicted, unresolved, or observability-gap respectively. For artifact failures, preserve the diagnostic, correct
+the schema-shaped input, and retry the helper; never degrade the evidence contract.
 
 ## 2. Lifecycle collapse
 

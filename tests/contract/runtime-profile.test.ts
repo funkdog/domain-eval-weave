@@ -189,7 +189,7 @@ test("runner profile files freeze the exact package and opposite app/bridge role
   );
 });
 
-test("author profile enables only the domain Skill authoring surface", () => {
+test("author profile enables only the frozen Skill/helper authoring surface", () => {
   const files = authorProfileFiles("file:/tmp/dsh-eval-lab.tgz");
   const manifest = JSON.parse(files.get("package.json") ?? "null") as {
     name: string;

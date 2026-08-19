@@ -774,6 +774,8 @@ export type DomainPackManifest = z.infer<typeof domainPackManifestSchema>;
 
 export const parseOwnerConfirmationEvent = (value: unknown): OwnerConfirmationEvent =>
   ownerConfirmationEventSchema.parse(value);
+export const parseDomainSourceRef = (value: unknown): DomainSourceRef =>
+  domainSourceRefSchema.parse(value);
 export const parseDomainEvidenceCard = (value: unknown): DomainEvidenceCard =>
   domainEvidenceCardSchema.parse(value);
 export const parseDomainInterviewSession = (value: unknown): DomainInterviewSession =>

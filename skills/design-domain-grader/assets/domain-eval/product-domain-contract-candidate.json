@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "contract_id": "replace-me-contract",
+  "product_id": "replace-me-product",
+  "version": 1,
+  "source_interview": {
+    "ref": "interviews/replace-me-interview/r1.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "claims": [
+    {
+      "claim_id": "replace-me-claim",
+      "domain_id": "replace-me-domain",
+      "statement": "Replace with an explicitly confirmed product truth.",
+      "applicability": "Replace with the exact applicability boundary.",
+      "evidence_card": {
+        "ref": "evidence-cards/replace-me-card/r2.json",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "authority_refs": [
+        {
+          "source_id": "replace-with-confirmed-card-authority-id",
+          "kind": "product_doc",
+          "artifact_ref": "sources/replace-with-helper-source.md",
+          "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "observation_refs": [],
+      "false_accept_risk": "high",
+      "false_reject_risk": "high",
+      "dependencies": [],
+      "lifecycle": "active"
+    }
+  ]
+}
