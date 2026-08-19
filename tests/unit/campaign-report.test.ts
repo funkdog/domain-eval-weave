@@ -74,6 +74,9 @@ test("Markdown report exposes Outcome, Mechanism, Cost, Validity, and bounded ac
 test("report scanner fails closed on OAuth and credential-shaped output", () => {
   assert.doesNotThrow(() => assertSecretFreeText("diagnostic report without secrets"));
   assert.throws(() => assertSecretFreeText("access_token=synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"id_token":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText("client_secret=synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText("-----BEGIN PRIVATE KEY-----"), SecretScanError);
   assert.throws(
     () => assertSecretFreeText("https://example.invalid/oauth/device"),
     SecretScanError,

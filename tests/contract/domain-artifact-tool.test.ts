@@ -428,7 +428,11 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     await symlink(outside, `${workspace}/domain-eval/sources/escape`);
     await writeFile(`${workspace}/.env`, "SAFE_NAME=value\n", { mode: 0o600 });
     await writeFile(`${workspace}/safe.md`, "safe source\n", { mode: 0o600 });
-    await writeFile(`${workspace}/credential.txt`, "Authorization: Bearer synthetic-secret\n", {
+    await writeFile(`${workspace}/policy-private.txt`, "Authorization: Bearer synthetic-secret\n", {
+      mode: 0o600,
+    });
+    await writeFile(`${workspace}/credential.txt`, "ordinary text\n", { mode: 0o600 });
+    await writeFile(`${workspace}/oauth.json`, '{"id_token":"synthetic-opaque-value"}\n', {
       mode: 0o600,
     });
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
@@ -460,13 +464,34 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     expectFailure(
       await tool.execute({
         action: "snapshot_source",
-        source_path: "credential.txt",
+        source_path: "policy-private.txt",
         artifact_ref: "sources/credential.txt",
         source_id: "credential-source",
         kind: "product_doc",
       }),
       "SECRET_PATTERN_DETECTED",
     );
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "credential.txt",
+        artifact_ref: "sources/credential-name.txt",
+        source_id: "credential-name-source",
+        kind: "product_doc",
+      }),
+      "ARTIFACT_PATH_FORBIDDEN",
+    );
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "oauth.json",
+        artifact_ref: "sources/oauth.json",
+        source_id: "oauth-source",
+        kind: "product_doc",
+      }),
+      "ARTIFACT_PATH_FORBIDDEN",
+    );
+    await assert.rejects(readFile(`${workspace}/domain-eval/sources/oauth.json`), /ENOENT/);
     expectFailure(
       await tool.execute({
         action: "snapshot_source",

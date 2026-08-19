@@ -229,7 +229,7 @@ function normalizeRelativeRef(value: string, path: string): string {
   return parsed.data;
 }
 
-function assertSourcePathAllowed(sourcePath: string): void {
+function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_path"): void {
   const segments = sourcePath.toLowerCase().split("/");
   const forbidden = segments.some(
     (segment) =>
@@ -245,12 +245,16 @@ function assertSourcePathAllowed(sourcePath: string): void {
       segment === "secrets" ||
       segment === "secrets.json" ||
       segment === ".env" ||
-      segment.startsWith(".env."),
+      segment.startsWith(".env.") ||
+      /(?:^|[._-])(?:oauth|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key)(?:[._-]|$)/.test(
+        segment,
+      ) ||
+      /^(?:id_rsa|id_ed25519|.*\.(?:pem|key|p12|pfx))$/.test(segment),
   );
   if (forbidden) {
     throw new DomainArtifactToolError(
       "ARTIFACT_PATH_FORBIDDEN",
-      "$.source_path",
+      diagnosticPath,
       "source path is credential- or runtime-sensitive",
     );
   }
@@ -1034,7 +1038,9 @@ const parameters = {
 
 export function createDomainArtifactDefinition(input: { readonly workspaceRoot: string }) {
   const requestedRoot = resolve(input.workspaceRoot);
+  assertSourcePathAllowed(requestedRoot, "$.workspace_root");
   const workspaceRoot = realpathSync(requestedRoot);
+  assertSourcePathAllowed(workspaceRoot, "$.workspace_root");
   if (workspaceRoot !== requestedRoot) {
     throw new Error("author workspace root must be a physical directory");
   }
