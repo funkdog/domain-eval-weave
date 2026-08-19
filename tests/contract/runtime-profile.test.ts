@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   access,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
@@ -25,6 +26,26 @@ import {
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
+function syntheticProfileLockfile(packageSpec: string): string {
+  return [
+    "lockfileVersion: '9.0'",
+    "",
+    "importers:",
+    "",
+    "  .:",
+    "    dependencies:",
+    "      dsh-codex-connect:",
+    `        specifier: ${JSON.stringify("0.1.0-alpha.4.7")}`,
+    "        version: synthetic",
+    "      dsh-eval-lab:",
+    `        specifier: ${JSON.stringify(packageSpec)}`,
+    "        version: synthetic",
+    "",
+  ].join("\n");
+}
+
+async function acceptSyntheticPackageContent(): Promise<void> {}
+
 async function writeSyntheticInstalledProfile(
   root: string,
   packageSpec: string,
@@ -32,11 +53,7 @@ async function writeSyntheticInstalledProfile(
 ): Promise<void> {
   await mkdir(`${root}/node_modules/dsh-eval-lab`, { recursive: true, mode: 0o700 });
   await mkdir(`${root}/node_modules/dsh-codex-connect`, { recursive: true, mode: 0o700 });
-  await writeFile(
-    `${root}/pnpm-lock.yaml`,
-    `lockfileVersion: '9.0'\n${packageSpec}\ndsh-codex-connect@0.1.0-alpha.4.7\n`,
-    "utf8",
-  );
+  await writeFile(`${root}/pnpm-lock.yaml`, syntheticProfileLockfile(packageSpec), "utf8");
   await writeFile(
     `${root}/node_modules/dsh-eval-lab/package.json`,
     `${JSON.stringify({ name: "dsh-eval-lab", version })}\n`,
@@ -47,6 +64,28 @@ async function writeSyntheticInstalledProfile(
     `${JSON.stringify({ name: "dsh-codex-connect", version: "0.1.0-alpha.4.7" })}\n`,
     "utf8",
   );
+}
+
+async function writeSyntheticInstalledProfileWithEvalSymlink(
+  root: string,
+  externalPackageRoot: string,
+  packageSpec: string,
+  version: string,
+): Promise<void> {
+  await mkdir(`${root}/node_modules/dsh-codex-connect`, { recursive: true, mode: 0o700 });
+  await mkdir(externalPackageRoot, { recursive: true, mode: 0o700 });
+  await writeFile(`${root}/pnpm-lock.yaml`, syntheticProfileLockfile(packageSpec), "utf8");
+  await writeFile(
+    `${externalPackageRoot}/package.json`,
+    `${JSON.stringify({ name: "dsh-eval-lab", version })}\n`,
+    "utf8",
+  );
+  await writeFile(
+    `${root}/node_modules/dsh-codex-connect/package.json`,
+    `${JSON.stringify({ name: "dsh-codex-connect", version: "0.1.0-alpha.4.7" })}\n`,
+    "utf8",
+  );
+  await symlink(externalPackageRoot, `${root}/node_modules/dsh-eval-lab`);
 }
 
 test("runner profile files freeze the exact package and opposite app/bridge roles", async () => {
@@ -194,6 +233,7 @@ test("Phase 3 init atomically upgrades a Phase 2 runner and creates the author p
       authorRoot,
       packageSpec: nextSpec,
       packageVersion: "0.3.0-alpha.1",
+      verifyPackageContent: acceptSyntheticPackageContent,
       install: async (profileRoot) => {
         installs += 1;
         await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
@@ -212,6 +252,7 @@ test("Phase 3 init atomically upgrades a Phase 2 runner and creates the author p
         authorRoot,
         packageSpec: nextSpec,
         packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
         install: async () => {
           installs += 1;
         },
@@ -245,6 +286,7 @@ test("Phase 3 profile upgrade rejects unrecognized drift before staging", async 
         authorRoot,
         packageSpec: nextSpec,
         packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
         install: async () => {
           installs += 1;
         },
@@ -259,6 +301,125 @@ test("Phase 3 profile upgrade rejects unrecognized drift before staging", async 
     );
     await assert.rejects(access(authorRoot), { code: "ENOENT" });
     assert.deepEqual(await readdir(root), ["eval-clowder-runner"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile preflight rejects a current package directory symlink", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-current-package-symlink-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const externalPackageRoot = `${root}/external-current-package`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfileWithEvalSymlink(
+      runnerRoot,
+      externalPackageRoot,
+      nextSpec,
+      "0.3.0-alpha.1",
+    );
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_INSTALL_INVALID",
+    );
+    assert.equal(installs, 0);
+    assert.equal((await lstat(`${runnerRoot}/node_modules/dsh-eval-lab`)).isSymbolicLink(), true);
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile preflight rejects a legacy package directory symlink", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-legacy-package-symlink-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const externalPackageRoot = `${root}/external-legacy-package`;
+  const previousSpec = "file:/runtime/packages/phase2/dsh-eval-lab-0.2.0-rc.4.tgz";
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, legacyPhase2RunnerProfileFiles(previousSpec));
+    await writeSyntheticInstalledProfileWithEvalSymlink(
+      runnerRoot,
+      externalPackageRoot,
+      previousSpec,
+      "0.2.0-rc.4",
+    );
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_INSTALL_INVALID",
+    );
+    assert.equal(installs, 0);
+    assert.equal((await lstat(`${runnerRoot}/node_modules/dsh-eval-lab`)).isSymbolicLink(), true);
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 profile preflight binds current package bytes to management", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-current-package-drift-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: async () => {
+          throw new Error("synthetic byte drift");
+        },
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_INSTALL_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -285,6 +446,7 @@ test("Phase 3 profile upgrade leaves both live profiles untouched when staged in
         authorRoot,
         packageSpec: nextSpec,
         packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
         install: async (profileRoot) => {
           installs += 1;
           if (installs === 2) throw new Error("synthetic install failure");
@@ -324,6 +486,7 @@ test("Phase 3 profile upgrade rolls the runner back when the author switch confl
         authorRoot,
         packageSpec: nextSpec,
         packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
         install: async (profileRoot) => {
           installs += 1;
           await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");

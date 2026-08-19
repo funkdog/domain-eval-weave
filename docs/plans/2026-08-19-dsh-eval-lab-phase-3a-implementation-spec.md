@@ -126,7 +126,9 @@ Runner 与新增 author profile 作为一个 staged profile set 升级：
 
 1. 在写 live profile 前完成两个目标的 path、predecessor/current bytes 与 shared model settings preflight；
 2. 在 profiles parent 下的隔离 sibling directory 物化三份 frozen profile 文件，生成 lockfile、安装 package closure，并验证
-   exact package spec/version 与 pinned `dsh-codex-connect`；
+   exact package spec/version 与 pinned `dsh-codex-connect`；`node_modules`、两个 package directory 及 manifest 的每一层
+   都必须 no-follow 验证为 profile 内 physical entry，lockfile 必须结构化绑定 root importer，已安装 Eval Lab bytes 必须与
+   management package content digest 相同；
 3. 只有全部 staging 成功后才通过同 filesystem directory rename 切换 live roots；同步切换错误必须倒序恢复已经切换的 profile；
 4. staging/install/verification 失败不得改写旧 runner，也不得留下半创建的 author；重复使用同一 package spec 执行 `init`
    必须是无安装、无改写的幂等操作；

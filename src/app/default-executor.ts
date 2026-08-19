@@ -363,6 +363,7 @@ async function initializeRuntime(): Promise<void> {
   const packageVersion = String(
     JSON.parse(await readFile(`${packageRoot()}/package.json`, "utf8")).version ?? "",
   );
+  const packageContentDigest = await fingerprintPackageContent(packageRoot());
   await verifySharedModelSettings(DEDICATED_DSH_HOME);
   await installPhase3ProfilesAtomically({
     runnerRoot: runnerProfileRoot(),
@@ -380,6 +381,11 @@ async function initializeRuntime(): Promise<void> {
         ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
         { cwd: profileRoot, env: childEnvironment() },
       );
+    },
+    verifyPackageContent: async (installedPackageRoot) => {
+      if ((await fingerprintPackageContent(installedPackageRoot)) !== packageContentDigest) {
+        throw new Error("installed Eval Lab package bytes differ from management");
+      }
     },
   });
 }

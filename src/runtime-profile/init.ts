@@ -484,6 +484,7 @@ export interface Phase3ProfileInstallInput {
   readonly packageSpec: string;
   readonly packageVersion: string;
   readonly install: (profileRoot: string) => Promise<void>;
+  readonly verifyPackageContent: (installedPackageRoot: string) => Promise<void>;
 }
 
 interface PreparedProfileTarget extends Phase3ProfileTarget {
@@ -559,25 +560,37 @@ async function profileInstallState(
   root: string,
   packageSpec: string,
   packageVersion: string,
+  verifyPackageContent?: (installedPackageRoot: string) => Promise<void>,
 ): Promise<ProfileInstallState> {
   const lockPath = resolveFrozenPath(root, "pnpm-lock.yaml");
   const modulesPath = resolveFrozenPath(root, "node_modules");
+  const evalPackagePath = resolveFrozenPath(root, "node_modules/dsh-eval-lab");
+  const codexPackagePath = resolveFrozenPath(root, "node_modules/dsh-codex-connect");
   const evalManifestPath = resolveFrozenPath(root, "node_modules/dsh-eval-lab/package.json");
   const codexManifestPath = resolveFrozenPath(root, "node_modules/dsh-codex-connect/package.json");
   const entries = await Promise.all([
     lstatOrUndefined(lockPath),
     lstatOrUndefined(modulesPath),
+    lstatOrUndefined(evalPackagePath),
+    lstatOrUndefined(codexPackagePath),
     lstatOrUndefined(evalManifestPath),
     lstatOrUndefined(codexManifestPath),
   ]);
   if (entries.some((entry) => entry === undefined)) return "missing";
-  const [lockEntry, modulesEntry, evalEntry, codexEntry] = entries;
+  const [lockEntry, modulesEntry, evalPackageEntry, codexPackageEntry, evalEntry, codexEntry] =
+    entries;
   if (
     lockEntry?.isSymbolicLink() ||
     !lockEntry?.isFile() ||
     modulesEntry?.isSymbolicLink() ||
     !modulesEntry?.isDirectory() ||
     (await realpath(modulesPath)) !== resolve(modulesPath) ||
+    evalPackageEntry?.isSymbolicLink() ||
+    !evalPackageEntry?.isDirectory() ||
+    (await realpath(evalPackagePath)) !== resolve(evalPackagePath) ||
+    codexPackageEntry?.isSymbolicLink() ||
+    !codexPackageEntry?.isDirectory() ||
+    (await realpath(codexPackagePath)) !== resolve(codexPackagePath) ||
     evalEntry?.isSymbolicLink() ||
     !evalEntry?.isFile() ||
     codexEntry?.isSymbolicLink() ||
@@ -599,19 +612,39 @@ async function profileInstallState(
       "installed profile package manifests must be readable JSON",
     );
   }
-  const lockfile = await readFile(lockPath, "utf8");
+  let lockfile: unknown;
+  try {
+    lockfile = parse(await readFile(lockPath, "utf8"));
+  } catch {
+    throw new ProfileContractError(
+      "PROFILE_INSTALL_INVALID",
+      "profile lockfile must be readable YAML",
+    );
+  }
+  const dependencies = mapping(mapping(mapping(lockfile)?.importers)?.["."])?.dependencies;
+  const dependencyMap = mapping(dependencies);
   if (
     mapping(evalManifest)?.name !== "dsh-eval-lab" ||
     mapping(evalManifest)?.version !== packageVersion ||
     mapping(codexManifest)?.name !== "dsh-codex-connect" ||
     mapping(codexManifest)?.version !== PINNED_CODEX_CONNECT_VERSION ||
-    !lockfile.includes(packageSpec) ||
-    !lockfile.includes(`dsh-codex-connect@${PINNED_CODEX_CONNECT_VERSION}`)
+    mapping(dependencyMap?.["dsh-eval-lab"])?.specifier !== packageSpec ||
+    mapping(dependencyMap?.["dsh-codex-connect"])?.specifier !== PINNED_CODEX_CONNECT_VERSION
   ) {
     throw new ProfileContractError(
       "PROFILE_INSTALL_MISMATCH",
       "installed profile package versions or lockfile do not match the frozen profile",
     );
+  }
+  if (verifyPackageContent !== undefined) {
+    try {
+      await verifyPackageContent(evalPackagePath);
+    } catch {
+      throw new ProfileContractError(
+        "PROFILE_INSTALL_MISMATCH",
+        "installed Eval Lab package bytes do not match the management package",
+      );
+    }
   }
   return "ready";
 }
@@ -620,6 +653,7 @@ async function inspectPhase3ProfileTarget(
   target: Phase3ProfileTarget,
   packageSpec: string,
   packageVersion: string,
+  verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
 ): Promise<"current" | "replace"> {
   if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
     throw new ProfileContractError("PROFILE_PATH_INVALID", "profile root must be absolute");
@@ -630,7 +664,12 @@ async function inspectPhase3ProfileTarget(
   await assertPhysicalDirectory(target.root);
   const actual = await readManagedFiles(target.root, target.files);
   if (frozenFilesMatch(actual, target.files)) {
-    return (await profileInstallState(target.root, packageSpec, packageVersion)) === "ready"
+    return (await profileInstallState(
+      target.root,
+      packageSpec,
+      packageVersion,
+      verifyPackageContent,
+    )) === "ready"
       ? "current"
       : "replace";
   }
@@ -680,6 +719,7 @@ async function prepareProfileTarget(
   packageSpec: string,
   packageVersion: string,
   install: (profileRoot: string) => Promise<void>,
+  verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
 ): Promise<PreparedProfileTarget> {
   const existed = (await lstatOrUndefined(target.root)) !== undefined;
   const stage = await mkdtemp(join(dirname(target.root), `.${basename(target.root)}.upgrade-`));
@@ -688,7 +728,10 @@ async function prepareProfileTarget(
     if (existed) await preserveCordisRoot(target.root, stage);
     await install(stage);
     await verifyFrozenFiles(stage, target.files);
-    if ((await profileInstallState(stage, packageSpec, packageVersion)) !== "ready") {
+    if (
+      (await profileInstallState(stage, packageSpec, packageVersion, verifyPackageContent)) !==
+      "ready"
+    ) {
       throw new ProfileContractError(
         "PROFILE_INSTALL_INVALID",
         "staged profile install did not produce a complete package closure",
@@ -743,7 +786,14 @@ export async function installPhase3ProfilesAtomically(
   ];
   const states: Array<"current" | "replace"> = [];
   for (const target of targets) {
-    states.push(await inspectPhase3ProfileTarget(target, input.packageSpec, input.packageVersion));
+    states.push(
+      await inspectPhase3ProfileTarget(
+        target,
+        input.packageSpec,
+        input.packageVersion,
+        input.verifyPackageContent,
+      ),
+    );
   }
   const replacements = targets.filter((_, index) => states[index] === "replace");
   if (replacements.length === 0) return [];
@@ -752,7 +802,13 @@ export async function installPhase3ProfilesAtomically(
   try {
     for (const target of replacements) {
       prepared.push(
-        await prepareProfileTarget(target, input.packageSpec, input.packageVersion, input.install),
+        await prepareProfileTarget(
+          target,
+          input.packageSpec,
+          input.packageVersion,
+          input.install,
+          input.verifyPackageContent,
+        ),
       );
     }
 
