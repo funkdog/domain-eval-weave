@@ -570,6 +570,120 @@ test("Phase 3 init upgrades the exact accepted Phase 3A predecessor set", async 
   }
 });
 
+test("Phase 3 successor preflight rejects an accepted runner without its author peer", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-missing-author-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence } = await prepareSyntheticPhase3Predecessor(root, runnerRoot, authorRoot);
+    const runnerManifest = await readFile(`${runnerRoot}/package.json`, "utf8");
+    await rm(authorRoot, { recursive: true });
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        acceptedPhase3PackageEvidence: evidence,
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(await readFile(`${runnerRoot}/package.json`, "utf8"), runnerManifest);
+    await assert.rejects(access(authorRoot), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 successor preflight rejects an accepted author without its runner peer", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-missing-runner-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence } = await prepareSyntheticPhase3Predecessor(root, runnerRoot, authorRoot);
+    const authorManifest = await readFile(`${authorRoot}/package.json`, "utf8");
+    await rm(runnerRoot, { recursive: true });
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        acceptedPhase3PackageEvidence: evidence,
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(await readFile(`${authorRoot}/package.json`, "utf8"), authorManifest);
+    await assert.rejects(access(runnerRoot), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 successor preflight rejects an accepted and current hybrid set", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-hybrid-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3-next/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    const { evidence } = await prepareSyntheticPhase3Predecessor(root, runnerRoot, authorRoot);
+    await rm(authorRoot, { recursive: true });
+    await materializeFrozenFiles(authorRoot, authorProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(authorRoot, nextSpec, "0.3.0-alpha.1");
+    const runnerManifest = await readFile(`${runnerRoot}/package.json`, "utf8");
+    const authorManifest = await readFile(`${authorRoot}/package.json`, "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        acceptedPhase3PackageEvidence: evidence,
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async () => {
+          installs += 1;
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONTENT_MISMATCH",
+    );
+    assert.equal(installs, 0);
+    assert.equal(await readFile(`${runnerRoot}/package.json`, "utf8"), runnerManifest);
+    assert.equal(await readFile(`${authorRoot}/package.json`, "utf8"), authorManifest);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Phase 3 successor preflight rejects tampered accepted Phase 3A package bytes", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });

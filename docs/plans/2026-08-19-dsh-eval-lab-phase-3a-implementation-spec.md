@@ -130,7 +130,8 @@ allowlist 只包含：
    `0.3.0-alpha.1`，local tar SHA-256
    `20963cf1c124c315353b48a06f1ba5f2e23acbe24c421ab1635c5240b4219cef`，size `229647` bytes，installed package
    content digest `5a1648272f1feede209b643cd1ff2be2970271df67e30d605515ab9782aaecc0`，且两套 profile managed files 必须
-   分别精确匹配同一个 tar spec。
+   分别精确匹配同一个 tar spec。该 predecessor 只能作为完整 runner+author cohort 被接受；任一 peer 缺失或与 current target
+   混合都不是可恢复 predecessor。
 
 同名同版本但 tar、installed bytes、profile bytes 或 runner/author package spec 不同仍是 drift，必须在零 install side
 effect 时拒绝。每次签发新的 reviewed runtime tar，都必须在本节推进 predecessor evidence，不能回退为任意历史版本或

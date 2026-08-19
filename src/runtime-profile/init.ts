@@ -577,8 +577,16 @@ interface PreparedProfileTarget extends Phase3ProfileTarget {
 
 interface ProfilePreflight extends Phase3ProfileTarget {
   readonly state: "current" | "replace";
+  readonly source: "missing" | "claimed" | "current" | "legacy-phase2" | "accepted-phase3";
+  readonly sourcePackageSpec?: string;
   readonly existed: boolean;
   readonly liveSnapshot: string;
+}
+
+interface ProfileInspection {
+  readonly state: "current" | "replace";
+  readonly source: ProfilePreflight["source"];
+  readonly sourcePackageSpec?: string;
 }
 
 async function lstatOrUndefined(
@@ -966,19 +974,19 @@ async function inspectPhase3ProfileTarget(
   verifyPackageContent: (installedPackageRoot: string) => Promise<void>,
   legacyPackageEvidence: AcceptedPackageEvidence,
   acceptedPhase3PackageEvidence: AcceptedPackageEvidence,
-): Promise<"current" | "replace"> {
+): Promise<ProfileInspection> {
   if (!isAbsolute(target.root) || resolve(target.root) !== target.root) {
     throw new ProfileContractError("PROFILE_PATH_INVALID", "profile root must be absolute");
   }
   await assertPhysicalDirectory(dirname(target.root));
   const rootEntry = await lstatOrUndefined(target.root);
-  if (rootEntry === undefined) return "replace";
+  if (rootEntry === undefined) return { state: "replace", source: "missing" };
   await assertPhysicalDirectory(target.root);
   if (
     (await inspectClaimedProfile(target, packageSpec, packageVersion, verifyPackageContent)) !==
     "absent"
   ) {
-    return "replace";
+    return { state: "replace", source: "claimed" };
   }
   await assertKnownUnclaimedProfileEntries(target);
   const actual = await readManagedFiles(target.root, target.files);
@@ -991,7 +999,7 @@ async function inspectPhase3ProfileTarget(
         verifyPackageContent,
       )) === "ready"
     ) {
-      return "current";
+      return { state: "current", source: "current" };
     }
     throw new ProfileContractError(
       "PROFILE_CONTENT_MISMATCH",
@@ -1024,7 +1032,11 @@ async function inspectPhase3ProfileTarget(
           legacyPackageEvidence,
           "legacy Phase 2",
         );
-        return "replace";
+        return {
+          state: "replace",
+          source: "legacy-phase2",
+          sourcePackageSpec: previousSpec,
+        };
       }
     }
   }
@@ -1053,13 +1065,43 @@ async function inspectPhase3ProfileTarget(
         acceptedPhase3PackageEvidence,
         "accepted Phase 3A predecessor",
       );
-      return "replace";
+      return {
+        state: "replace",
+        source: "accepted-phase3",
+        sourcePackageSpec: previousPhase3Spec,
+      };
     }
   }
   throw new ProfileContractError(
     "PROFILE_CONTENT_MISMATCH",
     `existing ${target.role} profile is neither the frozen target nor an accepted release predecessor`,
   );
+}
+
+function inspectionsMatch(left: ProfileInspection, right: ProfileInspection): boolean {
+  return (
+    left.state === right.state &&
+    left.source === right.source &&
+    left.sourcePackageSpec === right.sourcePackageSpec
+  );
+}
+
+function assertAcceptedPhase3Cohort(preflight: readonly ProfilePreflight[]): void {
+  const accepted = preflight.filter((target) => target.source === "accepted-phase3");
+  if (accepted.length === 0) return;
+  if (
+    accepted.length !== preflight.length ||
+    accepted.some(
+      (target) =>
+        target.sourcePackageSpec === undefined ||
+        target.sourcePackageSpec !== accepted[0]?.sourcePackageSpec,
+    )
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_CONTENT_MISMATCH",
+      "accepted Phase 3A predecessor must be an exact runner and author package set",
+    );
+  }
 }
 
 async function preserveCordisRoot(sourceRoot: string, stageRoot: string): Promise<void> {
@@ -1215,7 +1257,7 @@ export async function installPhase3ProfilesAtomically(
     input.acceptedPhase3PackageEvidence ?? ACCEPTED_PHASE3A_PREDECESSOR_PACKAGE;
   const preflight: ProfilePreflight[] = [];
   for (const target of targets) {
-    const state = await inspectPhase3ProfileTarget(
+    const inspection = await inspectPhase3ProfileTarget(
       target,
       input.packageSpec,
       input.packageVersion,
@@ -1224,39 +1266,28 @@ export async function installPhase3ProfilesAtomically(
       acceptedPhase3PackageEvidence,
     );
     const snapshot = await captureProfileLiveSnapshot(target);
-    if (
-      (await inspectPhase3ProfileTarget(
-        target,
-        input.packageSpec,
-        input.packageVersion,
-        input.verifyPackageContent,
-        legacyPackageEvidence,
-        acceptedPhase3PackageEvidence,
-      )) !== state
-    ) {
+    const confirmedInspection = await inspectPhase3ProfileTarget(
+      target,
+      input.packageSpec,
+      input.packageVersion,
+      input.verifyPackageContent,
+      legacyPackageEvidence,
+      acceptedPhase3PackageEvidence,
+    );
+    if (!inspectionsMatch(inspection, confirmedInspection)) {
       throw new ProfileContractError(
         "PROFILE_CONCURRENT_MODIFICATION",
         `${target.role} profile changed during transaction preflight`,
       );
     }
-    preflight.push({ ...target, state, existed: snapshot.existed, liveSnapshot: snapshot.value });
+    preflight.push({
+      ...target,
+      ...inspection,
+      existed: snapshot.existed,
+      liveSnapshot: snapshot.value,
+    });
   }
-  const existingPackageSpecs = new Set<string>();
-  for (const target of preflight) {
-    if (!target.existed) continue;
-    const actual = await readManagedFiles(target.root, target.files);
-    const installedSpec = profilePackageSpec(actual.get("package.json"));
-    if (installedSpec !== undefined) existingPackageSpecs.add(installedSpec);
-  }
-  const predecessorPackageSpecs = [...existingPackageSpecs].filter(
-    (installedSpec) => installedSpec !== input.packageSpec,
-  );
-  if (predecessorPackageSpecs.length > 1) {
-    throw new ProfileContractError(
-      "PROFILE_CONTENT_MISMATCH",
-      "runner and author predecessors do not bind the same Eval Lab package spec",
-    );
-  }
+  assertAcceptedPhase3Cohort(preflight);
   const replacements = preflight.filter((target) => target.state === "replace");
   if (replacements.length === 0) return [];
 
@@ -1333,14 +1364,16 @@ export async function installPhase3ProfilesAtomically(
               throw new Error("claimed profile did not cross its ready boundary");
             }
           } else if (
-            (await inspectPhase3ProfileTarget(
-              target,
-              input.packageSpec,
-              input.packageVersion,
-              input.verifyPackageContent,
-              legacyPackageEvidence,
-              acceptedPhase3PackageEvidence,
-            )) !== "current"
+            (
+              await inspectPhase3ProfileTarget(
+                target,
+                input.packageSpec,
+                input.packageVersion,
+                input.verifyPackageContent,
+                legacyPackageEvidence,
+                acceptedPhase3PackageEvidence,
+              )
+            ).state !== "current"
           ) {
             throw new Error("profile did not reach the current state");
           }
