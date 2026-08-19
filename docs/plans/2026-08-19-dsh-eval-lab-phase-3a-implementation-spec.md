@@ -412,6 +412,7 @@ interface ProductDomainContract {
   readonly confirmation: OwnerConfirmationPointer
   readonly decided_by: string
   readonly decided_at: string
+  readonly source_interview: DomainArtifactPointer
   readonly source_snapshot_digest: string
   readonly claims: readonly ProductDomainClaim[]
 }
@@ -426,6 +427,7 @@ interface ProductDomainContractCandidate {
   readonly product_id: string
   readonly version: number
   readonly predecessor?: DomainArtifactPointer
+  readonly source_interview: DomainArtifactPointer
   readonly source_snapshot_digest: string
   readonly claims: readonly ProductDomainClaim[]
 }

@@ -10,6 +10,10 @@
   },
   "decided_by": "replace-me-owner",
   "decided_at": "1970-01-01T00:00:00.000Z",
+  "source_interview": {
+    "ref": "interviews/replace-me-interview/r1.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
   "source_snapshot_digest": "0000000000000000000000000000000000000000000000000000000000000000",
   "claims": [
     {
@@ -25,7 +29,7 @@
         {
           "source_id": "replace-me-authority",
           "kind": "owner_statement",
-          "artifact_ref": "interviews/replace-me-interview.json",
+          "artifact_ref": "interviews/replace-me-interview/r1.json",
           "digest": "0000000000000000000000000000000000000000000000000000000000000000"
         }
       ],

@@ -139,6 +139,10 @@ export const validProductDomainContractCandidate = {
   contract_id: "synthetic-commerce-contract",
   product_id: "synthetic-commerce",
   version: 1,
+  source_interview: {
+    ref: "interviews/commerce-onboard-v1/r1.json",
+    sha256: canonicalJsonDigest(validInterviewSession),
+  },
   source_snapshot_digest: canonicalJsonDigest(validInterviewSession.source_snapshot),
   claims: contractClaims,
 } as const;

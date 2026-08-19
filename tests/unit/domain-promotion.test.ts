@@ -11,6 +11,7 @@ import {
 import {
   validContractConfirmation,
   validEvidenceCard,
+  validInterviewSession,
   validOwnerConfirmation,
   validOwnerSource,
   validProductDocSource,
@@ -46,7 +47,10 @@ function issueDraft(draft: unknown, suffix: string) {
 const draftInput = {
   contractId: "synthetic-commerce-contract",
   productId: "synthetic-commerce",
-  sourceSnapshotDigest: "f".repeat(64),
+  sourceInterview: {
+    ref: "interviews/commerce-onboard-v1/r1.json",
+    interview: validInterviewSession,
+  },
   evidenceCards: [cardArtifact()],
 } as const;
 
@@ -185,6 +189,61 @@ test("successor validation rejects silent Claim mutation and skipped transition 
       predecessorRef,
       predecessor: validProductDomainContract,
       successor: skipped,
+    }),
+  );
+});
+
+test("successor validation keeps retired Claims terminal", () => {
+  const predecessorRef = "contracts/synthetic-commerce-contract/v1.json";
+  const retiredCandidate = {
+    schema_version: 1,
+    contract_id: validProductDomainContract.contract_id,
+    product_id: validProductDomainContract.product_id,
+    version: 2,
+    predecessor: {
+      ref: predecessorRef,
+      sha256: canonicalJsonDigest(validProductDomainContract),
+    },
+    source_interview: validProductDomainContract.source_interview,
+    source_snapshot_digest: validProductDomainContract.source_snapshot_digest,
+    claims: validProductDomainContract.claims.map((claim) => ({
+      ...claim,
+      lifecycle: "retired" as const,
+      transition: {
+        kind: "retires" as const,
+        predecessor: { claim_id: claim.claim_id, contract_version: 1 },
+      },
+    })),
+  } as const;
+  assert.doesNotThrow(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef,
+      predecessor: validProductDomainContract,
+      successor: retiredCandidate,
+    }),
+  );
+  const retired = issueDraft(retiredCandidate, "retired-v2");
+  const reactivated = {
+    ...retiredCandidate,
+    version: 3,
+    predecessor: {
+      ref: "contracts/synthetic-commerce-contract/v2.json",
+      sha256: canonicalJsonDigest(retired),
+    },
+    claims: retiredCandidate.claims.map((claim) => ({
+      ...claim,
+      lifecycle: "active" as const,
+      transition: {
+        kind: "supersedes" as const,
+        predecessor: { claim_id: claim.claim_id, contract_version: 2 },
+      },
+    })),
+  } as const;
+  assert.throws(() =>
+    assertProductDomainContractSuccessor({
+      predecessorRef: "contracts/synthetic-commerce-contract/v2.json",
+      predecessor: retired,
+      successor: reactivated,
     }),
   );
 });

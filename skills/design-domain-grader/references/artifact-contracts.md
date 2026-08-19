@@ -35,7 +35,8 @@ candidate graph/readiness/manifest files are not contract surfaces.
 - EvidenceCard is the only object with the five evidence states.
 - OwnerConfirmationEvent lives only in the management-owned runtime ledger. Source artifacts carry an id+digest receipt; actor strings or workspace JSON are not evidence.
 - DecisionQuestion persists blocking scope and explicit resolution evidence.
-- ProductDomainContract contains only promoted confirmed Claims and has an explicit version/predecessor chain.
+- ProductDomainContract contains only promoted confirmed Claims, binds the exact completed source Interview, and has an explicit
+  version/predecessor chain.
 - RequirementChangeSet pins one exact base Contract and expresses six typed effects.
 - ClaimDependencyGraph is derived from Contract + RequirementChangeSets.
 - DomainTruthReadinessReport is derived and rule-based; it is not a score.

@@ -417,6 +417,29 @@ async function validateDomainPackInner(
     (value) => `contracts/${value.contract_id}/v${value.version}.json`,
     false,
   );
+  const primaryProductIds = [
+    manifest.product_id,
+    request.product_id,
+    readiness.product_id,
+    graph.product_id,
+    ...interviewHistories.flatMap((history) =>
+      history.map((artifact) => artifact.value.product_id),
+    ),
+    ...evidenceCardHistories.flatMap((history) =>
+      history.map((artifact) => artifact.value.product_id),
+    ),
+    ...questionHistories.flatMap((history) => history.map((artifact) => artifact.value.product_id)),
+    ...requirementHistories.flatMap((history) =>
+      history.map((artifact) => artifact.value.product_id),
+    ),
+    ...contractHistory.map((artifact) => artifact.value.product_id),
+  ];
+  if (primaryProductIds.some((productId) => productId !== manifest.product_id)) {
+    throw new DomainPackError(
+      "DOMAIN_PACK_MANIFEST_INVALID",
+      "manifest primary artifact product identities drifted",
+    );
+  }
 
   const allSources = [
     ...interviewHistories.flatMap((history) =>
@@ -465,9 +488,39 @@ async function validateDomainPackInner(
     }
     return event;
   };
+  for (const artifact of contractHistory) {
+    const sourceInterviewArtifact = await readPointer(
+      artifact.value.source_interview,
+      parseDomainInterviewSession,
+    );
+    const sourceInterview = sourceInterviewArtifact.value;
+    if (
+      sourceInterviewArtifact.ref !==
+        `interviews/${sourceInterview.interview_id}/r${sourceInterview.revision}.json` ||
+      sourceInterview.product_id !== artifact.value.product_id ||
+      sourceInterview.status !== "completed" ||
+      canonicalJsonDigest(sourceInterview.source_snapshot) !== artifact.value.source_snapshot_digest
+    ) {
+      throw new DomainPackError(
+        "DOMAIN_CONTRACT_PROMOTION_INVALID",
+        "Contract source Interview or snapshot digest drifted",
+      );
+    }
+    await Promise.all(
+      sourceInterview.source_snapshot.map((source) => verifyDomainSourceRef(packRoot, source)),
+    );
+  }
   for (const history of evidenceCardHistories) {
     for (const artifact of history) {
       if (artifact.value.status !== "confirmed") continue;
+      if (
+        artifact.ref !== `evidence-cards/${artifact.value.card_id}/r${artifact.value.revision}.json`
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_EVIDENCE_INVALID",
+          "confirmed Evidence Card must use its canonical revision path",
+        );
+      }
       assertOwnerConfirmation(
         confirmationFor(artifact.value.confirmation),
         "evidence_card",
@@ -538,18 +591,6 @@ async function validateDomainPackInner(
       );
     }
   }
-  if (
-    !interviews.some(
-      (artifact) =>
-        canonicalJsonDigest(artifact.value.source_snapshot) === contract.source_snapshot_digest,
-    )
-  ) {
-    throw new DomainPackError(
-      "DOMAIN_CONTRACT_PROMOTION_INVALID",
-      "Contract source snapshot does not match any persisted InterviewSession",
-    );
-  }
-
   const requirementInputs = requirements.map((artifact) => ({
     ref: artifact.ref,
     requirement: artifact.value,
@@ -563,6 +604,15 @@ async function validateDomainPackInner(
   for (const history of requirementHistories) {
     for (const artifact of history) {
       if (artifact.value.status === "draft") continue;
+      if (
+        artifact.ref !==
+        `requirements/${artifact.value.requirement_id}/v${artifact.value.version}.json`
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_REQUIREMENT_INVALID",
+          "owner-confirmed Requirement must use its canonical version path",
+        );
+      }
       assertOwnerConfirmation(
         confirmationFor(artifact.value.confirmation),
         "requirement_change_set",
@@ -577,16 +627,32 @@ async function validateDomainPackInner(
   for (const history of interviewHistories) {
     for (const artifact of history) {
       for (const pointer of artifact.value.evidence_card_refs) {
-        const card = (await readPointer(pointer, parseDomainEvidenceCard)).value;
+        const cardArtifact = await readPointer(pointer, parseDomainEvidenceCard);
+        const card = cardArtifact.value;
         if (card.product_id !== artifact.value.product_id) {
           throw new DomainPackError(
             "DOMAIN_EVIDENCE_INVALID",
             "historical Interview evidence-card ownership drifted",
           );
         }
+        if (card.status === "confirmed") {
+          if (cardArtifact.ref !== `evidence-cards/${card.card_id}/r${card.revision}.json`) {
+            throw new DomainPackError(
+              "DOMAIN_EVIDENCE_INVALID",
+              "historical confirmed Card uses a non-canonical path",
+            );
+          }
+          assertOwnerConfirmation(
+            confirmationFor(card.confirmation),
+            "evidence_card",
+            card,
+            "confirm",
+          );
+        }
       }
       for (const pointer of artifact.value.decision_question_refs) {
-        const question = (await readPointer(pointer, parseDomainDecisionQuestion)).value;
+        const questionArtifact = await readPointer(pointer, parseDomainDecisionQuestion);
+        const question = questionArtifact.value;
         if (question.product_id !== artifact.value.product_id) {
           throw new DomainPackError(
             "DOMAIN_DECISION_INVALID",
@@ -594,6 +660,15 @@ async function validateDomainPackInner(
           );
         }
         if (question.status === "resolved") {
+          if (
+            questionArtifact.ref !==
+            `decision-questions/${question.question_id}/r${question.revision}.json`
+          ) {
+            throw new DomainPackError(
+              "DOMAIN_DECISION_INVALID",
+              "historical resolved question uses a non-canonical path",
+            );
+          }
           assertOwnerConfirmation(
             confirmationFor(question.resolution_confirmation),
             "decision_question",
@@ -606,13 +681,24 @@ async function validateDomainPackInner(
   }
   for (const history of requirementHistories) {
     for (const artifact of history) {
-      const baseContract = (
-        await readPointer(artifact.value.base_contract, parseProductDomainContract)
-      ).value;
+      const baseContractArtifact = await readPointer(
+        artifact.value.base_contract,
+        parseProductDomainContract,
+      );
+      const baseContract = baseContractArtifact.value;
       if (baseContract.product_id !== artifact.value.product_id) {
         throw new DomainPackError(
           "DOMAIN_REQUIREMENT_INVALID",
           "historical Requirement base Contract ownership drifted",
+        );
+      }
+      if (
+        baseContractArtifact.ref !==
+        `contracts/${baseContract.contract_id}/v${baseContract.version}.json`
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_REQUIREMENT_INVALID",
+          "Requirement base Contract uses a non-canonical path",
         );
       }
       assertOwnerConfirmation(
@@ -622,7 +708,8 @@ async function validateDomainPackInner(
         "confirm",
       );
       for (const pointer of artifact.value.decision_question_refs) {
-        const question = (await readPointer(pointer, parseDomainDecisionQuestion)).value;
+        const questionArtifact = await readPointer(pointer, parseDomainDecisionQuestion);
+        const question = questionArtifact.value;
         if (
           question.product_id !== artifact.value.product_id ||
           (question.requirement_id !== undefined &&
@@ -634,6 +721,15 @@ async function validateDomainPackInner(
           );
         }
         if (question.status === "resolved") {
+          if (
+            questionArtifact.ref !==
+            `decision-questions/${question.question_id}/r${question.revision}.json`
+          ) {
+            throw new DomainPackError(
+              "DOMAIN_DECISION_INVALID",
+              "Requirement resolved question uses a non-canonical path",
+            );
+          }
           assertOwnerConfirmation(
             confirmationFor(question.resolution_confirmation),
             "decision_question",
@@ -684,6 +780,15 @@ async function validateDomainPackInner(
   for (const history of questionHistories) {
     for (const artifact of history) {
       if (artifact.value.status === "open") continue;
+      if (
+        artifact.ref !==
+        `decision-questions/${artifact.value.question_id}/r${artifact.value.revision}.json`
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_DECISION_INVALID",
+          "resolved DecisionQuestion must use its canonical revision path",
+        );
+      }
       assertOwnerConfirmation(
         confirmationFor(artifact.value.resolution_confirmation),
         "decision_question",

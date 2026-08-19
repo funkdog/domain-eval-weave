@@ -17,6 +17,7 @@ import {
   ownerConfirmationPointerSchema,
   parseDomainDecisionQuestion,
   parseDomainEvidenceCard,
+  parseDomainInterviewSession,
   parseProductDomainContract,
   parseProductDomainContractCandidate,
   parseRequirementChangeSet,
@@ -212,6 +213,21 @@ async function preflightAuthorityClosure(input: {
 
   if (input.targetKind === "product_domain_contract") {
     const draft = parseProductDomainContractCandidate(input.candidate);
+    const sourceInterview = await readBoundArtifact(
+      input.root,
+      draft.source_interview,
+      parseDomainInterviewSession,
+    );
+    if (
+      sourceInterview.product_id !== draft.product_id ||
+      sourceInterview.status !== "completed" ||
+      canonicalJsonDigest(sourceInterview.source_snapshot) !== draft.source_snapshot_digest
+    ) {
+      throw new Error("Contract source Interview or snapshot digest drifted");
+    }
+    await Promise.all(
+      sourceInterview.source_snapshot.map((source) => verifyDomainSourceRef(input.root, source)),
+    );
     if (draft.predecessor !== undefined) {
       const predecessor = await readBoundArtifact(
         input.root,
@@ -259,6 +275,9 @@ async function preflightAuthorityClosure(input: {
 
   if (input.targetKind === "requirement_change_set") {
     const requirement = parseRequirementChangeSet(input.candidate);
+    await Promise.all(
+      requirement.requirement_refs.map((source) => verifyDomainSourceRef(input.root, source)),
+    );
     const contract = await readBoundArtifact(
       input.root,
       requirement.base_contract,

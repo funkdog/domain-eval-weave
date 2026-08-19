@@ -7,6 +7,7 @@ import {
   type ProductDomainContract,
   type ProductDomainContractCandidate,
   parseDomainEvidenceCard,
+  parseDomainInterviewSession,
   parseOwnerConfirmationEvent,
   parseProductDomainContract,
   parseProductDomainContractCandidate,
@@ -30,7 +31,7 @@ interface PredecessorInput {
 export interface DraftProductDomainContractInput {
   readonly contractId: string;
   readonly productId: string;
-  readonly sourceSnapshotDigest: string;
+  readonly sourceInterview: { readonly ref: string; readonly interview: unknown };
   readonly evidenceCards: readonly EvidenceCardInput[];
   readonly predecessor?: PredecessorInput;
 }
@@ -75,6 +76,14 @@ export function assertProductDomainContractSuccessor(input: {
     const current = successorClaims.get(previous.claim_id);
     if (current === undefined) {
       throw new Error(`successor Contract silently deletes Claim ${previous.claim_id}`);
+    }
+    if (
+      previous.lifecycle === "retired" &&
+      (current.lifecycle !== "retired" ||
+        current.transition !== undefined ||
+        canonicalJson(claimSemantics(current)) !== canonicalJson(claimSemantics(previous)))
+    ) {
+      throw new Error(`retired Claim cannot be changed or reactivated: ${previous.claim_id}`);
     }
     const changed =
       canonicalJson(claimSemantics(current)) !== canonicalJson(claimSemantics(previous));
@@ -122,6 +131,10 @@ function assertConfirmationPointer(
 export function draftProductDomainContract(
   input: DraftProductDomainContractInput,
 ): ProductDomainContractDraft {
+  const sourceInterview = parseDomainInterviewSession(input.sourceInterview.interview);
+  if (sourceInterview.product_id !== input.productId || sourceInterview.status !== "completed") {
+    throw new Error("Contract source Interview must be completed and belong to the product");
+  }
   const predecessor =
     input.predecessor === undefined
       ? undefined
@@ -188,7 +201,11 @@ export function draftProductDomainContract(
             sha256: canonicalJsonDigest(predecessor),
           }),
         }),
-    source_snapshot_digest: input.sourceSnapshotDigest,
+    source_interview: domainPackPointerSchema.parse({
+      ref: input.sourceInterview.ref,
+      sha256: canonicalJsonDigest(sourceInterview),
+    }),
+    source_snapshot_digest: canonicalJsonDigest(sourceInterview.source_snapshot),
     claims: [...claims.values()].sort((left, right) => left.claim_id.localeCompare(right.claim_id)),
   };
 }

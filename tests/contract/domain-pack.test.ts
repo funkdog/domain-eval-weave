@@ -182,6 +182,95 @@ test("domain pack replays outbound pointers from historical Interview revisions"
   }
 });
 
+test("domain pack rejects cross-product Interviews and forged historical Card receipts", async () => {
+  const project = await scratchProject("domain-pack-product-history");
+  try {
+    const { packRoot, manifestRef, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const manifestPath = `${packRoot}/${manifestRef}`;
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      interviews: Array<{ ref: string; sha256: string }>;
+      evidence_cards: Array<{ ref: string; sha256: string }>;
+    };
+    const interviewPointer = manifest.interviews[0];
+    const cardPointer = manifest.evidence_cards[0];
+    assert.ok(interviewPointer);
+    assert.ok(cardPointer);
+    const interviewPath = `${packRoot}/${interviewPointer.ref}`;
+    const originalInterview = JSON.parse(await readFile(interviewPath, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const wrongProductInterview = {
+      ...originalInterview,
+      product_id: "other-product",
+      evidence_card_refs: [],
+      decision_question_refs: [],
+    };
+    await writeFile(interviewPath, `${canonicalJson(wrongProductInterview)}\n`, {
+      mode: 0o600,
+    });
+    interviewPointer.sha256 = canonicalJsonDigest(wrongProductInterview);
+    await writeFile(manifestPath, `${canonicalJson(manifest)}\n`, { mode: 0o600 });
+    await assert.rejects(
+      validateDomainPack(project, "domain-eval", manifestRef, { confirmationLedger }),
+      DomainPackError,
+    );
+
+    await writeSyntheticDomainPack(project);
+    const restoredManifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+      interviews: Array<{ ref: string; sha256: string }>;
+      evidence_cards: Array<{ ref: string; sha256: string }>;
+    };
+    const restoredInterviewPointer = restoredManifest.interviews[0];
+    const restoredCardPointer = restoredManifest.evidence_cards[0];
+    assert.ok(restoredInterviewPointer);
+    assert.ok(restoredCardPointer);
+    const restoredInterview = JSON.parse(
+      await readFile(`${packRoot}/${restoredInterviewPointer.ref}`, "utf8"),
+    ) as Record<string, unknown>;
+    const existingCard = JSON.parse(
+      await readFile(`${packRoot}/${restoredCardPointer.ref}`, "utf8"),
+    ) as Record<string, unknown>;
+    const forgedCard = { ...existingCard, card_id: "forged-history-card" };
+    const forgedCardRef = "candidates/forged-history-card.json";
+    await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+    await writeFile(`${packRoot}/${forgedCardRef}`, `${canonicalJson(forgedCard)}\n`, {
+      mode: 0o600,
+    });
+    const historical = {
+      ...restoredInterview,
+      evidence_card_refs: [{ ref: forgedCardRef, sha256: canonicalJsonDigest(forgedCard) }],
+    };
+    await writeFile(
+      `${packRoot}/${restoredInterviewPointer.ref}`,
+      `${canonicalJson(historical)}\n`,
+      { mode: 0o600 },
+    );
+    const revisionTwo = {
+      ...restoredInterview,
+      revision: 2,
+      predecessor: {
+        ref: restoredInterviewPointer.ref,
+        sha256: canonicalJsonDigest(historical),
+      },
+    };
+    const revisionTwoRef = "interviews/commerce-onboard-v1/r2.json";
+    await writeFile(`${packRoot}/${revisionTwoRef}`, `${canonicalJson(revisionTwo)}\n`, {
+      mode: 0o600,
+    });
+    restoredManifest.interviews = [
+      { ref: revisionTwoRef, sha256: canonicalJsonDigest(revisionTwo) },
+    ];
+    await writeFile(manifestPath, `${canonicalJson(restoredManifest)}\n`, { mode: 0o600 });
+    await assert.rejects(
+      validateDomainPack(project, "domain-eval", manifestRef, { confirmationLedger }),
+      DomainPackError,
+    );
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("domain pack path rejects traversal, absolute paths, and symlink roots", async () => {
   const project = await scratchProject("domain-pack-path");
   const outside = await scratchProject("domain-pack-outside");

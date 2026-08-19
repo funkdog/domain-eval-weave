@@ -44,6 +44,7 @@ export function confirmationProjection(kind: ConfirmationTargetKind, target: unk
         "product_id",
         "version",
         "predecessor",
+        "source_interview",
         "source_snapshot_digest",
         "claims",
       ]);

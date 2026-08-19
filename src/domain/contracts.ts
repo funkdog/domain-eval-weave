@@ -419,6 +419,7 @@ const productDomainContractCandidateCoreSchema = z.strictObject({
   product_id: idSchema,
   version: z.number().finite().int().positive(),
   predecessor: domainPackPointerSchema.optional(),
+  source_interview: domainPackPointerSchema,
   source_snapshot_digest: sha256Schema,
   claims: z.array(productDomainClaimSchema).min(1),
 });

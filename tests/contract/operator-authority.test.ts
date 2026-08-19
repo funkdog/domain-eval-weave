@@ -226,6 +226,78 @@ test("authority preflight verifies Card sources before persisting confirmation",
   }
 });
 
+test("authority preflight closes Contract source snapshots and Requirement sources", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const project = await mkdtemp(`${parent}/authority-source-closure-project-`);
+  try {
+    const { packRoot, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const contract = JSON.parse(
+      await readFile(`${packRoot}/contracts/synthetic-commerce-contract/v1.json`, "utf8"),
+    ) as Record<string, unknown>;
+    const {
+      state: _state,
+      confirmation: _confirmation,
+      decided_by: _by,
+      decided_at: _at,
+      ...contractDraft
+    } = contract;
+    contractDraft.contract_id = "unbound-source-contract";
+    contractDraft.source_snapshot_digest = "f".repeat(64);
+    const contractCandidateRef = "candidates/unbound-source-contract.json";
+    await mkdir(`${packRoot}/candidates`, { recursive: true, mode: 0o700 });
+    await writeFile(`${packRoot}/${contractCandidateRef}`, `${canonicalJson(contractDraft)}\n`, {
+      mode: 0o600,
+    });
+    const ledgerRoot = `${project}/test-runtime/domain-confirmations`;
+    const beforeContract = await readdir(ledgerRoot);
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: contractCandidateRef,
+        targetKind: "product_domain_contract",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:16:00.000Z",
+        ledger: confirmationLedger,
+      }),
+    );
+    assert.deepEqual(await readdir(ledgerRoot), beforeContract);
+
+    const requirement = JSON.parse(
+      await readFile(`${packRoot}/requirements/order-cancellation-v1/v1.json`, "utf8"),
+    ) as Record<string, unknown>;
+    delete requirement.confirmation;
+    requirement.requirement_id = "missing-source-requirement";
+    requirement.status = "draft";
+    requirement.requirement_refs = [
+      {
+        ...((requirement.requirement_refs as Array<Record<string, unknown>>)[0] ?? {}),
+        artifact_ref: "sources/missing.md",
+      },
+    ];
+    const requirementCandidateRef = "candidates/missing-source-requirement.json";
+    await writeFile(`${packRoot}/${requirementCandidateRef}`, `${canonicalJson(requirement)}\n`, {
+      mode: 0o600,
+    });
+    const beforeRequirement = await readdir(ledgerRoot);
+    await assert.rejects(
+      recordOperatorAuthority({
+        projectRoot: project,
+        packPath: "domain-eval",
+        candidatePath: requirementCandidateRef,
+        targetKind: "requirement_change_set",
+        actorId: "domain-owner-commerce",
+        occurredAt: "2026-08-19T04:17:00.000Z",
+        ledger: confirmationLedger,
+      }),
+    );
+    assert.deepEqual(await readdir(ledgerRoot), beforeRequirement);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
 test("authority preflight rejects cross-product/risk Contract drift and forged question resolution", async () => {
   const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(parent, { recursive: true, mode: 0o700 });

@@ -110,7 +110,10 @@ export async function writeSyntheticDomainPack(projectRoot: string): Promise<{
   const contractDraft = draftProductDomainContract({
     contractId: "synthetic-commerce-contract",
     productId: "synthetic-commerce",
-    sourceSnapshotDigest: canonicalJsonDigest(interview.source_snapshot),
+    sourceInterview: {
+      ref: "interviews/commerce-onboard-v1/r1.json",
+      interview,
+    },
     evidenceCards: [
       {
         ref: cardRef,
