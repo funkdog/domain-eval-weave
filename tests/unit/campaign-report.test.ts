@@ -75,6 +75,10 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.doesNotThrow(() => assertSecretFreeText("diagnostic report without secrets"));
   assert.throws(() => assertSecretFreeText("access_token=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"id_token":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"oauthToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText("oauth_token_secret=synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText("consumerSecret=synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText("authorizationCode=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("client_secret=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("-----BEGIN PRIVATE KEY-----"), SecretScanError);
   assert.throws(

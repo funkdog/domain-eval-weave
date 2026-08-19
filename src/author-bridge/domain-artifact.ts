@@ -230,7 +230,10 @@ function normalizeRelativeRef(value: string, path: string): string {
 }
 
 function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_path"): void {
-  const segments = sourcePath.toLowerCase().split("/");
+  const segments = sourcePath
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .split("/");
   const forbidden = segments.some(
     (segment) =>
       segment === ".git" ||
@@ -246,7 +249,7 @@ function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_
       segment === "secrets.json" ||
       segment === ".env" ||
       segment.startsWith(".env.") ||
-      /(?:^|[._-])(?:oauth|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key)(?:[._-]|$)/.test(
+      /(?:^|[._-])(?:oauth|oauth(?:2)?[._-]?token(?:[._-]?secret)?|oauth[._-]?verifier|consumer[._-]?(?:key|secret)|authorization[._-]?code|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key|secret[._-]?access[._-]?key|access[._-]?key[._-]?id|password|passwd|passphrase)(?:[._-]|$)/.test(
         segment,
       ) ||
       /^(?:id_rsa|id_ed25519|.*\.(?:pem|key|p12|pfx))$/.test(segment),
