@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
-
+import { PHASE3A_AUTHOR } from "../../src/instance.js";
 import {
+  assertAuthorProfileRoles,
   assertProfileRoles,
+  authorProfileFiles,
   materializeFrozenFiles,
   ProfileContractError,
   runnerProfileFiles,
@@ -32,6 +34,7 @@ test("runner profile files freeze the exact package and opposite app/bridge role
     [
       { id: "dsh-eval-app", disabled: true },
       { id: "dsh-eval-bridge", disabled: false },
+      { id: "dsh-eval-author-bridge", disabled: true },
     ],
     "runner",
   );
@@ -41,8 +44,73 @@ test("runner profile files freeze the exact package and opposite app/bridge role
         [
           { id: "dsh-eval-app", disabled: false },
           { id: "dsh-eval-bridge", disabled: false },
+          { id: "dsh-eval-author-bridge", disabled: true },
         ],
         "runner",
+      ),
+    ProfileContractError,
+  );
+});
+
+test("author profile enables only the domain Skill authoring surface", () => {
+  const files = authorProfileFiles("file:/tmp/dsh-eval-lab.tgz");
+  const manifest = JSON.parse(files.get("package.json") ?? "null") as {
+    name: string;
+    dependencies: Record<string, string>;
+    dsh: { profile: { bundles: string[] } };
+  };
+  assert.equal(manifest.name, "dsh-profile-eval-clowder-author");
+  assert.equal(manifest.dependencies["dsh-eval-lab"], "file:/tmp/dsh-eval-lab.tgz");
+  assert.deepEqual(manifest.dsh.profile.bundles, [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless",
+    "dsh-codex-connect",
+    "dsh-eval-lab",
+  ]);
+
+  const authorRows = [
+    { id: "dsh-eval-app", disabled: true },
+    { id: "dsh-eval-bridge", disabled: true },
+    { id: "dsh-eval-author-bridge", disabled: false },
+    { id: "dsh-eval-domain-skill", disabled: false },
+    {
+      id: "session-persistence-jsonl",
+      config: {
+        root: PHASE3A_AUTHOR.sessionsRoot,
+        compression: "none",
+        packChunks: false,
+      },
+    },
+    { id: "tool-bash", disabled: true },
+    { id: "tool-pwsh", disabled: true },
+    { id: "tool-jobs", disabled: true },
+    { id: "tool-skill", disabled: false },
+    { id: "tool-str-replace-editor", disabled: false },
+    { id: "tool-web", disabled: true },
+    { id: "tool-subagent-control", disabled: true },
+    { id: "tool-subagent-list-agents", disabled: true },
+    { id: "tool-subagent", disabled: true },
+    { id: "tool-subagent-fork", disabled: true },
+    { id: "tool-subagent-report", disabled: true },
+    { id: "tool-workflow", disabled: true },
+    { id: "tool-ralph", disabled: true },
+  ] as const;
+  assertAuthorProfileRoles(authorRows);
+  assert.throws(
+    () =>
+      assertAuthorProfileRoles(
+        authorRows.map((row) => (row.id === "tool-bash" ? { ...row, disabled: false } : row)),
+      ),
+    ProfileContractError,
+  );
+  assert.throws(
+    () =>
+      assertAuthorProfileRoles(
+        authorRows.map((row) =>
+          row.id === "session-persistence-jsonl"
+            ? { ...row, config: { ...row.config, root: "/tmp/wrong" } }
+            : row,
+        ),
       ),
     ProfileContractError,
   );

@@ -14,7 +14,8 @@ description: "DSH Eval Lab Phase 1 的决策完备实现规格：独立工作区
 > 方法论 provenance：Clowder AI `Agent Eval Epistemology`。原文不随隔离 assignment 分发；本 spec 已冻结
 > Phase 1 所需结论，实现 Agent 不得访问 snapshot 外路径追索 provenance。
 >
-> **状态**：实现候选 spec v2；已按 DSH plugin-first 产品终态重写，尚未实现该架构或产生 Campaign 结果。
+> **状态**：implemented and accepted。Phase 1 候选在 `c8084cecb1331c2bb88e9e5ccb412bb6445ca9d0`
+> 完成，兼容面由当前 `main` 持续回归；本文保留为 Phase 1 冻结实现合同，不随 Phase 2/3 静默改义。
 
 ## 0. 冻结结论
 

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/owner-confirmation.schema.json",
+  "title": "DSH Eval Lab Owner Confirmation Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "confirmation_id",
+    "actor_id",
+    "authority_scope",
+    "target",
+    "decision",
+    "origin",
+    "occurred_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "confirmation_id": { "$ref": "#/$defs/id" },
+    "actor_id": { "$ref": "#/$defs/id" },
+    "authority_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["product_id", "domain_ids"],
+      "properties": {
+        "product_id": { "$ref": "#/$defs/id" },
+        "domain_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "object_id", "projection_sha256"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "evidence_card",
+            "product_domain_contract",
+            "requirement_change_set",
+            "decision_question"
+          ]
+        },
+        "object_id": { "$ref": "#/$defs/id" },
+        "object_version": { "type": "integer", "minimum": 1 },
+        "projection_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "decision": { "const": "confirm" },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "profile", "command", "invocation_sha256"],
+      "properties": {
+        "kind": { "const": "management_cli_operator_invocation" },
+        "profile": { "const": "eval-clowder" },
+        "command": { "const": "confirm" },
+        "invocation_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "supporting_source_ref": { "$ref": "#/$defs/sourceRef" },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "kind", "artifact_ref", "digest"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "owner_statement",
+            "requirement",
+            "product_doc",
+            "external_contract",
+            "code",
+            "test",
+            "runtime_observation",
+            "domain_knowledge"
+          ]
+        },
+        "artifact_ref": { "$ref": "#/$defs/packRef" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!.*\\\\)(?!.*://).+$"
+        }
+      }
+    }
+  }
+}

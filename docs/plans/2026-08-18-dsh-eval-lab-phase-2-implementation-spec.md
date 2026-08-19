@@ -333,3 +333,18 @@ dsh --profile eval-clowder suite report <suite-id>
 - 用 aggregate score、LLM Judge 或单 Suite 生成 effect claim；
 - 自动删除 persisted Campaign/Suite/exposure；
 - Phase 2 顺手引入 UI、远端执行、多人角色或第三方 plugin sandbox。
+
+## 13. Successor boundary
+
+Phase 3A 只在独立 authoring plane 新增领域访谈 Skill、Product Domain Contract、Requirement ChangeSet 与影响图。
+它不得：
+
+- 修改本 spec 的 Harness/Registry/Eval Pack/Task/activation/exposure/Suite schema 含义；
+- 把 Phase 2 的静态三桶 Registry 改造成开放式 Domain Registry；
+- 让 `eval-clowder-runner` 看见 authoring Skill、owner answers、Domain Knowledge Pack 或新需求影响图；
+- 使用 Requirement authoring 结果重写已冻结 Phase 2 report。
+
+Phase 3 产品与实现真相源：
+
+- [Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
+- [Phase 3A Implementation Spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)

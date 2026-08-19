@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "request_id": "replace-me-readiness-request",
+  "product_id": "replace-me-product",
+  "requirements": [
+    {
+      "ref": "requirements/replace-me-requirement/v1.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "requested_by": "replace-me-owner",
+  "requested_at": "1970-01-01T00:00:00.000Z",
+  "source_ref": {
+    "source_id": "replace-me-readiness-source",
+    "kind": "owner_statement",
+    "artifact_ref": "interviews/replace-me-interview.json",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "locator": "/turns/0/answer"
+  }
+}

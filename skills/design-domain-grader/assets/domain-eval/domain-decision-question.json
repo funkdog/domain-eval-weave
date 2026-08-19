@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "question_id": "replace-me-question",
+  "revision": 1,
+  "product_id": "replace-me-product",
+  "question": "Replace with the unresolved owner decision.",
+  "reason": "Replace with why authorized evidence cannot answer it.",
+  "blocked_claim_ids": ["replace-me-claim"],
+  "risk": "high",
+  "blocking": true,
+  "status": "open"
+}

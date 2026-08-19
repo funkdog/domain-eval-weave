@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Domain Grader"
+  short_description: "Turn domain truth into requirement-ready contracts"
+  default_prompt: "Use $design-domain-grader to onboard a product domain or bind a new requirement without inventing policy."

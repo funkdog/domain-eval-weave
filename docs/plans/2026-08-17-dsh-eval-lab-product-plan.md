@@ -15,8 +15,8 @@ description: "面向个人开发者、固定开放式编码交付领域的 DSH H
 > 本文只负责 DSH 的产品与一期交付边界。若产品便利与方法论不变量冲突，以认识论为准；
 > 不允许为了更快出报告而改变被测 Agent、污染 holdout 或把无效测量包装成效果。
 >
-> **文档状态**：Phase 1 候选产品方案 v3；已按“产品作为 DSH 插件运行”的终态修订，
-> 尚未开始该架构的实现或产生效果证据。
+> **文档状态**：Phase 1/2 已完成实现与独立验收；本文继续作为基础产品边界。Phase 3 的继任产品定义见
+> [Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)。
 >
 > 实施真相源：[DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)。
 
@@ -503,14 +503,18 @@ Phase 1 的成功不是 treatment 获胜，而是：
 - exposure ledger；
 - 多任务 paired replay。
 
-### Phase 3 — Calibrated Open-Task Judge
+### Phase 3 — Requirements Delivery Evaluation
 
-- 分维 rubric；
-- 人工 Gold 与分歧仲裁；
-- version/bridge set；
-- abstention、OOD、position/style robustness；
-- Judge quality report；
-- Semantic Judge 与确定性 Oracle 分权。
+Phase 3 不从 LLM Judge 开始，而按以下顺序毕业：
+
+1. **Phase 3A — Domain Truth Onboarding & Requirement Binding**：`design-domain-grader` 访谈 Skill、
+   Evidence Cards、版本化 Product Domain Contract、Requirement ChangeSet 与 Claim impact graph；
+2. **Phase 3B — Deterministic Grader Compiler & Admission**：Claim IR、Behavior Vector、受限模板、
+   Gold/mutants/counterexamples、grader holdout、repeatability 与签发/撤证；
+3. **Phase 3C — Calibrated Semantic Residual**：只裁决无法确定性判定的剩余语义，分维、可 abstain，
+   且不能覆盖 deterministic hard-gate failure。
+
+详细边界以 [Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md) 为准。
 
 ### Phase 4 — Attribution & Intervention
 
@@ -571,7 +575,10 @@ Phase 1 的成功不是 treatment 获胜，而是：
 ## 12. Source Map
 
 - [DSH Eval Lab Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
+- [DSH Eval Lab Phase 2 Product Plan](./2026-08-18-dsh-eval-lab-phase-2-product-plan.md)
 - [DSH Eval Lab Phase 2 Implementation Spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
+- [DSH Eval Lab Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
+- [DSH Eval Lab Phase 3A Implementation Spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [In-snapshot DSH primary evidence bundle](../evidence/dsh/README.md)
 
 外部 provenance（不属于 assignment 实现依赖，隔离 Agent 不得访问）：Clowder AI Agent Eval Epistemology、

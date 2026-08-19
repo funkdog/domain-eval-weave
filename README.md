@@ -7,12 +7,20 @@ Phase 2 binds the first-party DSH Goal harness to a frozen three-bucket Task
 Registry. It runs trigger, non-trigger, and holdout paired Campaigns and emits
 replayable multi-task diagnostic evidence without a general uplift claim.
 
+Phase 3 upgrades that trusted measurement kernel into requirements-delivery
+evaluation. The active Phase 3A slice adds a separate domain-authoring plane:
+adaptive domain interviews, provenance-bound product truth, requirement deltas,
+and deterministic impact closure. It does not yet generate graders or run a
+Semantic Judge.
+
 ## Canonical plans
 
 - [Phase 1 product plan](docs/plans/2026-08-17-dsh-eval-lab-product-plan.md)
 - [Phase 1 implementation spec](docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)
 - [Phase 2 product plan](docs/plans/2026-08-18-dsh-eval-lab-phase-2-product-plan.md)
 - [Phase 2 implementation spec](docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
+- [Phase 3 product plan](docs/plans/2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
+- [Phase 3A implementation spec](docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 
 ## Workspace boundary
 
@@ -28,7 +36,8 @@ campaign outputs in this repository.
 
 Eval Lab is installed as a DSH bundle and has no standalone `dsh-eval` command.
 The Clowder implementation owns `eval-clowder` / `eval-clowder-runner`, instance
-id `clowder-ai`, and no `eval` or `eval-dsh` state. Every supported DSH process
+id `clowder-ai`, plus the Phase 3A authoring profile `eval-clowder-author`; it owns no
+`eval` or `eval-dsh` state. Every supported DSH process
 receives both isolation variables before boot:
 
 `<DSH_HOME>/settings.yaml` is shared transport-control-plane input. It must
@@ -70,6 +79,21 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder suite report <suite-id>
+
+# Run the authoring Skill from the synthetic/product project being onboarded.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder-author "/design-domain-grader onboard"
+
+# Owner authority stays on the management profile; the author Agent cannot call it.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder domain confirm domain-eval evidence_card \
+    candidates/card.json domain-owner
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder domain validate domain-eval \
+    manifests/<snapshot-id>.json
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -78,7 +102,10 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 2 rc.4 release implements the
+Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A is the active implementation
+contract. The local `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+an isolated author Skill/profile, and a management-only confirmation ledger; it is not yet release-accepted.
+The Phase 2 rc.4 release implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
 immutable exposure records, holdout first-exposure enforcement, blind six-Episode

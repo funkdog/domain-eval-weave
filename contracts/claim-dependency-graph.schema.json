@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/claim-dependency-graph.schema.json",
+  "title": "DSH Eval Lab Claim Dependency Graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "product_id",
+    "contract",
+    "requirements",
+    "nodes",
+    "edges",
+    "reverse_index"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "graph_id": { "$ref": "#/$defs/id" },
+    "product_id": { "$ref": "#/$defs/id" },
+    "contract": { "$ref": "#/$defs/pointer" },
+    "requirements": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/pointer" }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["node_id", "kind", "object_id", "object_version"],
+        "properties": {
+          "node_id": { "$ref": "#/$defs/nodeId" },
+          "kind": {
+            "enum": ["contract_claim", "historical_claim", "proposed_claim", "requirement"]
+          },
+          "object_id": { "$ref": "#/$defs/id" },
+          "object_version": { "type": "integer", "minimum": 1 },
+          "domain_id": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "kind"],
+        "properties": {
+          "from": { "$ref": "#/$defs/nodeId" },
+          "to": { "$ref": "#/$defs/nodeId" },
+          "kind": {
+            "enum": [
+              "depends_on",
+              "uses",
+              "preserves",
+              "introduces",
+              "modifies",
+              "deprecates",
+              "conflicts_with",
+              "supersedes",
+              "retires"
+            ]
+          }
+        }
+      }
+    },
+    "reverse_index": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/nodeId" },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "uniqueItems": true,
+        "items": { "$ref": "#/$defs/nodeId" }
+      }
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "nodeId": {
+      "type": "string",
+      "pattern": "^(?:claim|proposal|requirement):[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

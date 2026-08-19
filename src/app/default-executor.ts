@@ -31,6 +31,10 @@ import { parseCurrentCalibrationEvidence, parsePairedImpactReport } from "../con
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
 import { runDoctor } from "../doctor/index.js";
+import type { OwnerConfirmationLedger } from "../domain/confirmation-ledger.js";
+import { impactedByClaim } from "../domain/graph.js";
+import { recordOperatorAuthority } from "../domain/operator-authority.js";
+import { validateDomainPack } from "../domain/pack.js";
 import {
   findPackageRoot,
   fingerprintPackageClosure,
@@ -43,7 +47,9 @@ import {
 } from "../fingerprint/variants.js";
 import {
   ensurePhase2InstanceLayout,
+  ensurePhase3AuthorLayout,
   PHASE2_INSTANCE,
+  PHASE3A_AUTHOR,
   phase2CalibrationPath,
   resolvePhase2Instance,
 } from "../instance.js";
@@ -53,7 +59,9 @@ import { StrictProcessRunner } from "../process/strict-runner.js";
 import { loadStaticEvalBinding } from "../registry/loader.js";
 import { renderPairedReportMarkdown } from "../report/reporter.js";
 import {
+  assertAuthorProfileRoles,
   assertProfileRoles,
+  authorProfileFiles,
   materializeFrozenFiles,
   runnerProfileFiles,
   verifyFrozenFiles,
@@ -102,40 +110,59 @@ async function assertToolchainVersions(): Promise<void> {
 }
 
 async function assertInstalledPackages(packageSpec: string): Promise<void> {
-  await verifyFrozenFiles(runnerProfileRoot(), runnerProfileFiles(packageSpec));
+  await Promise.all([
+    verifyFrozenFiles(runnerProfileRoot(), runnerProfileFiles(packageSpec)),
+    verifyFrozenFiles(authorProfileRoot(), authorProfileFiles(packageSpec)),
+  ]);
   const dshRoot = await findPackageRoot(dshLaunch().launcherArgs[0] ?? "", "@deepseek-ai/dsh");
-  const [managementManifest, runnerEvalManifest, codexManifest, dshManifest, lockfile] =
-    await Promise.all([
-      readFile(`${packageRoot()}/package.json`, "utf8").then(JSON.parse),
-      readFile(`${runnerProfileRoot()}/node_modules/dsh-eval-lab/package.json`, "utf8").then(
-        JSON.parse,
-      ),
-      readFile(`${runnerProfileRoot()}/node_modules/dsh-codex-connect/package.json`, "utf8").then(
-        JSON.parse,
-      ),
-      readFile(`${dshRoot}/package.json`, "utf8").then(JSON.parse),
-      readFile(`${runnerProfileRoot()}/pnpm-lock.yaml`, "utf8"),
-    ]);
+  const [
+    managementManifest,
+    runnerEvalManifest,
+    authorEvalManifest,
+    codexManifest,
+    dshManifest,
+    runnerLockfile,
+    authorLockfile,
+  ] = await Promise.all([
+    readFile(`${packageRoot()}/package.json`, "utf8").then(JSON.parse),
+    readFile(`${runnerProfileRoot()}/node_modules/dsh-eval-lab/package.json`, "utf8").then(
+      JSON.parse,
+    ),
+    readFile(`${authorProfileRoot()}/node_modules/dsh-eval-lab/package.json`, "utf8").then(
+      JSON.parse,
+    ),
+    readFile(`${runnerProfileRoot()}/node_modules/dsh-codex-connect/package.json`, "utf8").then(
+      JSON.parse,
+    ),
+    readFile(`${dshRoot}/package.json`, "utf8").then(JSON.parse),
+    readFile(`${runnerProfileRoot()}/pnpm-lock.yaml`, "utf8"),
+    readFile(`${authorProfileRoot()}/pnpm-lock.yaml`, "utf8"),
+  ]);
   if (
     managementManifest.name !== "dsh-eval-lab" ||
     runnerEvalManifest.name !== "dsh-eval-lab" ||
+    authorEvalManifest.name !== "dsh-eval-lab" ||
     managementManifest.version !== runnerEvalManifest.version ||
+    managementManifest.version !== authorEvalManifest.version ||
     codexManifest.name !== "dsh-codex-connect" ||
     codexManifest.version !== "0.1.0-alpha.4.7" ||
     dshManifest.name !== "@deepseek-ai/dsh" ||
     dshManifest.version !== "0.1.0-rc.6" ||
-    !lockfile.includes("dsh-codex-connect@0.1.0-alpha.4.7") ||
-    !lockfile.includes(packageSpec)
+    !runnerLockfile.includes("dsh-codex-connect@0.1.0-alpha.4.7") ||
+    !runnerLockfile.includes(packageSpec) ||
+    !authorLockfile.includes("dsh-codex-connect@0.1.0-alpha.4.7") ||
+    !authorLockfile.includes(packageSpec)
   ) {
     throw new Error("installed package versions or lockfile drifted");
   }
-  const [managementDigest, runnerDigest] = await Promise.all([
+  const [managementDigest, runnerDigest, authorDigest] = await Promise.all([
     fingerprintPackageContent(packageRoot()),
     fingerprintPackageContent(`${runnerProfileRoot()}/node_modules/dsh-eval-lab`),
+    fingerprintPackageContent(`${authorProfileRoot()}/node_modules/dsh-eval-lab`),
   ]);
   await fingerprintPackageClosure(dshRoot);
-  if (managementDigest !== runnerDigest) {
-    throw new Error("management and runner Eval Lab package bytes differ");
+  if (managementDigest !== runnerDigest || managementDigest !== authorDigest) {
+    throw new Error("management, runner, and author Eval Lab package bytes differ");
   }
 }
 
@@ -167,6 +194,9 @@ function assertBridgeConformance(): void {
 
 function assertRunnerRows(rows: readonly ComposedRow[]): void {
   assertProfileRoles(rows, "runner");
+  if (composedRow(rows, "dsh-eval-domain-skill").disabled !== true) {
+    throw new Error("domain authoring Skill must be disabled in the Candidate runner");
+  }
   const persistence = objectValue(composedRow(rows, "session-persistence-jsonl").config);
   if (
     persistence.root !== PHASE2_INSTANCE.sessionsRoot ||
@@ -243,6 +273,10 @@ function packageRoot(): string {
 
 function runnerProfileRoot(): string {
   return `${DEDICATED_DSH_HOME}/profiles/${PHASE2_INSTANCE.runnerProfile}`;
+}
+
+function authorProfileRoot(): string {
+  return `${DEDICATED_DSH_HOME}/profiles/${PHASE3A_AUTHOR.profile}`;
 }
 
 function childEnvironment(): NodeJS.ProcessEnv {
@@ -324,25 +358,26 @@ async function initializeRuntime(): Promise<void> {
     oauthReferenceRoot: OAUTH_REFERENCE_ROOT,
   });
   await ensurePhase2InstanceLayout();
-  const files = runnerProfileFiles(await managementPackageSpec());
-  await materializeFrozenFiles(runnerProfileRoot(), files);
+  await ensurePhase3AuthorLayout();
+  const packageSpec = await managementPackageSpec();
+  const profiles = [
+    { root: runnerProfileRoot(), files: runnerProfileFiles(packageSpec) },
+    { root: authorProfileRoot(), files: authorProfileFiles(packageSpec) },
+  ] as const;
+  for (const profile of profiles) await materializeFrozenFiles(profile.root, profile.files);
   await verifySharedModelSettings(DEDICATED_DSH_HOME);
-  await execFileAsync(
-    "pnpm",
-    ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],
-    {
-      cwd: runnerProfileRoot(),
-      env: childEnvironment(),
-    },
-  );
-  await execFileAsync(
-    "pnpm",
-    ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
-    {
-      cwd: runnerProfileRoot(),
-      env: childEnvironment(),
-    },
-  );
+  for (const profile of profiles) {
+    await execFileAsync(
+      "pnpm",
+      ["install", "--config.auto-install-peers=false", "--lockfile-only", "--ignore-scripts"],
+      { cwd: profile.root, env: childEnvironment() },
+    );
+    await execFileAsync(
+      "pnpm",
+      ["install", "--config.auto-install-peers=false", "--frozen-lockfile", "--ignore-scripts"],
+      { cwd: profile.root, env: childEnvironment() },
+    );
+  }
 }
 
 async function phase2CalibrationTargets() {
@@ -455,11 +490,13 @@ async function runProductDoctor() {
   const treatmentPatch = `${packageRoot()}/variants/goal-on.patch.yml`;
   let managementRows: Promise<readonly ComposedRow[]> | undefined;
   let runnerRows: Promise<readonly ComposedRow[]> | undefined;
+  let authorRows: Promise<readonly ComposedRow[]> | undefined;
   let controlRows: Promise<readonly ComposedRow[]> | undefined;
   let treatmentRows: Promise<readonly ComposedRow[]> | undefined;
   const management = () =>
     (managementRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.managementProfile, []));
   const runner = () => (runnerRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, []));
+  const author = () => (authorRows ??= dumpProfileRows(launch, PHASE3A_AUTHOR.profile, []));
   const control = () =>
     (controlRows ??= dumpProfileRows(launch, PHASE2_INSTANCE.runnerProfile, [
       commonPatch,
@@ -495,6 +532,7 @@ async function runProductDoctor() {
       run: async () => {
         assertProfileRoles(await management(), "management");
         assertProfileRoles(await runner(), "runner");
+        assertAuthorProfileRoles(await author());
       },
     },
     {
@@ -557,15 +595,21 @@ async function runProductDoctor() {
 export class DefaultAppExecutor implements DshEvalCommandExecutor {
   readonly #stdout: (text: string) => void;
   readonly #stderr: (text: string) => void;
+  readonly #cwd: string;
+  readonly #confirmationLedger: OwnerConfirmationLedger | undefined;
 
   constructor(
     input: {
       readonly stdout?: (text: string) => void;
       readonly stderr?: (text: string) => void;
+      readonly cwd?: string;
+      readonly confirmationLedger?: OwnerConfirmationLedger;
     } = {},
   ) {
     this.#stdout = input.stdout ?? ((text) => void process.stdout.write(text));
     this.#stderr = input.stderr ?? ((text) => void process.stderr.write(text));
+    this.#cwd = input.cwd ?? process.cwd();
+    this.#confirmationLedger = input.confirmationLedger;
   }
 
   async execute(invocation: AppInvocation): Promise<ExitCode> {
@@ -573,7 +617,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id>\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id>\n",
           );
           return EXIT_CODE.OK;
         case "version":
@@ -584,7 +628,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         case "init":
           await initializeRuntime();
           this.#stdout(
-            "Eval Lab runner profile initialized. Next: auth status, then explicit auth login.\n",
+            "Eval Lab runner and domain-author profiles initialized. Next: auth status, then explicit auth login.\n",
           );
           return EXIT_CODE.OK;
         case "auth-status": {
@@ -620,6 +664,43 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             })}\n`,
           );
           return EXIT_CODE.OK;
+        }
+        case "domain-validate": {
+          const pack = await validateDomainPack(
+            this.#cwd,
+            invocation.packPath,
+            invocation.manifestPath,
+            this.#confirmationLedger === undefined
+              ? {}
+              : { confirmationLedger: this.#confirmationLedger },
+          );
+          this.#stdout(`${canonicalJson(pack.readiness)}\n`);
+          return pack.readiness.overall === "red" ? EXIT_CODE.DOMAIN_TRUTH_NOT_READY : EXIT_CODE.OK;
+        }
+        case "domain-impact": {
+          const pack = await validateDomainPack(
+            this.#cwd,
+            invocation.packPath,
+            invocation.manifestPath,
+            this.#confirmationLedger === undefined
+              ? {}
+              : { confirmationLedger: this.#confirmationLedger },
+          );
+          if (pack.readiness.overall === "red") return EXIT_CODE.DOMAIN_TRUTH_NOT_READY;
+          this.#stdout(`${canonicalJson(impactedByClaim(pack.graph, invocation.claimId))}\n`);
+          return EXIT_CODE.OK;
+        }
+        case "domain-authority": {
+          const result = await recordOperatorAuthority({
+            projectRoot: this.#cwd,
+            packPath: invocation.packPath,
+            candidatePath: invocation.candidatePath,
+            targetKind: invocation.targetKind,
+            actorId: invocation.actorId,
+            ...(this.#confirmationLedger === undefined ? {} : { ledger: this.#confirmationLedger }),
+          });
+          this.#stdout(`${canonicalJson(result)}\n`);
+          return result.status === "complete" ? EXIT_CODE.OK : EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
         }
         case "run": {
           const doctor = await runProductDoctor();
@@ -724,6 +805,13 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       } else if (invocation.kind === "calibrate") {
         exitCode = EXIT_CODE.CALIBRATION_NOT_READY;
         code = "CALIBRATION_NOT_READY";
+      } else if (
+        invocation.kind === "domain-validate" ||
+        invocation.kind === "domain-impact" ||
+        invocation.kind === "domain-authority"
+      ) {
+        exitCode = EXIT_CODE.DOMAIN_TRUTH_NOT_READY;
+        code = "DOMAIN_TRUTH_NOT_READY";
       } else if (
         invocation.kind === "init" ||
         invocation.kind === "doctor" ||

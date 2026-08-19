@@ -37,7 +37,7 @@ import {
   fingerprintComposedRows,
 } from "../fingerprint/variants.js";
 import { computeCandidateTree, freezeCandidate } from "../freeze/candidate.js";
-import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
+import { PHASE2_INSTANCE, type PHASE3A_AUTHOR, phase2CalibrationPath } from "../instance.js";
 import { type BehaviorVector, LEDGER_BEHAVIORS, LedgerOracle } from "../oracle/ledger.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { decodeOfficialSessionJsonl } from "../projector/jsonl.js";
@@ -96,7 +96,10 @@ export async function dumpRows(
 
 export async function dumpProfileRows(
   launch: ReturnType<typeof dshLaunch>,
-  profile: "eval-clowder" | "eval-clowder-runner",
+  profile:
+    | typeof PHASE2_INSTANCE.managementProfile
+    | typeof PHASE2_INSTANCE.runnerProfile
+    | typeof PHASE3A_AUTHOR.profile,
   patches: readonly string[],
 ): Promise<readonly ComposedRow[]> {
   const result = await execFileAsync(

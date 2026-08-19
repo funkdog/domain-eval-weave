@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "requirement_id": "replace-me-requirement",
+  "version": 1,
+  "product_id": "replace-me-product",
+  "requirement_refs": [
+    {
+      "source_id": "replace-me-requirement-source",
+      "kind": "requirement",
+      "artifact_ref": "sources/replace-me-requirement.md",
+      "digest": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "base_contract": {
+    "ref": "contracts/replace-me-contract/v1.json",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "effects": {
+    "uses": [],
+    "preserves": [],
+    "introduces": [],
+    "modifies": [],
+    "deprecates": [],
+    "conflicts_with": []
+  },
+  "decision_question_refs": [],
+  "status": "draft"
+}

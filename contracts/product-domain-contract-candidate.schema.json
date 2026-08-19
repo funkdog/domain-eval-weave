@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/product-domain-contract-candidate.schema.json",
+  "title": "DSH Eval Lab Product Domain Contract Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "product_id",
+    "version",
+    "source_interview",
+    "source_snapshot_digest",
+    "claims"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "contract_id": { "$ref": "#/$defs/id" },
+    "product_id": { "$ref": "#/$defs/id" },
+    "version": { "type": "integer", "minimum": 1 },
+    "predecessor": { "$ref": "#/$defs/pointer" },
+    "source_interview": { "$ref": "#/$defs/pointer" },
+    "source_snapshot_digest": { "$ref": "#/$defs/sha256" },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_id",
+          "domain_id",
+          "statement",
+          "applicability",
+          "evidence_card",
+          "authority_refs",
+          "observation_refs",
+          "false_accept_risk",
+          "false_reject_risk",
+          "dependencies",
+          "lifecycle"
+        ],
+        "properties": {
+          "claim_id": { "$ref": "#/$defs/id" },
+          "domain_id": { "$ref": "#/$defs/id" },
+          "statement": { "type": "string", "minLength": 1 },
+          "applicability": { "type": "string", "minLength": 1 },
+          "evidence_card": { "$ref": "#/$defs/pointer" },
+          "authority_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/sourceRef" }
+          },
+          "observation_refs": { "type": "array", "items": { "$ref": "#/$defs/sourceRef" } },
+          "false_accept_risk": { "$ref": "#/$defs/risk" },
+          "false_reject_risk": { "$ref": "#/$defs/risk" },
+          "dependencies": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/claimRef" }
+          },
+          "lifecycle": { "enum": ["active", "retired"] },
+          "transition": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "predecessor"],
+            "properties": {
+              "kind": { "enum": ["supersedes", "retires"] },
+              "predecessor": { "$ref": "#/$defs/claimRef" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "required": ["version"],
+        "properties": { "version": { "const": 1 } }
+      },
+      "then": {
+        "type": "object",
+        "not": {
+          "type": "object",
+          "required": ["predecessor"],
+          "properties": { "predecessor": true }
+        }
+      },
+      "else": {
+        "type": "object",
+        "required": ["predecessor"],
+        "properties": { "predecessor": true }
+      }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "packRef": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*\\\\)(?!.*//)[^/]+(?:/[^/]+)*$"
+    },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/packRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "confirmationPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["confirmation_id", "sha256"],
+      "properties": {
+        "confirmation_id": { "$ref": "#/$defs/id" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claimRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "contract_version"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "contract_version": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "kind", "artifact_ref", "digest"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "kind": {
+          "enum": [
+            "owner_statement",
+            "requirement",
+            "product_doc",
+            "external_contract",
+            "code",
+            "test",
+            "runtime_observation",
+            "domain_knowledge"
+          ]
+        },
+        "artifact_ref": { "$ref": "#/$defs/packRef" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!.*\\\\)(?!.*://).+$"
+        }
+      }
+    }
+  }
+}
