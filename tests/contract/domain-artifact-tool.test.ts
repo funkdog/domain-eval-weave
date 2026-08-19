@@ -474,7 +474,18 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     await writeFile(`${workspace}/apiToken.json`, '{"apiToken":"synthetic-opaque-value"}\n', {
       mode: 0o600,
     });
+    await writeFile(`${workspace}/APIToken.json`, '{"APIToken":"synthetic-opaque-value"}\n', {
+      mode: 0o600,
+    });
+    await writeFile(
+      `${workspace}/authenticationToken.json`,
+      '{"authenticationToken":"synthetic-opaque-value"}\n',
+      { mode: 0o600 },
+    );
     await writeFile(`${workspace}/config.json`, '{"userAuthToken":"synthetic-opaque-value"}\n', {
+      mode: 0o600,
+    });
+    await writeFile(`${workspace}/provider-config.json`, '{"githubToken":"synthetic"}\n', {
       mode: 0o600,
     });
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
@@ -556,7 +567,7 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
       "ARTIFACT_PATH_FORBIDDEN",
     );
     await assert.rejects(readFile(`${workspace}/domain-eval/sources/oAuthToken.json`), /ENOENT/);
-    for (const credentialStem of ["authToken", "apiToken"]) {
+    for (const credentialStem of ["authToken", "apiToken", "APIToken"]) {
       expectFailure(
         await tool.execute({
           action: "snapshot_source",
@@ -575,6 +586,20 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     expectFailure(
       await tool.execute({
         action: "snapshot_source",
+        source_path: "authenticationToken.json",
+        artifact_ref: "sources/authenticationToken.json",
+        source_id: "authentication-token-source",
+        kind: "product_doc",
+      }),
+      "ARTIFACT_PATH_FORBIDDEN",
+    );
+    await assert.rejects(
+      readFile(`${workspace}/domain-eval/sources/authenticationToken.json`),
+      /ENOENT/,
+    );
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
         source_path: "config.json",
         artifact_ref: "sources/config.json",
         source_id: "composite-credential-source",
@@ -583,6 +608,20 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
       "SECRET_PATTERN_DETECTED",
     );
     await assert.rejects(readFile(`${workspace}/domain-eval/sources/config.json`), /ENOENT/);
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "provider-config.json",
+        artifact_ref: "sources/provider-config.json",
+        source_id: "provider-credential-source",
+        kind: "product_doc",
+      }),
+      "SECRET_PATTERN_DETECTED",
+    );
+    await assert.rejects(
+      readFile(`${workspace}/domain-eval/sources/provider-config.json`),
+      /ENOENT/,
+    );
     expectFailure(
       await tool.execute({
         action: "snapshot_source",

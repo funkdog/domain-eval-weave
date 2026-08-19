@@ -205,9 +205,11 @@ Tool 只冻结三个 action：
 `{ ok: false, action, diagnostics: [{ code, path, message }] }`，不得留下目标文件或半写 bytes。Path resolution 必须逐层
 no-follow，拒绝 absolute/traversal/NUL/symlink/escape；tool 注册时冻结 selected workspace 的 physical realpath + device/inode
 identity，每个 action 在首次 mkdir/read/write 前及最终 immutable write 前必须重新 CAS，root 被 rename、替换或改成 symlink 时须在
-workspace 外零副作用失败。credential path/content 不能靠分散词表：统一以 camel/separator-insensitive 的
-`credential stem × sensitive terminal`（如 `auth|api|oauth|access|refresh|id|session|security|bearer × token|key|secret|password|verifier|code`）
-分类，并保留 private-key、credential-store 等结构性禁项；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
+workspace 外零副作用失败。credential path/content 不能靠 provider 枚举：统一先做 camel/acronym/separator tokenization，
+再按结构化 key 位置分类。高置信 terminal（`token|secret|password|passphrase|verifier`）不依赖 provider prefix；歧义较高的
+`key|code` 必须同时带认证上下文 token（如 `auth|authentication|authn|authz|api|oauth|access|client|consumer|private`）。JSON 递归 object key 与
+YAML/env/header/assignment key 都必须进入同一 classifier；路径 basename 结构化去掉非 sensitive 的 dot suffix 后复用同一 terminal 判定。普通 prose
+中无 key 位置的 `token` 不得仅因单词出现而失败。保留 private-key、credential-store 等结构性禁项；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
 confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receipt、graph、readiness 或 manifest。
 
 通用 `str_replace_editor` 可读取 `domain-eval/`，但 mutation guard 必须拒绝 `sources/`、`candidates/`、`interviews/`、

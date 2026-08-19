@@ -73,6 +73,10 @@ test("Markdown report exposes Outcome, Mechanism, Cost, Validity, and bounded ac
 
 test("report scanner fails closed on OAuth and credential-shaped output", () => {
   assert.doesNotThrow(() => assertSecretFreeText("diagnostic report without secrets"));
+  assert.doesNotThrow(() => assertSecretFreeText("the token concept is discussed in prose"));
+  assert.doesNotThrow(() => assertSecretFreeText('{"policyName":"refund","status":"active"}'));
+  assert.doesNotThrow(() => assertSecretFreeText('{"code":"ARTIFACT_INTEGRITY_FAILURE"}'));
+  assert.doesNotThrow(() => assertSecretFreeText('{"exit_code":0,"primaryKey":"claim-id"}'));
   assert.throws(() => assertSecretFreeText("access_token=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"id_token":"synthetic"}'), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"oauthToken":"synthetic"}'), SecretScanError);
@@ -81,6 +85,21 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.throws(() => assertSecretFreeText('{"userAuthToken":"synthetic"}'), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"serviceApiToken":"synthetic"}'), SecretScanError);
   assert.throws(() => assertSecretFreeText("X-Service-Auth-Token: synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"authenticationToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"authnToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"authzToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"githubToken":"synthetic"}'), SecretScanError);
+  assert.throws(
+    () => assertSecretFreeText('{"providers":{"githubToken":"synthetic"}}'),
+    SecretScanError,
+  );
+  assert.throws(() => assertSecretFreeText('{"slackToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"APIToken":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"token":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"authenticationCode":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('{"apiKey":"synthetic"}'), SecretScanError);
+  assert.throws(() => assertSecretFreeText("export ACME_TOKEN=synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText("githubToken: synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("oauth_token_secret=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("consumerSecret=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("authorizationCode=synthetic"), SecretScanError);

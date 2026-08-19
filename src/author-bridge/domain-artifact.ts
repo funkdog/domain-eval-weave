@@ -30,6 +30,7 @@ import { assertProductDomainContractSuccessor } from "../domain/promotion.js";
 import {
   assertSecretFreeText,
   containsCredentialIdentifier,
+  isCredentialPathSegment,
   SecretScanError,
 } from "../report/secret-scan.js";
 
@@ -280,7 +281,8 @@ function normalizeRelativeRef(value: string, path: string): string {
 }
 
 function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_path"): void {
-  const rawSegments = sourcePath.toLowerCase().split("/");
+  const originalSegments = sourcePath.split("/");
+  const rawSegments = originalSegments.map((segment) => segment.toLowerCase());
   const camelNormalizedSegments = sourcePath
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .toLowerCase()
@@ -288,6 +290,7 @@ function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_
   const segments = [...new Set([...rawSegments, ...camelNormalizedSegments])];
   const forbidden =
     rawSegments.some((segment) => segment.replace(/[^a-z0-9]/g, "").includes("oauth")) ||
+    originalSegments.some((segment) => isCredentialPathSegment(segment)) ||
     segments.some(
       (segment) =>
         segment === ".git" ||
