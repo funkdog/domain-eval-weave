@@ -33,7 +33,7 @@
     },
     "risk": { "enum": ["low", "medium", "high", "critical"] },
     "blocking": { "type": "boolean" },
-    "status": { "enum": ["open", "resolved", "withdrawn"] },
+    "status": { "enum": ["open", "resolved"] },
     "resolution_confirmation": { "$ref": "#/$defs/confirmationPointer" }
   },
   "allOf": [

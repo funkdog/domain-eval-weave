@@ -32,9 +32,12 @@ export async function writeSyntheticDomainPack(projectRoot: string): Promise<{
   readonly packRoot: string;
   readonly claimId: string;
   readonly manifestRef: string;
+  readonly confirmationLedger: OwnerConfirmationLedger;
 }> {
   const packRoot = `${projectRoot}/domain-eval`;
-  const confirmationLedger = new OwnerConfirmationLedger();
+  const confirmationLedger = new OwnerConfirmationLedger(
+    `${projectRoot}/test-runtime/domain-confirmations`,
+  );
   await Promise.all(
     ["interviews", "evidence-cards", "decision-questions", "requirements", "sources"].map((name) =>
       mkdir(`${packRoot}/${name}`, { recursive: true, mode: 0o700 }),
@@ -263,5 +266,5 @@ export async function writeSyntheticDomainPack(projectRoot: string): Promise<{
     write(`${packRoot}/${reportRef}`, `${canonicalJson(readiness)}\n`),
     write(`${packRoot}/${manifestRef}`, `${canonicalJson(manifest)}\n`),
   ]);
-  return { packRoot, claimId: "refund-cash-limit", manifestRef };
+  return { packRoot, claimId: "refund-cash-limit", manifestRef, confirmationLedger };
 }

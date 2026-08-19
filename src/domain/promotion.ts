@@ -5,9 +5,11 @@ import {
   domainPackPointerSchema,
   ownerConfirmationPointerSchema,
   type ProductDomainContract,
+  type ProductDomainContractCandidate,
   parseDomainEvidenceCard,
   parseOwnerConfirmationEvent,
   parseProductDomainContract,
+  parseProductDomainContractCandidate,
 } from "./contracts.js";
 
 interface ConfirmationArtifactInput {
@@ -37,15 +39,7 @@ export interface PromoteEvidenceCardsInput extends DraftProductDomainContractInp
   readonly contractConfirmation: ConfirmationArtifactInput;
 }
 
-export interface ProductDomainContractDraft {
-  readonly schema_version: 1;
-  readonly contract_id: string;
-  readonly product_id: string;
-  readonly version: number;
-  readonly predecessor?: { readonly ref: string; readonly sha256: string };
-  readonly source_snapshot_digest: string;
-  readonly claims: ProductDomainContract["claims"];
-}
+export type ProductDomainContractDraft = ProductDomainContractCandidate;
 
 function selectedSources(card: DomainEvidenceCard, ids: readonly string[]) {
   const byId = new Map(card.source_refs.map((source) => [source.source_id, source]));
@@ -149,16 +143,7 @@ export function issueProductDomainContract(
   draftValue: unknown,
   confirmation: ConfirmationArtifactInput,
 ): ProductDomainContract {
-  const draft = draftValue as ProductDomainContractDraft;
-  if (
-    draft.schema_version !== 1 ||
-    typeof draft.contract_id !== "string" ||
-    typeof draft.product_id !== "string" ||
-    !Number.isInteger(draft.version) ||
-    !Array.isArray(draft.claims)
-  ) {
-    throw new Error("Contract draft is invalid");
-  }
+  const draft = parseProductDomainContractCandidate(draftValue);
   const event = assertOwnerConfirmation(
     confirmation.event,
     "product_domain_contract",

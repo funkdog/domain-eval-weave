@@ -73,15 +73,6 @@ export function confirmationProjection(kind: ConfirmationTargetKind, target: unk
         "risk",
         "blocking",
       ]);
-    case "claim_transition":
-      return select(value, [
-        "claim_id",
-        "domain_id",
-        "statement",
-        "current_version",
-        "predecessor",
-        "kind",
-      ]);
   }
 }
 
@@ -147,13 +138,6 @@ export function confirmationTargetIdentity(
         objectVersion: versionValue(value.revision),
         productId: stringValue(value.product_id, "product_id"),
         domainIds: [],
-      };
-    case "claim_transition":
-      return {
-        objectId: stringValue(value.claim_id, "claim_id"),
-        objectVersion: versionValue(value.current_version),
-        productId: stringValue(value.product_id, "product_id"),
-        domainIds: [stringValue(value.domain_id, "domain_id")],
       };
   }
 }

@@ -4,6 +4,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { packageRelativeRefSchema } from "../contracts/phase2.js";
 import {
+  assertOwnerConfirmation,
   type ConfirmationTargetKind,
   confirmationProjectionDigest,
   confirmationTargetIdentity,
@@ -17,11 +18,11 @@ import {
   parseDomainDecisionQuestion,
   parseDomainEvidenceCard,
   parseProductDomainContract,
+  parseProductDomainContractCandidate,
   parseRequirementChangeSet,
 } from "./contracts.js";
+import { buildClaimDependencyGraph } from "./graph.js";
 import { issueProductDomainContract, type ProductDomainContractDraft } from "./promotion.js";
-
-export type AuthorityDecision = "confirm" | "reject" | "withdraw";
 
 export class OperatorAuthorityError extends Error {
   readonly code: string;
@@ -43,15 +44,19 @@ export interface RecordOperatorAuthorityInput {
   readonly candidatePath: string;
   readonly targetKind: ConfirmationTargetKind;
   readonly actorId: string;
-  readonly decision: AuthorityDecision;
   readonly occurredAt?: string;
   readonly ledger?: OwnerConfirmationLedger;
 }
 
 export interface OperatorAuthorityResult {
+  readonly status: "complete" | "incomplete";
   readonly event: OwnerConfirmationEvent;
   readonly confirmation: OwnerConfirmationPointer;
   readonly artifact?: { readonly ref: string; readonly value: unknown };
+  readonly error?: {
+    readonly code: "AUTHORITY_FINAL_WRITE_INCOMPLETE";
+    readonly message: string;
+  };
 }
 
 function contained(root: string, target: string): boolean {
@@ -76,7 +81,7 @@ async function packRoot(projectRoot: string, packPath: string): Promise<string> 
   return root;
 }
 
-async function readCandidate(root: string, ref: string): Promise<unknown> {
+async function readCanonicalPackJson(root: string, ref: string): Promise<unknown> {
   const normalized = packageRelativeRefSchema.parse(ref);
   const path = resolve(root, normalized);
   if (!contained(root, path)) throw new Error("authority candidate escapes pack root");
@@ -90,6 +95,26 @@ async function readCandidate(root: string, ref: string): Promise<unknown> {
   const value = JSON.parse(source);
   if (source !== canonicalJson(value) && source !== `${canonicalJson(value)}\n`) {
     throw new Error("authority candidate must be canonical JSON");
+  }
+  return value;
+}
+
+async function readCandidate(root: string, ref: string): Promise<unknown> {
+  const normalized = packageRelativeRefSchema.parse(ref);
+  if (!/^candidates\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/.test(normalized)) {
+    throw new Error("authority candidate must use the immutable candidates/<id>.json namespace");
+  }
+  return readCanonicalPackJson(root, normalized);
+}
+
+async function readBoundArtifact<T>(
+  root: string,
+  pointer: { readonly ref: string; readonly sha256: string },
+  parser: (value: unknown) => T,
+): Promise<T> {
+  const value = parser(await readCanonicalPackJson(root, pointer.ref));
+  if (canonicalJsonDigest(value) !== pointer.sha256) {
+    throw new Error(`authority input pointer digest drifted: ${pointer.ref}`);
   }
   return value;
 }
@@ -137,11 +162,80 @@ async function preflightImmutable(
 }
 
 function eventId(input: {
-  readonly decision: AuthorityDecision;
   readonly targetKind: ConfirmationTargetKind;
   readonly projection: string;
+  readonly occurredAt: string;
 }): string {
-  return `authority-${input.decision}-${canonicalJsonDigest(input).slice(0, 24)}`;
+  return `authority-confirm-${canonicalJsonDigest(input).slice(0, 24)}`;
+}
+
+function selectedSources(
+  card: ReturnType<typeof parseDomainEvidenceCard>,
+  ids: readonly string[],
+): readonly unknown[] {
+  const sources = new Map(card.source_refs.map((source) => [source.source_id, source]));
+  return ids.map((id) => {
+    const source = sources.get(id);
+    if (source === undefined) throw new Error(`Evidence Card is missing source ${id}`);
+    return source;
+  });
+}
+
+async function preflightAuthorityClosure(input: {
+  readonly root: string;
+  readonly targetKind: ConfirmationTargetKind;
+  readonly candidate: unknown;
+  readonly artifact: { readonly ref: string; readonly value: unknown };
+  readonly ledger: OwnerConfirmationLedger;
+}): Promise<void> {
+  if (input.targetKind === "product_domain_contract") {
+    const draft = parseProductDomainContractCandidate(input.candidate);
+    for (const claim of draft.claims) {
+      const card = await readBoundArtifact(
+        input.root,
+        claim.evidence_card,
+        parseDomainEvidenceCard,
+      );
+      if (
+        card.status !== "confirmed" ||
+        card.claim_id !== claim.claim_id ||
+        card.domain_id !== claim.domain_id ||
+        card.statement !== claim.statement ||
+        card.applicability !== claim.applicability ||
+        canonicalJson(selectedSources(card, card.authority_ref_ids)) !==
+          canonicalJson(claim.authority_refs) ||
+        canonicalJson(selectedSources(card, card.observation_ref_ids)) !==
+          canonicalJson(claim.observation_refs)
+      ) {
+        throw new Error(`Contract Claim is not backed by confirmed Card for ${claim.claim_id}`);
+      }
+      const cardEvent = await input.ledger.read(card.confirmation);
+      assertOwnerConfirmation(cardEvent, "evidence_card", card, "confirm");
+    }
+    return;
+  }
+
+  if (input.targetKind === "requirement_change_set") {
+    const requirement = parseRequirementChangeSet(input.candidate);
+    const contract = await readBoundArtifact(
+      input.root,
+      requirement.base_contract,
+      parseProductDomainContract,
+    );
+    if (contract.state !== "issued") throw new Error("Requirement base Contract is not issued");
+    const contractEvent = await input.ledger.read(contract.confirmation);
+    assertOwnerConfirmation(contractEvent, "product_domain_contract", contract, "confirm");
+    for (const pointer of requirement.decision_question_refs) {
+      const question = await readBoundArtifact(input.root, pointer, parseDomainDecisionQuestion);
+      if (question.status === "open" && question.blocking) {
+        throw new Error(`Requirement has open blocking DecisionQuestion ${question.question_id}`);
+      }
+    }
+    buildClaimDependencyGraph({
+      contract: { ref: requirement.base_contract.ref, contract },
+      requirements: [{ ref: input.artifact.ref, requirement: input.artifact.value }],
+    });
+  }
 }
 
 interface AuthorityPlan {
@@ -149,23 +243,18 @@ interface AuthorityPlan {
   build(
     confirmation: OwnerConfirmationPointer,
     event: OwnerConfirmationEvent,
-  ): { readonly ref: string; readonly value: unknown } | undefined;
+  ): { readonly ref: string; readonly value: unknown };
 }
 
 function planAuthorityTransition(
   kind: ConfirmationTargetKind,
   candidate: unknown,
-  decision: AuthorityDecision,
   candidateRef: string,
 ): AuthorityPlan {
   if (kind === "evidence_card") {
     const card = parseDomainEvidenceCard(candidate);
-    if (decision === "withdraw" || card.status === "confirmed") {
-      invalidTransition("Evidence Card decision is not admissible");
-    }
-    if (decision === "reject") return { target: card, build: () => undefined };
     if (card.status !== "proposed" && card.status !== "unresolved") {
-      throw new Error("only proposed/unresolved Evidence Cards can be confirmed");
+      invalidTransition("only proposed/unresolved Evidence Cards can be confirmed");
     }
     const { conflict: _conflict, confirmation: _confirmation, ...cardBase } = card;
     const target = {
@@ -187,10 +276,9 @@ function planAuthorityTransition(
   }
   if (kind === "decision_question") {
     const question = parseDomainDecisionQuestion(candidate);
-    const allowed =
-      (question.status === "open" && (decision === "confirm" || decision === "reject")) ||
-      (question.status === "resolved" && decision === "withdraw");
-    if (!allowed) invalidTransition("DecisionQuestion decision is not admissible");
+    if (question.status !== "open") {
+      invalidTransition("only open DecisionQuestions can be resolved");
+    }
     const { resolution_confirmation: _confirmation, ...questionBase } = question;
     const target = {
       ...questionBase,
@@ -199,7 +287,7 @@ function planAuthorityTransition(
         ref: candidateRef,
         sha256: canonicalJsonDigest(question),
       }),
-      status: decision === "withdraw" ? "withdrawn" : "resolved",
+      status: "resolved" as const,
     } as const;
     return {
       target,
@@ -217,30 +305,11 @@ function planAuthorityTransition(
   }
   if (kind === "requirement_change_set") {
     const requirement = parseRequirementChangeSet(candidate);
-    if (decision === "reject") {
-      if (requirement.status !== "draft")
-        invalidTransition("only a draft Requirement can be rejected");
-      return { target: requirement, build: () => undefined };
-    }
-    if (decision === "confirm" && requirement.status !== "draft") {
+    if (requirement.status !== "draft") {
       invalidTransition("only a draft Requirement can be confirmed");
     }
-    if (decision === "withdraw" && requirement.status !== "owner_confirmed") {
-      invalidTransition("only an owner-confirmed Requirement can be withdrawn");
-    }
     const { confirmation: _confirmation, ...requirementBase } = requirement;
-    const target =
-      decision === "withdraw"
-        ? {
-            ...requirementBase,
-            version: requirement.version + 1,
-            predecessor: domainPackPointerSchema.parse({
-              ref: candidateRef,
-              sha256: canonicalJsonDigest(requirement),
-            }),
-            status: "withdrawn" as const,
-          }
-        : { ...requirementBase, status: "owner_confirmed" as const };
+    const target = { ...requirementBase, status: "owner_confirmed" as const };
     return {
       target,
       build: (confirmation) => {
@@ -252,51 +321,14 @@ function planAuthorityTransition(
       },
     };
   }
-  if (kind === "product_domain_contract") {
-    if (decision === "reject") {
-      confirmationTargetIdentity(kind, candidate);
-      return { target: candidate, build: () => undefined };
-    }
-    if (decision === "confirm") {
-      confirmationTargetIdentity(kind, candidate);
-      return {
-        target: candidate,
-        build: (_confirmation, event) => {
-          const value = issueProductDomainContract(candidate as ProductDomainContractDraft, {
-            event,
-          });
-          return { ref: `contracts/${value.contract_id}/v${value.version}.json`, value };
-        },
-      };
-    }
-    const contract = parseProductDomainContract(candidate);
-    if (contract.state !== "issued") invalidTransition("only an issued Contract can be withdrawn");
-    const { confirmation: _confirmation, decided_by: _actor, decided_at: _at, ...base } = contract;
-    const target = {
-      ...base,
-      version: contract.version + 1,
-      predecessor: domainPackPointerSchema.parse({
-        ref: candidateRef,
-        sha256: canonicalJsonDigest(contract),
-      }),
-      state: "withdrawn" as const,
-    };
-    return {
-      target,
-      build: (confirmation, event) => {
-        const value = parseProductDomainContract({
-          ...target,
-          confirmation,
-          decided_by: event.actor_id,
-          decided_at: event.occurred_at,
-        });
-        return { ref: `contracts/${value.contract_id}/v${value.version}.json`, value };
-      },
-    };
-  }
-  if (decision === "withdraw") invalidTransition("Claim transitions cannot be withdrawn");
-  confirmationTargetIdentity(kind, candidate);
-  return { target: candidate, build: () => undefined };
+  const draft = parseProductDomainContractCandidate(candidate);
+  return {
+    target: draft,
+    build: (_confirmation, event) => {
+      const value = issueProductDomainContract(draft as ProductDomainContractDraft, { event });
+      return { ref: `contracts/${value.contract_id}/v${value.version}.json`, value };
+    },
+  };
 }
 
 export async function recordOperatorAuthority(
@@ -307,17 +339,12 @@ export async function recordOperatorAuthority(
   }
   const root = await packRoot(input.projectRoot, input.packPath);
   const candidate = await readCandidate(root, input.candidatePath);
-  const plan = planAuthorityTransition(
-    input.targetKind,
-    candidate,
-    input.decision,
-    input.candidatePath,
-  );
+  const plan = planAuthorityTransition(input.targetKind, candidate, input.candidatePath);
   const identity = confirmationTargetIdentity(input.targetKind, plan.target);
   const projection = confirmationProjectionDigest(input.targetKind, plan.target);
   const occurredAt = input.occurredAt ?? new Date().toISOString();
   const invocation = {
-    decision: input.decision,
+    decision: "confirm",
     pack_path: input.packPath,
     target_kind: input.targetKind,
     candidate_path: input.candidatePath,
@@ -327,9 +354,9 @@ export async function recordOperatorAuthority(
   const event = {
     schema_version: 1,
     confirmation_id: eventId({
-      decision: input.decision,
       targetKind: input.targetKind,
       projection,
+      occurredAt,
     }),
     actor_id: input.actorId,
     authority_scope: {
@@ -346,11 +373,11 @@ export async function recordOperatorAuthority(
       ...(identity.objectVersion === undefined ? {} : { object_version: identity.objectVersion }),
       projection_sha256: projection,
     },
-    decision: input.decision,
+    decision: "confirm",
     origin: {
       kind: "management_cli_operator_invocation",
       profile: "eval-clowder",
-      command: input.decision,
+      command: "confirm",
       invocation_sha256: canonicalJsonDigest(invocation),
     },
     occurred_at: occurredAt,
@@ -360,12 +387,32 @@ export async function recordOperatorAuthority(
     sha256: canonicalJsonDigest(event),
   });
   const artifact = plan.build(previewConfirmation, event);
-  if (artifact !== undefined) await preflightImmutable(root, artifact);
+  await preflightImmutable(root, artifact);
   const ledger = input.ledger ?? new OwnerConfirmationLedger();
+  await preflightAuthorityClosure({
+    root,
+    targetKind: input.targetKind,
+    candidate,
+    artifact,
+    ledger,
+  });
   const confirmation = await ledger.write(event);
   if (canonicalJson(confirmation) !== canonicalJson(previewConfirmation)) {
     throw new Error("confirmation ledger returned an unexpected receipt");
   }
-  if (artifact !== undefined) await writeImmutable(root, artifact.ref, artifact.value);
-  return artifact === undefined ? { event, confirmation } : { event, confirmation, artifact };
+  try {
+    await writeImmutable(root, artifact.ref, artifact.value);
+  } catch {
+    return {
+      status: "incomplete",
+      event,
+      confirmation,
+      artifact,
+      error: {
+        code: "AUTHORITY_FINAL_WRITE_INCOMPLETE",
+        message: "authority event persisted but final artifact write did not complete",
+      },
+    };
+  }
+  return { status: "complete", event, confirmation, artifact };
 }

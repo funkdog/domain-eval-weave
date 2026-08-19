@@ -11,10 +11,11 @@ test("domain validate and impact are deterministic artifact-only commands", asyn
   await mkdir(parent, { recursive: true, mode: 0o700 });
   const project = await mkdtemp(`${parent}/domain-cli-`);
   try {
-    const { manifestRef } = await writeSyntheticDomainPack(project);
+    const { manifestRef, confirmationLedger } = await writeSyntheticDomainPack(project);
     let stdout = "";
     const executor = new DefaultAppExecutor({
       cwd: project,
+      confirmationLedger,
       stdout: (text) => (stdout += text),
     });
     assert.equal(
@@ -56,10 +57,11 @@ test("domain impact returns a distinct non-ready exit for an unknown Claim", asy
   await mkdir(parent, { recursive: true, mode: 0o700 });
   const project = await mkdtemp(`${parent}/domain-cli-red-`);
   try {
-    const { manifestRef } = await writeSyntheticDomainPack(project);
+    const { manifestRef, confirmationLedger } = await writeSyntheticDomainPack(project);
     let stderr = "";
     const executor = new DefaultAppExecutor({
       cwd: project,
+      confirmationLedger,
       stderr: (text) => (stderr += text),
     });
     assert.equal(

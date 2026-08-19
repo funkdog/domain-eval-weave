@@ -38,14 +38,12 @@ export type AppInvocation =
     }
   | {
       readonly kind: "domain-authority";
-      readonly decision: "confirm" | "reject" | "withdraw";
       readonly packPath: string;
       readonly targetKind:
         | "evidence_card"
         | "product_domain_contract"
         | "requirement_change_set"
-        | "decision_question"
-        | "claim_transition";
+        | "decision_question";
       readonly candidatePath: string;
       readonly actorId: string;
     };
@@ -197,10 +195,9 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
         "product_domain_contract",
         "requirement_change_set",
         "decision_question",
-        "claim_transition",
       ] as const;
       if (
-        (subcommand === "confirm" || subcommand === "reject" || subcommand === "withdraw") &&
+        subcommand === "confirm" &&
         third !== undefined &&
         (targetKinds as readonly string[]).includes(third) &&
         fourth !== undefined &&
@@ -210,7 +207,6 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
       ) {
         return {
           kind: "domain-authority",
-          decision: subcommand,
           packPath,
           targetKind: third as (typeof targetKinds)[number],
           candidatePath: parsePackPath(fourth),
@@ -218,7 +214,7 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
         };
       }
       throw new AppUsageError(
-        "domain requires validate/impact with an exact manifest or an authority command with a target",
+        "domain requires validate/impact with an exact manifest or confirm with a supported target",
       );
     }
     case "report": {

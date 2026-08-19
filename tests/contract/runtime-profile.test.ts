@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
-
+import { PHASE3A_AUTHOR } from "../../src/instance.js";
 import {
   assertAuthorProfileRoles,
   assertProfileRoles,
@@ -66,24 +66,49 @@ test("author profile enables only the domain Skill authoring surface", () => {
     "dsh-eval-lab",
   ]);
 
-  assertAuthorProfileRoles([
+  const authorRows = [
     { id: "dsh-eval-app", disabled: true },
     { id: "dsh-eval-bridge", disabled: true },
     { id: "dsh-eval-domain-skill", disabled: false },
+    {
+      id: "session-persistence-jsonl",
+      config: {
+        root: PHASE3A_AUTHOR.sessionsRoot,
+        compression: "none",
+        packChunks: false,
+      },
+    },
+    { id: "tool-bash", disabled: true },
+    { id: "tool-pwsh", disabled: true },
+    { id: "tool-jobs", disabled: true },
     { id: "tool-skill", disabled: false },
     { id: "tool-str-replace-editor", disabled: false },
     { id: "tool-web", disabled: true },
-  ]);
+    { id: "tool-subagent-control", disabled: true },
+    { id: "tool-subagent-list-agents", disabled: true },
+    { id: "tool-subagent", disabled: true },
+    { id: "tool-subagent-fork", disabled: true },
+    { id: "tool-subagent-report", disabled: true },
+    { id: "tool-workflow", disabled: true },
+    { id: "tool-ralph", disabled: true },
+  ] as const;
+  assertAuthorProfileRoles(authorRows);
   assert.throws(
     () =>
-      assertAuthorProfileRoles([
-        { id: "dsh-eval-app", disabled: true },
-        { id: "dsh-eval-bridge", disabled: false },
-        { id: "dsh-eval-domain-skill", disabled: false },
-        { id: "tool-skill", disabled: false },
-        { id: "tool-str-replace-editor", disabled: false },
-        { id: "tool-web", disabled: true },
-      ]),
+      assertAuthorProfileRoles(
+        authorRows.map((row) => (row.id === "tool-bash" ? { ...row, disabled: false } : row)),
+      ),
+    ProfileContractError,
+  );
+  assert.throws(
+    () =>
+      assertAuthorProfileRoles(
+        authorRows.map((row) =>
+          row.id === "session-persistence-jsonl"
+            ? { ...row, config: { ...row.config, root: "/tmp/wrong" } }
+            : row,
+        ),
+      ),
     ProfileContractError,
   );
 });

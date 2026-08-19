@@ -79,17 +79,16 @@ export const ownerConfirmationEventSchema = z
         "product_domain_contract",
         "requirement_change_set",
         "decision_question",
-        "claim_transition",
       ]),
       object_id: idSchema,
       object_version: z.number().finite().int().positive().optional(),
       projection_sha256: sha256Schema,
     }),
-    decision: z.enum(["confirm", "reject", "withdraw"]),
+    decision: z.literal("confirm"),
     origin: z.strictObject({
       kind: z.literal("management_cli_operator_invocation"),
       profile: z.literal("eval-clowder"),
-      command: z.enum(["confirm", "reject", "withdraw"]),
+      command: z.literal("confirm"),
       invocation_sha256: sha256Schema,
     }),
     supporting_source_ref: domainSourceRefSchema.optional(),
@@ -262,7 +261,7 @@ export const domainDecisionQuestionSchema = z
     blocked_claim_ids: uniqueIds(1),
     risk: riskSchema,
     blocking: z.boolean(),
-    status: z.enum(["open", "resolved", "withdrawn"]),
+    status: z.enum(["open", "resolved"]),
     resolution_confirmation: ownerConfirmationPointerSchema.optional(),
   })
   .superRefine((question, context) => {
@@ -277,7 +276,7 @@ export const domainDecisionQuestionSchema = z
       context.addIssue({
         code: "custom",
         path: ["resolution_confirmation"],
-        message: "resolved/withdrawn questions require confirmation; open questions forbid it",
+        message: "resolved questions require confirmation; open questions forbid it",
       });
     }
   });
@@ -397,7 +396,6 @@ const contractClaimRefSchema = z.strictObject({
 const claimTransitionSchema = z.strictObject({
   kind: z.enum(["supersedes", "retires"]),
   predecessor: contractClaimRefSchema,
-  confirmation: ownerConfirmationPointerSchema,
 });
 
 const productDomainClaimSchema = z.strictObject({
@@ -415,91 +413,97 @@ const productDomainClaimSchema = z.strictObject({
   transition: claimTransitionSchema.optional(),
 });
 
-export const productDomainContractSchema = z
-  .strictObject({
-    schema_version: z.literal(1),
-    contract_id: idSchema,
-    product_id: idSchema,
-    version: z.number().finite().int().positive(),
-    predecessor: domainPackPointerSchema.optional(),
-    state: z.enum(["issued", "withdrawn"]),
+const productDomainContractCandidateCoreSchema = z.strictObject({
+  schema_version: z.literal(1),
+  contract_id: idSchema,
+  product_id: idSchema,
+  version: z.number().finite().int().positive(),
+  predecessor: domainPackPointerSchema.optional(),
+  source_snapshot_digest: sha256Schema,
+  claims: z.array(productDomainClaimSchema).min(1),
+});
+
+function validateContractCandidate(
+  contract: z.infer<typeof productDomainContractCandidateCoreSchema>,
+  context: z.RefinementCtx,
+): void {
+  const claimIds = new Set(contract.claims.map((claim) => claim.claim_id));
+  if (claimIds.size !== contract.claims.length) {
+    context.addIssue({ code: "custom", path: ["claims"], message: "claim ids must be unique" });
+  }
+  for (const [index, claim] of contract.claims.entries()) {
+    if (claim.dependencies.some((dependency) => dependency.claim_id === claim.claim_id)) {
+      context.addIssue({
+        code: "custom",
+        path: ["claims", index],
+        message: "claim cannot depend on itself",
+      });
+    }
+    for (const dependency of claim.dependencies) {
+      if (!claimIds.has(dependency.claim_id) || dependency.contract_version !== contract.version) {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index],
+          message: "claim dependency must exist",
+        });
+      }
+    }
+    const authorityKinds = claim.authority_refs.map((source) => source.kind);
+    if (authorityKinds.every((kind) => kind === "domain_knowledge")) {
+      context.addIssue({
+        code: "custom",
+        path: ["claims", index],
+        message: "contract truth cannot rely only on domain knowledge",
+      });
+    }
+    if (claim.transition === undefined) {
+      if (contract.version > 1 && claim.lifecycle === "retired") {
+        context.addIssue({
+          code: "custom",
+          path: ["claims", index, "transition"],
+          message: "retired Claims require an explicit transition",
+        });
+      }
+    } else if (
+      contract.version === 1 ||
+      claim.transition.predecessor.claim_id !== claim.claim_id ||
+      claim.transition.predecessor.contract_version >= contract.version ||
+      (claim.transition.kind === "retires") !== (claim.lifecycle === "retired")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["claims", index, "transition"],
+        message: "Claim transition does not match version/lifecycle",
+      });
+    }
+  }
+  if (contract.version === 1 && contract.predecessor !== undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["predecessor"],
+      message: "version 1 cannot have a predecessor",
+    });
+  }
+  if (contract.version > 1 && contract.predecessor === undefined) {
+    context.addIssue({
+      code: "custom",
+      path: ["predecessor"],
+      message: "later versions require a predecessor",
+    });
+  }
+}
+
+export const productDomainContractCandidateSchema =
+  productDomainContractCandidateCoreSchema.superRefine(validateContractCandidate);
+
+export const productDomainContractSchema = productDomainContractCandidateCoreSchema
+  .safeExtend({
+    state: z.literal("issued"),
     confirmation: ownerConfirmationPointerSchema,
     decided_by: idSchema,
     decided_at: dateTimeSchema,
-    source_snapshot_digest: sha256Schema,
-    claims: z.array(productDomainClaimSchema).min(1),
   })
-  .superRefine((contract, context) => {
-    const claimIds = new Set(contract.claims.map((claim) => claim.claim_id));
-    if (claimIds.size !== contract.claims.length) {
-      context.addIssue({ code: "custom", path: ["claims"], message: "claim ids must be unique" });
-    }
-    for (const [index, claim] of contract.claims.entries()) {
-      if (claim.dependencies.some((dependency) => dependency.claim_id === claim.claim_id)) {
-        context.addIssue({
-          code: "custom",
-          path: ["claims", index],
-          message: "claim cannot depend on itself",
-        });
-      }
-      for (const dependency of claim.dependencies) {
-        if (
-          !claimIds.has(dependency.claim_id) ||
-          dependency.contract_version !== contract.version
-        ) {
-          context.addIssue({
-            code: "custom",
-            path: ["claims", index],
-            message: "claim dependency must exist",
-          });
-        }
-      }
-      const authorityKinds = claim.authority_refs.map((source) => source.kind);
-      if (authorityKinds.every((kind) => kind === "domain_knowledge")) {
-        context.addIssue({
-          code: "custom",
-          path: ["claims", index],
-          message: "contract truth cannot rely only on domain knowledge",
-        });
-      }
-      if (claim.transition === undefined) {
-        if (contract.version > 1 && claim.lifecycle === "retired") {
-          context.addIssue({
-            code: "custom",
-            path: ["claims", index, "transition"],
-            message: "retired Claims require an explicit transition",
-          });
-        }
-      } else {
-        if (
-          contract.version === 1 ||
-          claim.transition.predecessor.claim_id !== claim.claim_id ||
-          claim.transition.predecessor.contract_version >= contract.version ||
-          (claim.transition.kind === "retires") !== (claim.lifecycle === "retired")
-        ) {
-          context.addIssue({
-            code: "custom",
-            path: ["claims", index, "transition"],
-            message: "Claim transition does not match version/lifecycle",
-          });
-        }
-      }
-    }
-    if (contract.version === 1 && contract.predecessor !== undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["predecessor"],
-        message: "version 1 cannot have a predecessor",
-      });
-    }
-    if (contract.version > 1 && contract.predecessor === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["predecessor"],
-        message: "later versions require a predecessor",
-      });
-    }
-  });
+  .superRefine(validateContractCandidate);
 
 const claimRefSchema = contractClaimRefSchema;
 
@@ -541,7 +545,7 @@ export const requirementChangeSetSchema = z
       conflicts_with: unique(claimConflictSchema),
     }),
     decision_question_refs: unique(domainPackPointerSchema),
-    status: z.enum(["draft", "owner_confirmed", "withdrawn"]),
+    status: z.enum(["draft", "owner_confirmed"]),
     confirmation: ownerConfirmationPointerSchema.optional(),
   })
   .superRefine((requirement, context) => {
@@ -591,14 +595,6 @@ export const requirementChangeSetSchema = z
           code: "custom",
           path: ["status"],
           message: "owner-confirmed requirements need a confirmation event",
-        });
-      }
-    } else if (requirement.status === "withdrawn") {
-      if (requirement.confirmation === undefined) {
-        context.addIssue({
-          code: "custom",
-          path: ["status"],
-          message: "withdrawn requirements need a withdrawal event",
         });
       }
     } else if (requirement.confirmation !== undefined) {
@@ -775,6 +771,7 @@ export type DomainEvidenceCard = z.infer<typeof domainEvidenceCardSchema>;
 export type DomainInterviewSession = z.infer<typeof domainInterviewSessionSchema>;
 export type DomainDecisionQuestion = z.infer<typeof domainDecisionQuestionSchema>;
 export type ProductDomainContract = z.infer<typeof productDomainContractSchema>;
+export type ProductDomainContractCandidate = z.infer<typeof productDomainContractCandidateSchema>;
 export type RequirementChangeSet = z.infer<typeof requirementChangeSetSchema>;
 export type ClaimDependencyGraph = z.infer<typeof claimDependencyGraphSchema>;
 export type DomainReadinessRequest = z.infer<typeof domainReadinessRequestSchema>;
@@ -791,6 +788,9 @@ export const parseDomainDecisionQuestion = (value: unknown): DomainDecisionQuest
   domainDecisionQuestionSchema.parse(value);
 export const parseProductDomainContract = (value: unknown): ProductDomainContract =>
   productDomainContractSchema.parse(value);
+export const parseProductDomainContractCandidate = (
+  value: unknown,
+): ProductDomainContractCandidate => productDomainContractCandidateSchema.parse(value);
 export const parseRequirementChangeSet = (value: unknown): RequirementChangeSet =>
   requirementChangeSetSchema.parse(value);
 export const parseClaimDependencyGraph = (value: unknown): ClaimDependencyGraph =>

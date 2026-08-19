@@ -208,6 +208,7 @@ async function validateDomainPackInner(
   projectRoot: string,
   packRef: string,
   manifestRef: string,
+  confirmationLedger: OwnerConfirmationLedger,
 ): Promise<ValidatedDomainPack> {
   const packRoot = await resolvePackRoot(projectRoot, packRef);
   if (!/^manifests\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/.test(manifestRef)) {
@@ -217,7 +218,6 @@ async function validateDomainPackInner(
     );
   }
   const manifest = await readCanonicalArtifact(packRoot, manifestRef, parseDomainPackManifest);
-  const confirmationLedger = new OwnerConfirmationLedger();
   const readPointer = async <T>(
     pointer: { readonly ref: string; readonly sha256: string },
     parser: (value: unknown) => T,
@@ -230,6 +230,53 @@ async function validateDomainPackInner(
       );
     }
     return { ref: pointer.ref, value };
+  };
+  const readPredecessorChain = async <
+    T extends {
+      readonly product_id: string;
+      readonly predecessor?: { readonly ref: string; readonly sha256: string } | undefined;
+    },
+  >(
+    current: Artifact<T>,
+    parser: (value: unknown) => T,
+    sequenceOf: (value: T) => number,
+    identityOf: (value: T) => string,
+    canonicalRefOf: (value: T) => string,
+    allowCandidatePredecessor: boolean,
+  ): Promise<readonly Artifact<T>[]> => {
+    const history: Artifact<T>[] = [current];
+    const seen = new Set([current.ref]);
+    let cursor = current;
+    while (cursor.value.predecessor !== undefined) {
+      const pointer = cursor.value.predecessor;
+      if (seen.has(pointer.ref)) {
+        throw new DomainPackError(
+          "DOMAIN_PREDECESSOR_INVALID",
+          "predecessor chain contains a cycle",
+        );
+      }
+      const predecessor = await readPointer(pointer, parser);
+      const canonicalRef = canonicalRefOf(predecessor.value);
+      if (
+        sequenceOf(predecessor.value) !== sequenceOf(cursor.value) - 1 ||
+        identityOf(predecessor.value) !== identityOf(cursor.value) ||
+        predecessor.value.product_id !== cursor.value.product_id ||
+        (predecessor.ref !== canonicalRef &&
+          !(
+            allowCandidatePredecessor &&
+            /^candidates\/[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/.test(predecessor.ref)
+          ))
+      ) {
+        throw new DomainPackError(
+          "DOMAIN_PREDECESSOR_INVALID",
+          `predecessor chain is not contiguous for ${cursor.ref}`,
+        );
+      }
+      seen.add(predecessor.ref);
+      history.push(predecessor);
+      cursor = predecessor;
+    }
+    return history;
   };
   const [
     interviews,
@@ -307,16 +354,87 @@ async function validateDomainPackInner(
     );
   }
 
+  const [interviewHistories, evidenceCardHistories, questionHistories, requirementHistories] =
+    await Promise.all([
+      Promise.all(
+        interviews.map((artifact) =>
+          readPredecessorChain(
+            artifact,
+            parseDomainInterviewSession,
+            (value) => value.revision,
+            (value) => value.interview_id,
+            (value) => `interviews/${value.interview_id}/r${value.revision}.json`,
+            false,
+          ),
+        ),
+      ),
+      Promise.all(
+        evidenceCards.map((artifact) =>
+          readPredecessorChain(
+            artifact,
+            parseDomainEvidenceCard,
+            (value) => value.revision,
+            (value) => value.card_id,
+            (value) => `evidence-cards/${value.card_id}/r${value.revision}.json`,
+            true,
+          ),
+        ),
+      ),
+      Promise.all(
+        decisionQuestions.map((artifact) =>
+          readPredecessorChain(
+            artifact,
+            parseDomainDecisionQuestion,
+            (value) => value.revision,
+            (value) => value.question_id,
+            (value) => `decision-questions/${value.question_id}/r${value.revision}.json`,
+            true,
+          ),
+        ),
+      ),
+      Promise.all(
+        requirements.map((artifact) =>
+          readPredecessorChain(
+            artifact,
+            parseRequirementChangeSet,
+            (value) => value.version,
+            (value) => value.requirement_id,
+            (value) => `requirements/${value.requirement_id}/v${value.version}.json`,
+            true,
+          ),
+        ),
+      ),
+    ]);
+  const contractHistory = await readPredecessorChain(
+    { ref: manifest.contract.ref, value: contract },
+    parseProductDomainContract,
+    (value) => value.version,
+    (value) => value.contract_id,
+    (value) => `contracts/${value.contract_id}/v${value.version}.json`,
+    false,
+  );
+
   const allSources = [
-    ...interviews.flatMap((artifact) => artifact.value.source_snapshot),
-    ...evidenceCards.flatMap((artifact) => artifact.value.source_refs),
+    ...interviewHistories.flatMap((history) =>
+      history.flatMap((artifact) => artifact.value.source_snapshot),
+    ),
+    ...evidenceCardHistories.flatMap((history) =>
+      history.flatMap((artifact) => artifact.value.source_refs),
+    ),
     ...confirmations.flatMap((artifact) =>
       artifact.value.supporting_source_ref === undefined
         ? []
         : [artifact.value.supporting_source_ref],
     ),
-    ...requirements.flatMap((artifact) => artifact.value.requirement_refs),
-    ...contract.claims.flatMap((claim) => [...claim.authority_refs, ...claim.observation_refs]),
+    ...requirementHistories.flatMap((history) =>
+      history.flatMap((artifact) => artifact.value.requirement_refs),
+    ),
+    ...contractHistory.flatMap((artifact) =>
+      artifact.value.claims.flatMap((claim) => [
+        ...claim.authority_refs,
+        ...claim.observation_refs,
+      ]),
+    ),
     request.source_ref,
   ];
   const uniqueSources = new Map(
@@ -327,6 +445,7 @@ async function validateDomainPackInner(
   const confirmationsByRef = new Map(
     confirmations.map((artifact) => [artifact.value.confirmation_id, artifact.value]),
   );
+
   const confirmationFor = (
     pointer: { readonly confirmation_id: string; readonly sha256: string } | undefined,
   ): OwnerConfirmationEvent => {
@@ -340,14 +459,16 @@ async function validateDomainPackInner(
     }
     return event;
   };
-  for (const artifact of evidenceCards) {
-    if (artifact.value.status !== "confirmed") continue;
-    assertOwnerConfirmation(
-      confirmationFor(artifact.value.confirmation),
-      "evidence_card",
-      artifact.value,
-      "confirm",
-    );
+  for (const history of evidenceCardHistories) {
+    for (const artifact of history) {
+      if (artifact.value.status !== "confirmed") continue;
+      assertOwnerConfirmation(
+        confirmationFor(artifact.value.confirmation),
+        "evidence_card",
+        artifact.value,
+        "confirm",
+      );
+    }
   }
 
   const cardsByRef = new Map(evidenceCards.map((artifact) => [artifact.ref, artifact.value]));
@@ -367,40 +488,60 @@ async function validateDomainPackInner(
         `Contract Claim is not backed by its confirmed Evidence Card: ${claim.claim_id}`,
       );
     }
-    if (claim.transition !== undefined) {
-      assertOwnerConfirmation(
-        confirmationFor(claim.transition.confirmation),
-        "claim_transition",
-        {
-          product_id: contract.product_id,
-          claim_id: claim.claim_id,
-          domain_id: claim.domain_id,
-          statement: claim.statement,
-          current_version: contract.version,
-          predecessor: claim.transition.predecessor,
-          kind: claim.transition.kind,
-        },
-        "confirm",
+  }
+  const contractsByVersion = new Map(
+    contractHistory.map((artifact) => [artifact.value.version, artifact.value]),
+  );
+  for (let index = 0; index < contractHistory.length - 1; index += 1) {
+    const current = contractHistory[index]?.value;
+    const predecessor = contractHistory[index + 1]?.value;
+    if (current === undefined || predecessor === undefined) continue;
+    const currentClaims = new Map(current.claims.map((claim) => [claim.claim_id, claim]));
+    for (const historicalClaim of predecessor.claims) {
+      if (!currentClaims.has(historicalClaim.claim_id)) {
+        throw new DomainPackError(
+          "DOMAIN_CONTRACT_HISTORY_INVALID",
+          `successor Contract silently deletes Claim ${historicalClaim.claim_id}`,
+        );
+      }
+    }
+  }
+  for (const artifact of contractHistory) {
+    for (const claim of artifact.value.claims) {
+      if (claim.transition === undefined) continue;
+      const historicalContract = contractsByVersion.get(
+        claim.transition.predecessor.contract_version,
       );
+      const historicalClaim = historicalContract?.claims.find(
+        (candidate) => candidate.claim_id === claim.transition?.predecessor.claim_id,
+      );
+      if (historicalClaim === undefined) {
+        throw new DomainPackError(
+          "DOMAIN_CONTRACT_HISTORY_INVALID",
+          `Claim transition invents missing history: ${claim.claim_id}`,
+        );
+      }
     }
   }
   if (contract.state !== "issued") {
     throw new DomainPackError("DOMAIN_CONTRACT_PROMOTION_INVALID", "pack Contract must be issued");
   }
-  const contractEvent = assertOwnerConfirmation(
-    confirmationFor(contract.confirmation),
-    "product_domain_contract",
-    contract,
-    "confirm",
-  );
-  if (
-    contract.decided_by !== contractEvent.actor_id ||
-    contract.decided_at !== contractEvent.occurred_at
-  ) {
-    throw new DomainPackError(
-      "DOMAIN_CONTRACT_PROMOTION_INVALID",
-      "Contract issuance fields do not match confirmation event",
+  for (const artifact of contractHistory) {
+    const contractEvent = assertOwnerConfirmation(
+      confirmationFor(artifact.value.confirmation),
+      "product_domain_contract",
+      artifact.value,
+      "confirm",
     );
+    if (
+      artifact.value.decided_by !== contractEvent.actor_id ||
+      artifact.value.decided_at !== contractEvent.occurred_at
+    ) {
+      throw new DomainPackError(
+        "DOMAIN_CONTRACT_PROMOTION_INVALID",
+        "Contract issuance fields do not match confirmation event",
+      );
+    }
   }
   if (
     !interviews.some(
@@ -424,19 +565,30 @@ async function validateDomainPackInner(
       "readiness request must bind the exact manifest Requirement set",
     );
   }
-  for (const artifact of requirements) {
-    if (artifact.value.status === "draft") continue;
-    assertOwnerConfirmation(
-      confirmationFor(artifact.value.confirmation),
-      "requirement_change_set",
-      artifact.value,
-      artifact.value.status === "withdrawn" ? "withdraw" : "confirm",
-    );
+  for (const history of requirementHistories) {
+    for (const artifact of history) {
+      if (artifact.value.status === "draft") continue;
+      assertOwnerConfirmation(
+        confirmationFor(artifact.value.confirmation),
+        "requirement_change_set",
+        artifact.value,
+        "confirm",
+      );
+    }
   }
   const questionByRef = new Map(
     decisionQuestions.map((artifact) => [artifact.ref, artifact.value]),
   );
   for (const interview of interviews) {
+    for (const pointer of interview.value.evidence_card_refs) {
+      const card = cardsByRef.get(pointer.ref);
+      if (card === undefined || canonicalJsonDigest(card) !== pointer.sha256) {
+        throw new DomainPackError(
+          "DOMAIN_EVIDENCE_INVALID",
+          "Interview evidence-card pointer drifted",
+        );
+      }
+    }
     for (const pointer of interview.value.decision_question_refs) {
       const question = questionByRef.get(pointer.ref);
       if (question === undefined || canonicalJsonDigest(question) !== pointer.sha256) {
@@ -447,14 +599,16 @@ async function validateDomainPackInner(
       }
     }
   }
-  for (const artifact of decisionQuestions) {
-    if (artifact.value.status === "open") continue;
-    assertOwnerConfirmation(
-      confirmationFor(artifact.value.resolution_confirmation),
-      "decision_question",
-      artifact.value,
-      artifact.value.status === "withdrawn" ? "withdraw" : "confirm",
-    );
+  for (const history of questionHistories) {
+    for (const artifact of history) {
+      if (artifact.value.status === "open") continue;
+      assertOwnerConfirmation(
+        confirmationFor(artifact.value.resolution_confirmation),
+        "decision_question",
+        artifact.value,
+        "confirm",
+      );
+    }
   }
   const rebuiltGraph = buildClaimDependencyGraph({
     contract: { ref: manifest.contract.ref, contract },
@@ -503,9 +657,15 @@ export async function validateDomainPack(
   projectRoot: string,
   packRef: string,
   manifestRef: string,
+  options: { readonly confirmationLedger?: OwnerConfirmationLedger } = {},
 ): Promise<ValidatedDomainPack> {
   try {
-    return await validateDomainPackInner(projectRoot, packRef, manifestRef);
+    return await validateDomainPackInner(
+      projectRoot,
+      packRef,
+      manifestRef,
+      options.confirmationLedger ?? new OwnerConfirmationLedger(),
+    );
   } catch (error) {
     if (error instanceof DomainPackError) throw error;
     throw new DomainPackError("DOMAIN_PACK_INVALID", "domain pack validation failed");

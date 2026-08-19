@@ -45,7 +45,7 @@ export class OwnerConfirmationLedger {
     this.#root = resolve(root);
   }
 
-  async #ensureRoot(): Promise<void> {
+  async #ensureWriteRoot(): Promise<void> {
     try {
       await mkdir(this.#root, { recursive: true, mode: 0o700 });
     } catch (error) {
@@ -63,7 +63,7 @@ export class OwnerConfirmationLedger {
 
   async write(value: unknown): Promise<OwnerConfirmationPointer> {
     const event = parseOwnerConfirmationEvent(value);
-    await this.#ensureRoot();
+    await this.#ensureWriteRoot();
     const path = this.#path(event.confirmation_id);
     const bytes = `${canonicalJson(event)}\n`;
     try {
@@ -86,7 +86,7 @@ export class OwnerConfirmationLedger {
 
   async read(pointerValue: unknown): Promise<OwnerConfirmationEvent> {
     const pointer = ownerConfirmationPointerSchema.parse(pointerValue);
-    await this.#ensureRoot();
+    await assertPhysicalDirectory(this.#root);
     const path = this.#path(pointer.confirmation_id);
     const entry = await lstat(path);
     if (entry.isSymbolicLink() || !entry.isFile() || (entry.mode & 0o777) !== 0o600) {

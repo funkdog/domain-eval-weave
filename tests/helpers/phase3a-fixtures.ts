@@ -134,7 +134,7 @@ const contractClaims = [
   },
 ] as const;
 
-const contractDraftProjection = {
+export const validProductDomainContractCandidate = {
   schema_version: 1,
   contract_id: "synthetic-commerce-contract",
   product_id: "synthetic-commerce",
@@ -157,7 +157,7 @@ export const validContractConfirmation = {
     object_version: 1,
     projection_sha256: confirmationProjectionDigest(
       "product_domain_contract",
-      contractDraftProjection,
+      validProductDomainContractCandidate,
     ),
   },
   decision: "confirm",
@@ -172,7 +172,7 @@ export const validContractConfirmation = {
 } as const;
 
 export const validProductDomainContract = {
-  ...contractDraftProjection,
+  ...validProductDomainContractCandidate,
   state: "issued",
   confirmation: {
     confirmation_id: "confirm-contract-synthetic-commerce-v1-r1",

@@ -11,8 +11,11 @@ description: "DSH Eval Lab Phase 3A 的决策完备实现规格：领域访谈 S
 
 > 产品边界：[DSH Eval Lab Phase 3 Product Plan](./2026-08-19-dsh-eval-lab-phase-3-product-plan.md)。
 >
-> **状态**：approved implementation contract v1。Phase 3A 获准实施；Phase 3B deterministic grader compiler 与
+> **状态**：approved implementation contract v1（governance-narrowed）。Phase 3A 获准实施；Phase 3B deterministic grader compiler 与
 > Phase 3C Semantic Judge 尚未获准编码。
+>
+> Scope contraction：Phase 3A 只提供 `domain confirm`。通用 reject/withdraw、rejection receipt replay 与对象撤销治理后移；
+> 未确认候选留在 authoring plane，不写永久 authority event。
 
 ## 0. 冻结结论
 
@@ -52,6 +55,7 @@ contracts/
 ├── domain-interview-session.schema.json
 ├── owner-confirmation.schema.json
 ├── domain-decision-question.schema.json
+├── product-domain-contract-candidate.schema.json
 ├── product-domain-contract.schema.json
 ├── requirement-change-set.schema.json
 ├── claim-dependency-graph.schema.json
@@ -216,7 +220,12 @@ Graph              graphs/<graph-id>.json
 ReadinessRequest   readiness/requests/<request-id>.json
 ReadinessReport    readiness/reports/<report-id>.json
 SnapshotManifest   manifests/<snapshot-id>.json
+AuthorityCandidate candidates/<candidate-id>.json
 ```
+
+`AuthorityCandidate` 是 immutable、canonical JSON input，不是临时文件；management CLI 与 replay 只接受上面的单层
+candidate namespace。Evidence Card、RequirementChangeSet 与 DecisionQuestion candidate 复用各自 schema；Contract draft 与
+Contract draft 使用独立的 `product-domain-contract-candidate.schema.json`。Candidate bytes 一经 confirm event 引用不得覆盖。
 
 所有写入使用 exclusive create；相同 path+bytes 幂等，不同 bytes 冲突。不得维护可覆盖的 `current` truth file。
 
@@ -253,16 +262,16 @@ interface OwnerConfirmationEvent {
   }
   readonly target: {
     readonly kind: 'evidence_card' | 'product_domain_contract' |
-      'requirement_change_set' | 'decision_question' | 'claim_transition'
+      'requirement_change_set' | 'decision_question'
     readonly object_id: string
     readonly object_version?: number
     readonly projection_sha256: string
   }
-  readonly decision: 'confirm' | 'reject' | 'withdraw'
+  readonly decision: 'confirm'
   readonly origin: {
     readonly kind: 'management_cli_operator_invocation'
     readonly profile: 'eval-clowder'
-    readonly command: 'confirm' | 'reject' | 'withdraw'
+    readonly command: 'confirm'
     readonly invocation_sha256: string
   }
   readonly supporting_source_ref?: SourceRef
@@ -276,7 +285,6 @@ interface OwnerConfirmationEvent {
 - Product Domain Contract：除 `state/confirmation/decided_by/decided_at` 外的 identity、version、predecessor、source snapshot 与 Claims；
 - Requirement ChangeSet：除 `status/confirmation` 外的全部字段；
 - DecisionQuestion：除 `status/resolution_confirmation` 外的全部字段；
-- Claim transition：Claim identity、当前/前任 version、transition kind 与 statement projection。
 
 最终对象保存 `confirmation: OwnerConfirmationPointer`；replay 同时验证隔离 ledger event bytes、actor authority scope、target identity/version、
 projection digest、decision 与 external origin。`actor_id` 来自 operator command 参数，scope 由 target artifact 推导后写入，
@@ -340,12 +348,12 @@ interface DecisionQuestion {
   readonly blocked_claim_ids: readonly string[]
   readonly risk: 'low' | 'medium' | 'high' | 'critical'
   readonly blocking: boolean
-  readonly status: 'open' | 'resolved' | 'withdrawn'
+  readonly status: 'open' | 'resolved'
   readonly resolution_confirmation?: OwnerConfirmationPointer
 }
 ```
 
-`open` 禁止 resolution pointer；`resolved/withdrawn` 写新 revision 并绑定对应 OwnerConfirmationEvent。Requirement 与 InterviewSession
+`open` 禁止 resolution pointer；`resolved` 写新 revision 并绑定对应 OwnerConfirmationEvent。Requirement 与 InterviewSession
 都引用 question pointer。Readiness 只把 requested closure 中 `blocking=true && status=open` 的问题判为 red。
 
 ### 4.5 DomainEvidenceCard
@@ -395,7 +403,7 @@ interface ProductDomainContract {
   readonly product_id: string
   readonly version: number
   readonly predecessor?: DomainArtifactPointer
-  readonly state: 'issued' | 'withdrawn'
+  readonly state: 'issued'
   readonly confirmation: OwnerConfirmationPointer
   readonly decided_by: string
   readonly decided_at: string
@@ -403,6 +411,22 @@ interface ProductDomainContract {
   readonly claims: readonly ProductDomainClaim[]
 }
 ```
+
+Contract candidate 的冻结 face 为：
+
+```ts
+interface ProductDomainContractCandidate {
+  readonly schema_version: 1
+  readonly contract_id: string
+  readonly product_id: string
+  readonly version: number
+  readonly predecessor?: DomainArtifactPointer
+  readonly source_snapshot_digest: string
+  readonly claims: readonly ProductDomainClaim[]
+}
+```
+
+它明确不含 `state/confirmation/decided_by/decided_at`；不得把 issued Contract 或任意松散 JSON 当作 Contract candidate。
 
 ```ts
 interface ProductDomainClaim {
@@ -420,19 +444,19 @@ interface ProductDomainClaim {
   readonly transition?: {
     readonly kind: 'supersedes' | 'retires'
     readonly predecessor: ClaimRef
-    readonly confirmation: OwnerConfirmationPointer
   }
 }
 ```
 
 每个 `ProductDomainClaim` 必须回指一个 confirmed Evidence Card digest。Claim ID 在 Contract 版本间稳定；同一版本
-ID 唯一。Contract draft 是 management CLI 的 input candidate，不占用 final Contract path。`state=issued/withdrawn` 都必须
-绑定相应 OwnerConfirmationEvent，`decided_by/at` 必须等于 event actor/time；只有 issued Contract 可作为 Requirement base。
+ID 唯一。Contract draft 是 management CLI 的 input candidate，不占用 final Contract path。`state=issued` 必须绑定
+OwnerConfirmationEvent，`decided_by/at` 必须等于 event actor/time；只有 issued Contract 可作为 Requirement base。
 新版本不得静默删除 Claim，只能保留 Claim 并以 transition 表达：`supersedes → lifecycle=active`，
-`retires → lifecycle=retired`；transition confirmation 必须验证。Version 迁移状态机：
+`retires → lifecycle=retired`。整份 successor Contract 的一次 owner confirmation 同时授权其中所有 transition，不再为每个 Claim
+另建治理事件。Version 迁移状态机：
 
 ```text
-candidate --confirm--> issued@vN --withdraw--> withdrawn@vN+1
+candidate --confirm--> issued@vN
 active@vN --supersedes--> active@vN+1
 active@vN --retires-----> retired@vN+1
 retired --(no implicit transition)--> retired
@@ -458,13 +482,13 @@ interface RequirementChangeSet {
     readonly conflicts_with: readonly ClaimConflict[]
   }
   readonly decision_question_refs: readonly DomainArtifactPointer[]
-  readonly status: 'draft' | 'owner_confirmed' | 'withdrawn'
+  readonly status: 'draft' | 'owner_confirmed'
   readonly confirmation?: OwnerConfirmationPointer
 }
 ```
 
 每个 semantic version 只写一次 final path；draft candidate 使用独立临时/候选路径。`owner_confirmed` 要求 validation scope 中零 open blocking DecisionQuestion，并绑定 target projection 一致的
-OwnerConfirmationEvent；它仍不修改 ProductDomainContract。`withdrawn` 同样需要 `decision=withdraw` event。
+OwnerConfirmationEvent；它仍不修改 ProductDomainContract。Requirement 撤销治理不属于 Phase 3A。
 
 ### 4.8 ClaimDependencyGraph
 
@@ -542,13 +566,14 @@ interface DomainPackManifest {
 ```
 
 `domain validate/impact` 接收 exact manifest ref，不扫描目录猜“最新版”。Replay 只读取 manifest closure；新增 revision/version
-不会改变任何旧 snapshot。
+不会改变任何旧 snapshot。Manifest 只包含成功 confirmation 的 receipts；未确认候选与 decision packet 不进入已签发 snapshot。
 
 ## 5. Promotion 与 readiness
 
 Promotion 分两步：authoring library 以纯函数从 Cards 生成 Contract candidate projection；operator-only management command
 验证 target、推导 authority scope、写 OwnerConfirmationEvent 与 immutable issued Contract。后续 replay 仍以纯函数验证 Cards、
-Card/Contract confirmation 与必要的 Claim transitions。任何一步不得从 Session 自由文本或当前模型上下文推断确认。
+Card/Contract/Requirement/DecisionQuestion confirmation。Contract-level event 授权 successor 中的 Claim transitions；任何一步不得
+从 Session 自由文本或当前模型上下文推断确认。
 
 `DomainTruthReadinessReport` 绑定一个 DomainReadinessRequest，并保存多维状态：
 
@@ -578,24 +603,14 @@ Management profile 新增 deterministic、无模型命令：
 
 ```text
 dsh --profile eval-clowder domain confirm <pack-root> <target-kind> <candidate-ref> <actor-id>
-dsh --profile eval-clowder domain reject <pack-root> <target-kind> <candidate-ref> <actor-id>
-dsh --profile eval-clowder domain withdraw <pack-root> <target-kind> <candidate-ref> <actor-id>
 dsh --profile eval-clowder domain validate <pack-root> <manifest-ref>
 dsh --profile eval-clowder domain impact <pack-root> <manifest-ref> <claim-id>
 ```
 
-合法状态迁移矩阵冻结如下；`—` 必须在 ledger pre-write 阶段 typed fail：
-
-| target kind | `confirm` | `reject` | `withdraw` |
-|---|---|---|---|
-| EvidenceCard | `proposed/unresolved → confirmed r+1` | candidate rejection event only | — |
-| ProductDomainContract | candidate → `issued vN` | candidate rejection event only | `issued vN → withdrawn vN+1` |
-| RequirementChangeSet | `draft candidate → owner_confirmed vN` | candidate rejection event only | `owner_confirmed vN → withdrawn vN+1` |
-| DecisionQuestion | `open → resolved r+1` | `open → resolved r+1`，event 保存 reject | `resolved → withdrawn r+1` |
-| Claim transition | transition approval event only | transition rejection event only | — |
-
-Reject-only event 必须进入下一个 DomainPackManifest 的 `confirmations` receipts，但不生成 final truth revision。所有生成下一
-revision/version 的格子都必须写 predecessor pointer。Preflight 完整验证 target schema/state、输出可表达性、目标 immutable path
+合法 confirm surface 冻结为四类：EvidenceCard `proposed/unresolved → confirmed r+1`、ProductDomainContract
+`candidate → issued vN`、RequirementChangeSet `draft → owner_confirmed vN`、DecisionQuestion `open → resolved r+1`。其他 target、
+已确认对象重复 confirm、或不满足前置状态都必须在 ledger pre-write 阶段 typed fail。所有生成下一 revision/version 的对象都必须
+写 predecessor pointer。Preflight 完整验证 target schema/state、证据/问题闭包、输出可表达性、目标 immutable path
 是否可用；只有它成功后才允许写永久 ledger。Ledger 写成功而 final write 因 I/O 失败时保留 event，并返回 typed incomplete
 result，禁止把它解释为已完成 transition。
 
@@ -605,7 +620,7 @@ result，禁止把它解释为已完成 transition。
 - confirmation command 只能由 `eval-clowder` app 接受；author profile 禁用 app 与 shell/process 工具，Candidate runner
   同样禁用，故 Skill/模型不能调用；command 从 target 推导 object identity/scope/projection，先 exclusive-create runtime ledger
   event，再写带 receipt 的下一 immutable revision；validator 必须同时核 pack receipt 与 ledger，workspace 内伪造 event 无效；
-- confirm/reject/withdraw × target kind 必须按上述 allowlist 做 pre-write red matrix；非法格子零 ledger side effect；
+- confirm × target kind 必须按上述 allowlist 做 pre-write red matrix；非法 target/state 零 ledger side effect；
 - `validate` 解析所有 primary artifacts、重建 graph/readiness 并比较 frozen bytes；
 - `impact` 只在 validate 通过后输出依赖 Requirement/Claim IDs；
 - 不调用模型、不读取 live Candidate/Suite/Profile/Session、OAuth 或 ambient home；
@@ -627,7 +642,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 ### Milestone 0 — Truth source and schemas
 
 - Phase 2/Phase 3 canonical docs and AGENTS routing；
-- 十个 JSON Schema + Zod parser parity；
+- 十一个 JSON Schema + Zod parser parity；
 - SourceRef/path/time/id/status failure tests；
 - no Phase 1/2 schema regression。
 
@@ -646,7 +661,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - same Claim reused by two requirements；
 - reverse impact closure and deterministic graph replay；
 - supersede/retire transition edges and migration state machine；
-- DecisionQuestion resolve/withdraw + requested-closure replay；
+- DecisionQuestion resolve + requested-closure replay；
 - missing node/cycle/alias rejection。
 
 ### Milestone 3 — Skill and authoring profile
@@ -655,7 +670,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - concise SKILL.md + one-level references/assets；
 - embedded provider and author profile materialization；
 - runner visibility regression test；
-- operator-only `domain confirm/reject/withdraw` + artifact-only `domain validate/impact` CLI。
+- operator-only `domain confirm` + artifact-only `domain validate/impact` CLI。
 
 ### Milestone 4 — Synthetic vertical acceptance
 

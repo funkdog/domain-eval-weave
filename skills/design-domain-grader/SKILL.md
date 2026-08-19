@@ -20,7 +20,7 @@ State the selected mode and why. For `delta` or `audit`, validate and read the c
 1. Confirm the authorized project root and use `<project>/domain-eval` unless the user selected another in-project path.
 2. Read only user-authorized product documents, requirements, code, tests, external contracts, and synthetic/runtime observations.
 3. Never read credentials, ambient agent homes, production data, hidden Candidate Oracle assets, or unrelated runtime state.
-4. Record every source as a portable project-relative reference plus exact digest and optional anchor/JSON pointer/symbol.
+4. Snapshot every cited source under the selected pack, then record it as a portable pack-root-relative reference plus exact digest and optional anchor/JSON pointer/symbol. Preserve source bytes exactly.
 5. Treat Domain Knowledge Packs and model knowledge as question generators only. They cannot be authority refs.
 
 Before writing artifacts, read [references/artifact-contracts.md](references/artifact-contracts.md). When conducting an interview, also read [references/interview-protocol.md](references/interview-protocol.md). Load [references/failure-modes.md](references/failure-modes.md) before issuing readiness.
@@ -63,25 +63,41 @@ Read discoverable evidence before asking the owner. Surface only questions that 
 - the concrete options or missing evidence;
 - what later Grader capability remains blocked.
 
-If blocking questions remain, emit draft artifacts and readiness `red`; do not sign or compile anything.
+If blocking questions remain, emit draft artifacts and report readiness as `red`; do not sign or compile anything. Do not persist a
+`DomainTruthReadinessReport` or `DomainPackManifest` until an issued Contract and at least one Requirement form a schema-valid closure.
 
 ## Mode-specific completion
 
 ### Onboard
 
-Create immutable InterviewSession revisions and Evidence Card candidates. Ask the operator to run the management `domain confirm` command; never write or imitate OwnerConfirmationEvents. After the protected ledger receipt validates, promote only selected confirmed Cards into Product Domain Contract version 1. Leave every other Card outside the Contract.
+Create immutable InterviewSession revisions and Evidence Card candidates at single-level `candidates/<candidate-id>.json` paths. Ask the
+operator to run the management `domain confirm` command; never write or imitate OwnerConfirmationEvents. After the protected ledger receipt
+validates, use the management-produced Evidence Card revision and write a new InterviewSession revision that references it. Promote only selected
+confirmed Cards into Product Domain Contract version 1. Leave every other Card outside the Contract.
 
 ### Delta
 
-Pin the exact versioned base Contract. Use its impact graph to scope affected Claims; do not re-ask unrelated confirmed truth. Create a Requirement ChangeSet using only `uses`, `preserves`, `introduces`, `modifies`, `deprecates`, and `conflicts_with`. Persist unresolved choices as revisioned DecisionQuestion artifacts and ask the operator to confirm the final Requirement through the protected management surface. Requirement-scoped proposals never mutate the base Contract.
+Pin the exact versioned base Contract. Use its impact graph to scope affected Claims; do not re-ask unrelated confirmed truth. Create one
+Requirement ChangeSet at a single-level `candidates/<candidate-id>.json` path using only `uses`, `preserves`, `introduces`, `modifies`,
+`deprecates`, and `conflicts_with`. Persist unresolved choices as revisioned DecisionQuestion artifacts and ask the operator to confirm the final
+Requirement through the protected management surface. Before confirmation, compute graph/readiness previews only for the report; do not persist
+candidate graph, readiness, or manifest objects in ad hoc namespaces. Requirement-scoped proposals never mutate the base Contract.
 
 ### Audit
 
-Recheck source bindings, confirmation, conflicts, observations, Claim dependencies, Requirement edges, and reverse impact. Produce findings and a new readiness artifact. Do not rewrite primary artifacts unless the user explicitly authorizes a new version.
+Recheck source bindings, confirmation, conflicts, observations, Claim dependencies, Requirement edges, and reverse impact. If the exact
+manifest validates, produce findings and a new readiness artifact. If source bytes, pointers, or protected receipts fail validation, stop,
+preserve the historical artifacts, and report the failed dimension/reason without manufacturing a readiness artifact. Do not rewrite primary
+artifacts unless the user explicitly authorizes a new version.
 
 ## Validate and report
 
-Run the repository-provided deterministic validator and impact query against an exact immutable DomainPackManifest. Persist a DomainReadinessRequest that points to exact Requirement versions. Treat schema, protected-ledger confirmation, digest, path, graph, lifecycle, or replay failure as `red`. Treat unresolved/conflicted/observability gaps according to whether they intersect the derived requested closure. Never average hard failures into a score.
+Once a complete issued closure exists, run the repository-provided deterministic validator and impact query against an exact immutable
+DomainPackManifest, and persist a DomainReadinessRequest that points to exact Requirement versions. Before that boundary, validate each
+candidate with its schema and exact refs and report why full-pack validation is deferred. Treat schema, protected-ledger confirmation, digest,
+path, graph, lifecycle, or replay failure as `red`; a validator failure is a reportable result, not permission to create a substitute manifest or
+readiness object. Treat unresolved/conflicted/observability gaps according to whether they intersect the derived requested closure. Never average
+hard failures into a score.
 
 Report:
 

@@ -15,6 +15,7 @@ import {
   parseDomainTruthReadiness,
   parseOwnerConfirmationEvent,
   parseProductDomainContract,
+  parseProductDomainContractCandidate,
   parseRequirementChangeSet,
 } from "../../src/domain/contracts.js";
 import {
@@ -26,6 +27,7 @@ import {
   validInterviewSession,
   validOwnerConfirmation,
   validProductDomainContract,
+  validProductDomainContractCandidate,
   validReadinessRequest,
   validRequirementChangeSet,
 } from "../helpers/phase3a-fixtures.js";
@@ -50,6 +52,11 @@ test("Phase 3A persisted faces have JSON Schema and Zod parser parity", async ()
     ["domain-interview-session.schema.json", validInterviewSession, parseDomainInterviewSession],
     ["domain-decision-question.schema.json", validDecisionQuestion, parseDomainDecisionQuestion],
     ["product-domain-contract.schema.json", validProductDomainContract, parseProductDomainContract],
+    [
+      "product-domain-contract-candidate.schema.json",
+      validProductDomainContractCandidate,
+      parseProductDomainContractCandidate,
+    ],
     ["requirement-change-set.schema.json", validRequirementChangeSet, parseRequirementChangeSet],
     ["claim-dependency-graph.schema.json", validClaimDependencyGraph, parseClaimDependencyGraph],
     ["domain-readiness-request.schema.json", validReadinessRequest, parseDomainReadinessRequest],
@@ -78,6 +85,23 @@ test("Phase 3A portable refs reject absolute, traversal, backslash, and empty se
     source.artifact_ref = ref;
     assert.throws(() => parseDomainEvidenceCard(card));
   }
+});
+
+test("SourceRef locator and confirm-only authority invariants have schema parity", async () => {
+  const cardValidator = await validator("domain-evidence-card.schema.json");
+  const card = structuredClone(validEvidenceCard) as Record<string, unknown>;
+  const sources = card.source_refs as Record<string, unknown>[];
+  const source = sources[0];
+  assert.ok(source);
+  source.locator = "https://example.invalid/policy";
+  assert.throws(() => parseDomainEvidenceCard(card));
+  assert.equal(cardValidator(card), false, JSON.stringify(cardValidator.errors));
+
+  const eventValidator = await validator("owner-confirmation.schema.json");
+  const event = structuredClone(validOwnerConfirmation) as Record<string, unknown>;
+  event.decision = "reject";
+  assert.throws(() => parseOwnerConfirmationEvent(event));
+  assert.equal(eventValidator(event), false, JSON.stringify(eventValidator.errors));
 });
 
 test("confirmed Evidence Cards require owner confirmation and non-knowledge authority", () => {

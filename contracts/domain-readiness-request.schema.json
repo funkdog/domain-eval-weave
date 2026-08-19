@@ -63,7 +63,12 @@
         },
         "artifact_ref": { "$ref": "#/$defs/packRef" },
         "digest": { "$ref": "#/$defs/sha256" },
-        "locator": { "type": "string", "minLength": 1, "maxLength": 512 }
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!.*\\\\)(?!.*://).+$"
+        }
       }
     }
   }

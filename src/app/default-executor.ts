@@ -31,6 +31,7 @@ import { parseCurrentCalibrationEvidence, parsePairedImpactReport } from "../con
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
 import { runDoctor } from "../doctor/index.js";
+import type { OwnerConfirmationLedger } from "../domain/confirmation-ledger.js";
 import { impactedByClaim } from "../domain/graph.js";
 import { recordOperatorAuthority } from "../domain/operator-authority.js";
 import { validateDomainPack } from "../domain/pack.js";
@@ -595,17 +596,20 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
   readonly #stdout: (text: string) => void;
   readonly #stderr: (text: string) => void;
   readonly #cwd: string;
+  readonly #confirmationLedger: OwnerConfirmationLedger | undefined;
 
   constructor(
     input: {
       readonly stdout?: (text: string) => void;
       readonly stderr?: (text: string) => void;
       readonly cwd?: string;
+      readonly confirmationLedger?: OwnerConfirmationLedger;
     } = {},
   ) {
     this.#stdout = input.stdout ?? ((text) => void process.stdout.write(text));
     this.#stderr = input.stderr ?? ((text) => void process.stderr.write(text));
     this.#cwd = input.cwd ?? process.cwd();
+    this.#confirmationLedger = input.confirmationLedger;
   }
 
   async execute(invocation: AppInvocation): Promise<ExitCode> {
@@ -613,7 +617,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm/reject/withdraw <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id>\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id>\n",
           );
           return EXIT_CODE.OK;
         case "version":
@@ -666,6 +670,9 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             this.#cwd,
             invocation.packPath,
             invocation.manifestPath,
+            this.#confirmationLedger === undefined
+              ? {}
+              : { confirmationLedger: this.#confirmationLedger },
           );
           this.#stdout(`${canonicalJson(pack.readiness)}\n`);
           return pack.readiness.overall === "red" ? EXIT_CODE.DOMAIN_TRUTH_NOT_READY : EXIT_CODE.OK;
@@ -675,6 +682,9 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             this.#cwd,
             invocation.packPath,
             invocation.manifestPath,
+            this.#confirmationLedger === undefined
+              ? {}
+              : { confirmationLedger: this.#confirmationLedger },
           );
           if (pack.readiness.overall === "red") return EXIT_CODE.DOMAIN_TRUTH_NOT_READY;
           this.#stdout(`${canonicalJson(impactedByClaim(pack.graph, invocation.claimId))}\n`);
@@ -687,10 +697,10 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             candidatePath: invocation.candidatePath,
             targetKind: invocation.targetKind,
             actorId: invocation.actorId,
-            decision: invocation.decision,
+            ...(this.#confirmationLedger === undefined ? {} : { ledger: this.#confirmationLedger }),
           });
           this.#stdout(`${canonicalJson(result)}\n`);
-          return EXIT_CODE.OK;
+          return result.status === "complete" ? EXIT_CODE.OK : EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
         }
         case "run": {
           const doctor = await runProductDoctor();

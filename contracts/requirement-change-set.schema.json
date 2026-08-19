@@ -80,7 +80,7 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/pointer" }
     },
-    "status": { "enum": ["draft", "owner_confirmed", "withdrawn"] },
+    "status": { "enum": ["draft", "owner_confirmed"] },
     "confirmation": { "$ref": "#/$defs/confirmationPointer" }
   },
   "allOf": [
@@ -137,7 +137,12 @@
         },
         "artifact_ref": { "$ref": "#/$defs/packRef" },
         "digest": { "$ref": "#/$defs/sha256" },
-        "locator": { "type": "string", "minLength": 1, "maxLength": 512 }
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!.*\\\\)(?!.*://).+$"
+        }
       }
     },
     "claimRef": {

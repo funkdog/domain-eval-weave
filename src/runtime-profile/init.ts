@@ -21,6 +21,7 @@ export class ProfileContractError extends Error {
 export interface ComposedRoleRow {
   readonly id: string;
   readonly disabled?: boolean;
+  readonly config?: unknown;
 }
 
 export function assertProfileRoles(
@@ -48,9 +49,19 @@ export function assertAuthorProfileRoles(rows: readonly ComposedRoleRow[]): void
     ["dsh-eval-app", true],
     ["dsh-eval-bridge", true],
     ["dsh-eval-domain-skill", false],
+    ["tool-bash", true],
+    ["tool-pwsh", true],
+    ["tool-jobs", true],
     ["tool-skill", false],
     ["tool-str-replace-editor", false],
     ["tool-web", true],
+    ["tool-subagent-control", true],
+    ["tool-subagent-list-agents", true],
+    ["tool-subagent", true],
+    ["tool-subagent-fork", true],
+    ["tool-subagent-report", true],
+    ["tool-workflow", true],
+    ["tool-ralph", true],
   ]);
   for (const [id, disabled] of required) {
     if (byId.get(id)?.disabled !== disabled) {
@@ -59,6 +70,20 @@ export function assertAuthorProfileRoles(rows: readonly ComposedRoleRow[]): void
         `author profile has an invalid ${id} role composition`,
       );
     }
+  }
+  const session = byId.get("session-persistence-jsonl")?.config;
+  if (
+    typeof session !== "object" ||
+    session === null ||
+    Array.isArray(session) ||
+    (session as Record<string, unknown>).root !== PHASE3A_AUTHOR.sessionsRoot ||
+    (session as Record<string, unknown>).compression !== "none" ||
+    (session as Record<string, unknown>).packChunks !== false
+  ) {
+    throw new ProfileContractError(
+      "PROFILE_ROLE_INVALID",
+      "author profile has an invalid Session persistence boundary",
+    );
   }
 }
 

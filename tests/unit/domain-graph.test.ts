@@ -290,10 +290,6 @@ test("Claim retirement creates an explicit historical node and retires edge", ()
             transition: {
               kind: "retires",
               predecessor: { claim_id: claim.claim_id, contract_version: 1 },
-              confirmation: {
-                confirmation_id: "retire-refund-cash-limit",
-                sha256: "a".repeat(64),
-              },
             },
           }
         : claim,

@@ -65,4 +65,11 @@ Stop asking and emit a decision packet when:
 - legal/experience/semantic interpretation lacks a signed rubric;
 - the user cannot authorize the source or decision.
 
-Stop the mode successfully when primary artifacts are persisted, deterministic validation passes, and readiness honestly reflects remaining non-blocking gaps.
+There are two valid stop boundaries:
+
+- authoring stop: immutable candidates/questions are schema-valid, blocking decisions are reported, and full-pack validation is explicitly
+  deferred because no issued Contract + Requirement closure exists;
+- issued-closure stop: primary artifacts are persisted, deterministic exact-manifest validation passes, and readiness honestly reflects
+  remaining non-blocking gaps.
+
+Never bridge the first boundary by inventing an issued object, manifest, or readiness report.

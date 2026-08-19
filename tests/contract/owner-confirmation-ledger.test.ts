@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -48,5 +48,23 @@ test("owner confirmation ledger rejects a symlink root", async () => {
   } finally {
     await rm(scratch, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("owner confirmation replay never creates a missing ledger root", async () => {
+  const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  const scratch = await mkdtemp(`${parent}/confirmation-ledger-readonly-`);
+  const missingRoot = `${scratch}/missing`;
+  try {
+    await assert.rejects(
+      new OwnerConfirmationLedger(missingRoot).read({
+        confirmation_id: "missing-confirmation",
+        sha256: "a".repeat(64),
+      }),
+    );
+    await assert.rejects(lstat(missingRoot), { code: "ENOENT" });
+  } finally {
+    await rm(scratch, { recursive: true, force: true });
   }
 });

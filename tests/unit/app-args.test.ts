@@ -79,7 +79,6 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
     ]),
     {
       kind: "domain-authority",
-      decision: "confirm",
       packPath: "domain-eval",
       targetKind: "evidence_card",
       candidatePath: "candidates/card.json",
@@ -122,6 +121,9 @@ test("usage failures use the stable exit code and reject runtime-root overrides"
     ["domain", "validate", "/tmp/domain-eval"],
     ["domain", "impact", "domain-eval"],
     ["domain", "impact", "domain-eval", "manifests/a.json", "../claim"],
+    ["domain", "reject", "domain-eval", "evidence_card", "candidates/a.json", "owner"],
+    ["domain", "withdraw", "domain-eval", "requirement_change_set", "candidates/a.json", "owner"],
+    ["domain", "confirm", "domain-eval", "claim_transition", "candidates/a.json", "owner"],
     ["run", "--runtime-root", "/tmp/elsewhere"],
     ["run", "--timeout-ms", "0"],
     ["run", "--timeout-ms", "5400001"],

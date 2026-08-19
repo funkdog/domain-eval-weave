@@ -15,6 +15,10 @@ description: "DSH Eval Lab Phase 3 产品方案：把可信测量内核升级为
 > 当前获准实施的范围只有 Phase 3A。Phase 3B/3C 在本文中冻结产品方向，但各自必须另有 implementation spec
 > 才能开始编码。
 >
+> **Phase 3A scope contraction（2026-08-19）**：本阶段只保留建立可信真相闭环所需的显式 `confirm`。通用
+> `reject/withdraw`、rejection receipt 历史审计和对象撤销治理后移，不作为 Phase 3A 公开 surface 或验收门槛；候选未获确认时
+> 继续停留在 authoring/decision packet，不写永久治理事件。
+>
 > 决策 provenance：`thread_msx25fw48rony7bs` 中 2026-08-18 的 Phase 3 共创讨论，以及其追溯的
 > `thread_mssbo6jtl0ox5o21` 领域 Grader/访谈原始讨论。本文已经冻结实现所需结论；实现 Agent 不依赖聊天记录推断合同。
 
@@ -164,10 +168,11 @@ domain-eval/
 使用的 exact pointers。Phase 3A 不新增开放式远端 Domain Registry；所有 artifact 默认持久化，无 TTL 或自动 cleanup。
 
 Owner confirmation 不是 Skill 输出。Skill 只能生成 draft/candidate artifact；本地 operator 必须从独立 management profile
-显式调用 `domain confirm/reject/withdraw`。确定性 surface 把 OwnerConfirmationEvent exclusive-create 到隔离 runtime 的
-永久 `domain-confirmations/` ledger，再把不可伪造的 id+digest receipt 写入下一 revision。Author/Candidate workspace 无权写 ledger。
-所有 authority command 先执行无副作用状态机 preflight；非法 target/decision 组合不会写 ledger。Candidate rejection
-只保留 rejection event并由 snapshot manifest 引用，不伪造产品真相 revision。
+显式调用 `domain confirm`。确定性 surface 把 OwnerConfirmationEvent exclusive-create 到隔离 runtime 的永久
+`domain-confirmations/` ledger，再把不可伪造的 id+digest receipt 写入下一 revision。Author/Candidate workspace 无权写 ledger。
+Confirm 只覆盖 Evidence Card、Product Domain Contract、Requirement ChangeSet 与 open DecisionQuestion，且在 ledger write 前完成
+schema、证据闭包、blocking question 与 immutable output preflight。未确认候选不产生 reject/withdraw event；由 author 修订候选或
+保留 DecisionQuestion 即可。
 
 ## 6. Authoring plane 与 Evaluation plane
 
@@ -245,7 +250,8 @@ delta 访谈，并证明：
 4. `proposed/unresolved/conflicted/observability_gap` 无法进入已签发 Contract；
 5. 每次 Card/Contract/Requirement confirmation 都由 Skill 不可调用的 management surface 写 OwnerConfirmationEvent，
    而不是对象内自填 actor 字符串；
-6. Claim 的 supersede/retire 与 DecisionQuestion 的 resolve/withdraw 都能从 primary artifact 重放；
+6. Contract successor 中的 Claim supersede/retire 由整份新 Contract 的一次 owner confirmation 授权；DecisionQuestion 只支持
+   `open → resolved`，通用 reject/withdraw 治理后移；
 7. delta 模式不会重新询问无关且未受影响的 confirmed Claims；
 8. 所有 artifact 可经 schema + semantic replay 验证；
 9. Skill、owner answer 与 authoring artifact 不出现在 Candidate runner surface；
