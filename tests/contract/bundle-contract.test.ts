@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -12,6 +13,34 @@ import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-ro
 
 const execFileAsync = promisify(execFile);
 const managementProfileBaseUrl = pathToFileURL(`${DEDICATED_DSH_HOME}/profiles/eval-clowder/`).href;
+const authorProfileBaseUrl = pathToFileURL(
+  `${DEDICATED_DSH_HOME}/profiles/eval-clowder-author/`,
+).href;
+
+async function loadCordisContext(): Promise<
+  new () => {
+    baseUrl?: string;
+    readonly fiber: { dispose(): Promise<void> };
+    plugin(plugin: unknown, config?: unknown): { await(): Promise<unknown> };
+    provide(name: string, value: unknown): void;
+  }
+> {
+  const packageRequire = createRequire(import.meta.url);
+  const dshToolsRequire = createRequire(
+    packageRequire.resolve("@deepseek-ai/dsh-tools/package.json"),
+  );
+  const cordis = (await import(
+    pathToFileURL(dshToolsRequire.resolve("@deepseek-ai/cordis")).href
+  )) as {
+    Context: new () => {
+      baseUrl?: string;
+      readonly fiber: { dispose(): Promise<void> };
+      plugin(plugin: unknown, config?: unknown): { await(): Promise<unknown> };
+      provide(name: string, value: unknown): void;
+    };
+  };
+  return cordis.Context;
+}
 
 test("package is a DSH bundle with app/bridge exports and no standalone bin", async () => {
   const manifest = JSON.parse(
@@ -87,6 +116,12 @@ test("all DSH entrypoints default-export side-effect-free plugin functions", asy
     bridge.inject,
     "the Cordis loader unwraps the default export, so bridge injection metadata must live on it",
   );
+  assert.deepEqual(
+    (domainSkill.default as typeof domainSkill.default & { readonly inject?: readonly string[] })
+      .inject,
+    domainSkill.inject,
+    "the Cordis loader unwraps the default export, so domain Skill injection metadata must live on it",
+  );
 });
 
 test("clean packed artifact contains importable DSH entrypoints", async () => {
@@ -136,6 +171,58 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       (bridge.default as typeof bridge.default & { readonly inject?: readonly string[] }).inject,
       bridge.inject,
     );
+    assert.deepEqual(
+      (domainSkill.default as typeof domainSkill.default & { readonly inject?: readonly string[] })
+        .inject,
+      domainSkill.inject,
+    );
+
+    const CordisContext = await loadCordisContext();
+    const cordis = new CordisContext();
+    cordis.baseUrl = authorProfileBaseUrl;
+    let registeredSkill: unknown;
+    try {
+      await cordis
+        .plugin((context: { provide(name: string, value: unknown): void }) =>
+          context.provide("skills", {
+            register: (skill: unknown) => {
+              registeredSkill = skill;
+              return () => undefined;
+            },
+          }),
+        )
+        .await();
+      await cordis
+        .plugin(domainSkill.default, {
+          env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+        })
+        .await();
+      assert.equal((registeredSkill as { readonly name?: string })?.name, "design-domain-grader");
+    } finally {
+      await cordis.fiber.dispose();
+    }
+
+    const unannotatedCordis = new CordisContext();
+    unannotatedCordis.baseUrl = authorProfileBaseUrl;
+    const unannotatedDefault = (...args: unknown[]) =>
+      (domainSkill.default as (...input: unknown[]) => unknown)(...args);
+    try {
+      await unannotatedCordis
+        .plugin((context: { provide(name: string, value: unknown): void }) =>
+          context.provide("skills", { register: () => () => undefined }),
+        )
+        .await();
+      await assert.rejects(
+        unannotatedCordis
+          .plugin(unannotatedDefault, {
+            env: { DSH_HOME: DEDICATED_DSH_HOME, DSH_EVAL_INSTANCE_ID: "clowder-ai" },
+          })
+          .await(),
+        /without inject/,
+      );
+    } finally {
+      await unannotatedCordis.fiber.dispose();
+    }
 
     let provided: unknown;
     const exits: number[] = [];

@@ -65,7 +65,7 @@ export async function loadBundledDomainSkill(): Promise<SkillRegistration> {
 export const name = "dsh-eval-domain-skill";
 export const inject = ["skills"] as const;
 
-export default async function applyDomainSkill(
+async function applyDomainSkill(
   context: DomainSkillContext,
   config: DomainSkillConfig = {},
 ): Promise<void> {
@@ -74,3 +74,5 @@ export default async function applyDomainSkill(
   const skill = await loadBundledDomainSkill();
   context.effect(() => context.skills.register(skill), "dsh-eval-domain-skill registration");
 }
+
+export default Object.assign(applyDomainSkill, { inject });

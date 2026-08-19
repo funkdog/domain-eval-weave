@@ -156,6 +156,12 @@ Runner 与新增 author profile 作为一个 staged profile set 升级：
 Skill 名固定为 `design-domain-grader`，frontmatter 仅包含 `name` 与 `description`。正文低于 500 行，详细合同和
 failure modes 按需从一层 `references/` 加载。
 
+Embedded provider 必须把 `inject=["skills"]` 挂在 Cordis loader 实际 unwrap 的 default plugin export 上，不能只保留为
+module named export。Contract gate 必须从 clean packed tar 导入该 default export，再通过 pinned real Cordis `Context.plugin()`
+挂载并验证 exact `eval-clowder-author` profile identity 下的 Skill registration；直接调用 apply 函数不构成 loader 证据。
+真实 profile acceptance 还必须证明 author composed tree 可启动并发现该 Skill，而 runner composed tree 保持 provider disabled，
+全程在模型调用前完成。
+
 ### 3.1 触发与模式
 
 Skill 在用户要求下列工作时触发：领域接入、设计领域 Grader、梳理业务真相/不变量、需求与领域 Contract 绑定，
@@ -715,7 +721,7 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - initialize `design-domain-grader` with the canonical skill scaffold；
 - concise SKILL.md + one-level references/assets；
 - embedded provider and author profile materialization；
-- runner visibility regression test；
+- packed-default real Cordis mount、author registration 与 runner visibility regression test；
 - operator-only `domain confirm` + artifact-only `domain validate/impact` CLI。
 
 ### Milestone 4 — Synthetic vertical acceptance
