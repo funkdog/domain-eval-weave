@@ -5,7 +5,11 @@ import test from "node:test";
 import { CampaignStateError, CampaignStateStore } from "../../src/campaign/state.js";
 import { parsePairedImpactReport } from "../../src/contracts/parsers.js";
 import { recommendAction, renderPairedReportMarkdown } from "../../src/report/reporter.js";
-import { assertSecretFreeText, SecretScanError } from "../../src/report/secret-scan.js";
+import {
+  assertSecretFreeText,
+  isCredentialPathSegment,
+  SecretScanError,
+} from "../../src/report/secret-scan.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import { validReport } from "../helpers/fixtures.js";
 
@@ -77,6 +81,10 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.doesNotThrow(() => assertSecretFreeText('{"policyName":"refund","status":"active"}'));
   assert.doesNotThrow(() => assertSecretFreeText('{"code":"ARTIFACT_INTEGRITY_FAILURE"}'));
   assert.doesNotThrow(() => assertSecretFreeText('{"exit_code":0,"primaryKey":"claim-id"}'));
+  assert.equal(isCredentialPathSegment("primaryKey.json"), false);
+  assert.equal(isCredentialPathSegment("exit_code.json"), false);
+  assert.equal(isCredentialPathSegment("token-budget.md"), false);
+  assert.equal(isCredentialPathSegment("githubToken.backup-v1"), true);
   assert.throws(() => assertSecretFreeText("access_token=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"id_token":"synthetic"}'), SecretScanError);
   assert.throws(() => assertSecretFreeText('{"oauthToken":"synthetic"}'), SecretScanError);
@@ -100,6 +108,12 @@ test("report scanner fails closed on OAuth and credential-shaped output", () => 
   assert.throws(() => assertSecretFreeText('{"apiKey":"synthetic"}'), SecretScanError);
   assert.throws(() => assertSecretFreeText("export ACME_TOKEN=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("githubToken: synthetic"), SecretScanError);
+  assert.throws(() => assertSecretFreeText('"github token": synthetic'), SecretScanError);
+  assert.throws(() => assertSecretFreeText('- "github token": synthetic'), SecretScanError);
+  assert.throws(
+    () => assertSecretFreeText("credentials: { githubToken: synthetic }"),
+    SecretScanError,
+  );
   assert.throws(() => assertSecretFreeText("oauth_token_secret=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("consumerSecret=synthetic"), SecretScanError);
   assert.throws(() => assertSecretFreeText("authorizationCode=synthetic"), SecretScanError);

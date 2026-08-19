@@ -488,6 +488,14 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     await writeFile(`${workspace}/provider-config.json`, '{"githubToken":"synthetic"}\n', {
       mode: 0o600,
     });
+    await writeFile(`${workspace}/githubToken.backup-v1`, "synthetic-opaque-value\n", {
+      mode: 0o600,
+    });
+    await writeFile(
+      `${workspace}/provider-config.yaml`,
+      '"github token": synthetic-opaque-value\n',
+      { mode: 0o600 },
+    );
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
 
     for (const sourcePath of [
@@ -620,6 +628,31 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     );
     await assert.rejects(
       readFile(`${workspace}/domain-eval/sources/provider-config.json`),
+      /ENOENT/,
+    );
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "githubToken.backup-v1",
+        artifact_ref: "sources/backup.txt",
+        source_id: "composite-suffix-source",
+        kind: "product_doc",
+      }),
+      "ARTIFACT_PATH_FORBIDDEN",
+    );
+    await assert.rejects(readFile(`${workspace}/domain-eval/sources/backup.txt`), /ENOENT/);
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "provider-config.yaml",
+        artifact_ref: "sources/provider-config.yaml",
+        source_id: "quoted-yaml-credential-source",
+        kind: "product_doc",
+      }),
+      "SECRET_PATTERN_DETECTED",
+    );
+    await assert.rejects(
+      readFile(`${workspace}/domain-eval/sources/provider-config.yaml`),
       /ENOENT/,
     );
     expectFailure(

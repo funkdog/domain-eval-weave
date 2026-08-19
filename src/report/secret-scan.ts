@@ -32,8 +32,7 @@ const CREDENTIAL_CONTEXT_TOKENS = new Set([
   "session",
 ]);
 
-const STRUCTURED_KEY_PATTERN =
-  /^(?:[-?]\s*)?(?:export\s+)?["']?([A-Za-z_$][A-Za-z0-9_$.-]{0,255})["']?\s*[:=]/;
+const ASSIGNMENT_KEY_PATTERN = /^(?:export\s+)?["']?([A-Za-z_$][A-Za-z0-9_$.-]{0,255})["']?\s*=/;
 
 const FORBIDDEN_PATTERNS = [
   /access[_-]?token/i,
@@ -81,21 +80,7 @@ export function isCredentialKey(identifier: string): boolean {
 }
 
 export function isCredentialPathSegment(segment: string): boolean {
-  let identifier = segment;
-  while (true) {
-    const separator = identifier.lastIndexOf(".");
-    if (separator <= 0) break;
-    const suffixTokens = identifierTokens(identifier.slice(separator + 1));
-    if (
-      suffixTokens.length !== 1 ||
-      PROVIDER_INDEPENDENT_CREDENTIAL_TERMINALS.has(suffixTokens[0] ?? "") ||
-      CONTEXTUAL_CREDENTIAL_TERMINALS.has(suffixTokens[0] ?? "")
-    ) {
-      break;
-    }
-    identifier = identifier.slice(0, separator);
-  }
-  return isCredentialKey(identifier);
+  return segment.split(".").some((component) => isCredentialKey(component));
 }
 
 function containsCredentialJsonKey(text: string): boolean {
@@ -122,9 +107,103 @@ function containsCredentialJsonKey(text: string): boolean {
   return false;
 }
 
+function skipHorizontalWhitespace(text: string, start: number): number {
+  let cursor = start;
+  while (text[cursor] === " " || text[cursor] === "\t") cursor += 1;
+  return cursor;
+}
+
+function readQuotedYamlKey(
+  text: string,
+  start: number,
+): { key: string; cursor: number } | undefined {
+  const quote = text[start];
+  if (quote !== '"' && quote !== "'") return undefined;
+  let cursor = start + 1;
+  while (cursor < text.length) {
+    if (quote === '"' && text[cursor] === "\\") {
+      cursor += 2;
+      continue;
+    }
+    if (text[cursor] !== quote) {
+      cursor += 1;
+      continue;
+    }
+    if (quote === "'" && text[cursor + 1] === "'") {
+      cursor += 2;
+      continue;
+    }
+    const encoded = text.slice(start, cursor + 1);
+    let key: string;
+    if (quote === '"') {
+      try {
+        key = JSON.parse(encoded);
+      } catch {
+        return undefined;
+      }
+    } else {
+      key = encoded.slice(1, -1).replaceAll("''", "'");
+    }
+    return { key, cursor: cursor + 1 };
+  }
+  return undefined;
+}
+
+function readYamlMappingKeyAt(text: string, start: number): string | undefined {
+  let cursor = skipHorizontalWhitespace(text, start);
+  if (
+    (text[cursor] === "-" || text[cursor] === "?") &&
+    (text[cursor + 1] === " " || text[cursor + 1] === "\t")
+  ) {
+    cursor = skipHorizontalWhitespace(text, cursor + 1);
+  }
+
+  const quoted = readQuotedYamlKey(text, cursor);
+  if (quoted !== undefined) {
+    cursor = skipHorizontalWhitespace(text, quoted.cursor);
+    return text[cursor] === ":" ? quoted.key : undefined;
+  }
+
+  const keyStart = cursor;
+  while (cursor < text.length) {
+    const character = text[cursor];
+    if (character === ":") {
+      const key = text.slice(keyStart, cursor).trim();
+      return key.length > 0 ? key : undefined;
+    }
+    if (
+      character === "\n" ||
+      character === "\r" ||
+      character === "," ||
+      character === "{" ||
+      character === "}" ||
+      character === "[" ||
+      character === "]"
+    ) {
+      return undefined;
+    }
+    cursor += 1;
+  }
+  return undefined;
+}
+
+function containsYamlCredentialKey(text: string): boolean {
+  const candidateOffsets = [0];
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === "\n" || text[index] === "{" || text[index] === "[" || text[index] === ",") {
+      candidateOffsets.push(index + 1);
+    }
+  }
+  return candidateOffsets.some((offset) => {
+    const key = readYamlMappingKeyAt(text, offset);
+    return key !== undefined && isCredentialKey(key);
+  });
+}
+
 function containsStructuredCredentialKey(text: string): boolean {
+  if (containsYamlCredentialKey(text)) return true;
   for (const line of text.split(/\r?\n/)) {
-    const match = STRUCTURED_KEY_PATTERN.exec(line.trim());
+    const match = ASSIGNMENT_KEY_PATTERN.exec(line.trim());
     if (match?.[1] !== undefined && isCredentialKey(match[1])) return true;
   }
   return false;
