@@ -230,30 +230,34 @@ function normalizeRelativeRef(value: string, path: string): string {
 }
 
 function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_path"): void {
-  const segments = sourcePath
+  const rawSegments = sourcePath.toLowerCase().split("/");
+  const camelNormalizedSegments = sourcePath
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
     .toLowerCase()
     .split("/");
-  const forbidden = segments.some(
-    (segment) =>
-      segment === ".git" ||
-      segment === ".ssh" ||
-      segment === ".codex" ||
-      segment === ".dsh" ||
-      segment === "node_modules" ||
-      segment === "auth.json" ||
-      segment === ".openai-codex-auth.json" ||
-      segment === "credentials" ||
-      segment === "credentials.json" ||
-      segment === "secrets" ||
-      segment === "secrets.json" ||
-      segment === ".env" ||
-      segment.startsWith(".env.") ||
-      /(?:^|[._-])(?:oauth|oauth(?:2)?[._-]?token(?:[._-]?secret)?|oauth[._-]?verifier|consumer[._-]?(?:key|secret)|authorization[._-]?code|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key|secret[._-]?access[._-]?key|access[._-]?key[._-]?id|password|passwd|passphrase)(?:[._-]|$)/.test(
-        segment,
-      ) ||
-      /^(?:id_rsa|id_ed25519|.*\.(?:pem|key|p12|pfx))$/.test(segment),
-  );
+  const segments = [...new Set([...rawSegments, ...camelNormalizedSegments])];
+  const forbidden =
+    rawSegments.some((segment) => segment.replace(/[^a-z0-9]/g, "").includes("oauth")) ||
+    segments.some(
+      (segment) =>
+        segment === ".git" ||
+        segment === ".ssh" ||
+        segment === ".codex" ||
+        segment === ".dsh" ||
+        segment === "node_modules" ||
+        segment === "auth.json" ||
+        segment === ".openai-codex-auth.json" ||
+        segment === "credentials" ||
+        segment === "credentials.json" ||
+        segment === "secrets" ||
+        segment === "secrets.json" ||
+        segment === ".env" ||
+        segment.startsWith(".env.") ||
+        /(?:^|[._-])(?:consumer[._-]?(?:key|secret)|authorization[._-]?code|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key|secret[._-]?access[._-]?key|access[._-]?key[._-]?id|password|passwd|passphrase)(?:[._-]|$)/.test(
+          segment,
+        ) ||
+        /^(?:id_rsa|id_ed25519|.*\.(?:pem|key|p12|pfx))$/.test(segment),
+    );
   if (forbidden) {
     throw new DomainArtifactToolError(
       "ARTIFACT_PATH_FORBIDDEN",

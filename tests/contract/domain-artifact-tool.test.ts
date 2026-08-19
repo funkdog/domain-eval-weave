@@ -438,6 +438,9 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     await writeFile(`${workspace}/oauthToken.json`, '{"oauthToken":"synthetic-opaque-value"}\n', {
       mode: 0o600,
     });
+    await writeFile(`${workspace}/oAuthToken.json`, '{"oAuthToken":"synthetic-opaque-value"}\n', {
+      mode: 0o600,
+    });
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
 
     for (const sourcePath of [
@@ -506,6 +509,17 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
       "ARTIFACT_PATH_FORBIDDEN",
     );
     await assert.rejects(readFile(`${workspace}/domain-eval/sources/oauthToken.json`), /ENOENT/);
+    expectFailure(
+      await tool.execute({
+        action: "snapshot_source",
+        source_path: "oAuthToken.json",
+        artifact_ref: "sources/oAuthToken.json",
+        source_id: "oauth-token-alternate-case-source",
+        kind: "product_doc",
+      }),
+      "ARTIFACT_PATH_FORBIDDEN",
+    );
+    await assert.rejects(readFile(`${workspace}/domain-eval/sources/oAuthToken.json`), /ENOENT/);
     expectFailure(
       await tool.execute({
         action: "snapshot_source",
