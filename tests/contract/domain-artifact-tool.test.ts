@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { assertSupportedJsonSchema } from "@deepseek-ai/dsh-tools";
@@ -72,6 +72,33 @@ test("domain_artifact rejects the exact malformed author envelope with typed dia
     );
   } finally {
     await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("domain_artifact rejects a swapped workspace root before creating escaped directories", async () => {
+  const workspace = await scratchWorkspace("domain-artifact-root-swap");
+  const original = `${workspace}-original`;
+  const outside = `${workspace}-outside`;
+  await mkdir(outside, { mode: 0o700 });
+  try {
+    const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
+    await rename(workspace, original);
+    await symlink(outside, workspace);
+
+    const result = await tool.execute({
+      action: "snapshot_source",
+      content: "Synthetic owner statement.\n",
+      artifact_ref: "sources/owner-statement.md",
+      source_id: "owner-statement",
+      kind: "owner_statement",
+    });
+
+    expectFailure(result, "ARTIFACT_PATH_INVALID");
+    await assert.rejects(stat(`${outside}/domain-eval`), /ENOENT/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+    await rm(original, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
   }
 });
 
@@ -441,6 +468,12 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
     await writeFile(`${workspace}/oAuthToken.json`, '{"oAuthToken":"synthetic-opaque-value"}\n', {
       mode: 0o600,
     });
+    await writeFile(`${workspace}/authToken.json`, '{"authToken":"synthetic-opaque-value"}\n', {
+      mode: 0o600,
+    });
+    await writeFile(`${workspace}/apiToken.json`, '{"apiToken":"synthetic-opaque-value"}\n', {
+      mode: 0o600,
+    });
     const tool = createDomainArtifactDefinition({ workspaceRoot: workspace });
 
     for (const sourcePath of [
@@ -520,6 +553,22 @@ test("domain_artifact rejects escape, symlink, sensitive path, and secret-shaped
       "ARTIFACT_PATH_FORBIDDEN",
     );
     await assert.rejects(readFile(`${workspace}/domain-eval/sources/oAuthToken.json`), /ENOENT/);
+    for (const credentialStem of ["authToken", "apiToken"]) {
+      expectFailure(
+        await tool.execute({
+          action: "snapshot_source",
+          source_path: `${credentialStem}.json`,
+          artifact_ref: `sources/${credentialStem}.json`,
+          source_id: `${credentialStem}-source`,
+          kind: "product_doc",
+        }),
+        "ARTIFACT_PATH_FORBIDDEN",
+      );
+      await assert.rejects(
+        readFile(`${workspace}/domain-eval/sources/${credentialStem}.json`),
+        /ENOENT/,
+      );
+    }
     expectFailure(
       await tool.execute({
         action: "snapshot_source",

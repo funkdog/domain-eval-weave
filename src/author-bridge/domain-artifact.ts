@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { constants, realpathSync } from "node:fs";
+import { constants, lstatSync, realpathSync } from "node:fs";
 import { link, lstat, mkdir, open, readFile, realpath, unlink } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
@@ -27,7 +27,11 @@ import {
 import { buildClaimDependencyGraph } from "../domain/graph.js";
 import { DomainPackError, domainSourceDigest, verifyDomainSourceRef } from "../domain/pack.js";
 import { assertProductDomainContractSuccessor } from "../domain/promotion.js";
-import { assertSecretFreeText, SecretScanError } from "../report/secret-scan.js";
+import {
+  assertSecretFreeText,
+  containsCredentialIdentifier,
+  SecretScanError,
+} from "../report/secret-scan.js";
 
 const MAX_SOURCE_BYTES = 1024 * 1024;
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -112,6 +116,12 @@ interface FailureResult {
   readonly ok: false;
   readonly action: string;
   readonly diagnostics: readonly Diagnostic[];
+}
+
+interface DirectoryIdentity {
+  readonly path: string;
+  readonly dev: number;
+  readonly ino: number;
 }
 
 class DomainArtifactToolError extends Error {
@@ -207,13 +217,53 @@ async function assertPhysicalDirectory(path: string): Promise<void> {
   }
 }
 
-async function ensurePackRoot(workspaceRoot: string, domainRoot: string): Promise<void> {
+function captureDirectoryIdentity(path: string): DirectoryIdentity {
+  const entry = lstatSync(path);
+  if (entry.isSymbolicLink() || !entry.isDirectory() || realpathSync(path) !== path) {
+    throw new Error("author workspace root must be a physical directory");
+  }
+  return { path, dev: entry.dev, ino: entry.ino };
+}
+
+async function assertDirectoryIdentity(identity: DirectoryIdentity): Promise<void> {
+  let entry: Awaited<ReturnType<typeof lstat>>;
+  let resolvedPath: string;
+  try {
+    entry = await lstat(identity.path);
+    resolvedPath = await realpath(identity.path);
+  } catch {
+    throw new DomainArtifactToolError(
+      "ARTIFACT_PATH_INVALID",
+      "$.workspace_root",
+      "author workspace identity is no longer available",
+    );
+  }
+  if (
+    entry.isSymbolicLink() ||
+    !entry.isDirectory() ||
+    entry.dev !== identity.dev ||
+    entry.ino !== identity.ino ||
+    resolvedPath !== identity.path
+  ) {
+    throw new DomainArtifactToolError(
+      "ARTIFACT_PATH_INVALID",
+      "$.workspace_root",
+      "author workspace identity changed after tool registration",
+    );
+  }
+}
+
+async function ensurePackRoot(
+  workspaceIdentity: DirectoryIdentity,
+  domainRoot: string,
+): Promise<void> {
+  await assertDirectoryIdentity(workspaceIdentity);
   try {
     await mkdir(domainRoot, { mode: 0o700 });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  await assertPhysicalDirectory(workspaceRoot);
+  await assertDirectoryIdentity(workspaceIdentity);
   await assertPhysicalDirectory(domainRoot);
 }
 
@@ -253,6 +303,7 @@ function assertSourcePathAllowed(sourcePath: string, diagnosticPath = "$.source_
         segment === "secrets.json" ||
         segment === ".env" ||
         segment.startsWith(".env.") ||
+        containsCredentialIdentifier(segment) ||
         /(?:^|[._-])(?:consumer[._-]?(?:key|secret)|authorization[._-]?code|credentials?|secrets?|access[._-]?token|refresh[._-]?token|id[._-]?token|client[._-]?secret|api[._-]?key|private[._-]?key|secret[._-]?access[._-]?key|access[._-]?key[._-]?id|password|passwd|passphrase)(?:[._-]|$)/.test(
           segment,
         ) ||
@@ -904,7 +955,7 @@ function sourceRefFrom(
 }
 
 async function executeSnapshot(
-  workspaceRoot: string,
+  workspaceIdentity: DirectoryIdentity,
   domainRoot: string,
   input: z.infer<typeof snapshotInputSchema>,
 ) {
@@ -920,7 +971,12 @@ async function executeSnapshot(
   if (input.source_path !== undefined) {
     const sourceRef = normalizeRelativeRef(input.source_path, "$.source_path");
     assertSourcePathAllowed(sourceRef);
-    const sourcePath = await resolvePhysicalFile(workspaceRoot, sourceRef, "$.source_path");
+    await assertDirectoryIdentity(workspaceIdentity);
+    const sourcePath = await resolvePhysicalFile(
+      workspaceIdentity.path,
+      sourceRef,
+      "$.source_path",
+    );
     const entry = await lstat(sourcePath);
     if (entry.size > MAX_SOURCE_BYTES) {
       throw new DomainArtifactToolError(
@@ -929,6 +985,7 @@ async function executeSnapshot(
         "source snapshot exceeds the 1 MiB limit",
       );
     }
+    await assertDirectoryIdentity(workspaceIdentity);
     bytes = await readFile(sourcePath);
   } else {
     bytes = Buffer.from(input.content ?? "", "utf8");
@@ -952,17 +1009,24 @@ async function executeSnapshot(
   }
   assertSecretFreeText(sourceText);
   const source = sourceRefFrom({ ...input, artifact_ref: artifactRef }, bytes);
+  await assertDirectoryIdentity(workspaceIdentity);
   await writeImmutable(domainRoot, artifactRef, bytes);
   return { ok: true as const, action: input.action, source_ref: source };
 }
 
-async function executeWrite(domainRoot: string, input: z.infer<typeof writeInputSchema>) {
+async function executeWrite(
+  workspaceIdentity: DirectoryIdentity,
+  domainRoot: string,
+  input: z.infer<typeof writeInputSchema>,
+) {
+  await assertDirectoryIdentity(workspaceIdentity);
   const prepared = await prepareArtifactValue(domainRoot, input.kind, input.value);
   const parsed = parseArtifact(input.kind, prepared);
   assertArtifactRef(input.kind, input.artifact_ref, parsed);
   const canonical = canonicalJson(parsed);
   assertSecretFreeText(canonical);
   await validateArtifact(domainRoot, input.artifact_ref, input.kind, parsed);
+  await assertDirectoryIdentity(workspaceIdentity);
   await writeImmutable(domainRoot, input.artifact_ref, Buffer.from(`${canonical}\n`, "utf8"));
   return {
     ok: true as const,
@@ -971,7 +1035,12 @@ async function executeWrite(domainRoot: string, input: z.infer<typeof writeInput
   };
 }
 
-async function executeStage(domainRoot: string, input: z.infer<typeof stageInputSchema>) {
+async function executeStage(
+  workspaceIdentity: DirectoryIdentity,
+  domainRoot: string,
+  input: z.infer<typeof stageInputSchema>,
+) {
+  await assertDirectoryIdentity(workspaceIdentity);
   const candidateRef = normalizeRelativeRef(input.candidate_ref, "$.candidate_ref");
   if (!CANDIDATE_REF_PATTERN.test(candidateRef)) {
     throw new DomainArtifactToolError(
@@ -1000,6 +1069,7 @@ async function executeStage(domainRoot: string, input: z.infer<typeof stageInput
   }
   const canonical = canonicalJson(parsed);
   assertSecretFreeText(canonical);
+  await assertDirectoryIdentity(workspaceIdentity);
   await writeImmutable(
     domainRoot,
     candidateRef,
@@ -1051,6 +1121,7 @@ export function createDomainArtifactDefinition(input: { readonly workspaceRoot: 
   if (workspaceRoot !== requestedRoot) {
     throw new Error("author workspace root must be a physical directory");
   }
+  const workspaceIdentity = captureDirectoryIdentity(workspaceRoot);
   const domainRoot = resolve(workspaceRoot, "domain-eval");
   return {
     name: "domain_artifact",
@@ -1067,14 +1138,14 @@ export function createDomainArtifactDefinition(input: { readonly workspaceRoot: 
       const parsed = parseInput(argumentsValue);
       if ("ok" in parsed) return parsed;
       try {
-        await ensurePackRoot(workspaceRoot, domainRoot);
+        await ensurePackRoot(workspaceIdentity, domainRoot);
         switch (parsed.action) {
           case "snapshot_source":
-            return await executeSnapshot(workspaceRoot, domainRoot, parsed);
+            return await executeSnapshot(workspaceIdentity, domainRoot, parsed);
           case "write_artifact":
-            return await executeWrite(domainRoot, parsed);
+            return await executeWrite(workspaceIdentity, domainRoot, parsed);
           case "stage_confirmation_candidate":
-            return await executeStage(domainRoot, parsed);
+            return await executeStage(workspaceIdentity, domainRoot, parsed);
         }
       } catch (error) {
         return failure(parsed.action, error);

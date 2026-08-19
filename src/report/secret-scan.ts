@@ -1,3 +1,6 @@
+const CREDENTIAL_IDENTIFIER_PATTERN =
+  /(?:^|[^a-z0-9])(?:auth(?:orization)?|api|oauth(?:2)?|access|refresh|id|session|security|bearer|client|consumer|private|secret)[._\s-]*(?:token|key|secret|password|passphrase|verifier|code)(?=[^a-z0-9]|$)/i;
+
 const FORBIDDEN_PATTERNS = [
   /access[_-]?token/i,
   /refresh[_-]?token/i,
@@ -25,8 +28,15 @@ export class SecretScanError extends Error {
   readonly code = "SECRET_PATTERN_DETECTED";
 }
 
+export function containsCredentialIdentifier(text: string): boolean {
+  return CREDENTIAL_IDENTIFIER_PATTERN.test(text);
+}
+
 export function assertSecretFreeText(text: string): void {
-  if (FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text))) {
+  if (
+    containsCredentialIdentifier(text) ||
+    FORBIDDEN_PATTERNS.some((pattern) => pattern.test(text))
+  ) {
     throw new SecretScanError("artifact text matched a forbidden credential or OAuth pattern");
   }
 }

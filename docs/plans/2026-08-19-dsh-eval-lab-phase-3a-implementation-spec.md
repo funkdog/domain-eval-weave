@@ -203,7 +203,11 @@ Tool 只冻结三个 action：
 
 所有 action 成功返回 `{ ok: true, ... }`；输入、schema、closure、path、secret 或 immutable conflict 失败返回
 `{ ok: false, action, diagnostics: [{ code, path, message }] }`，不得留下目标文件或半写 bytes。Path resolution 必须逐层
-no-follow，拒绝 absolute/traversal/NUL/symlink/escape；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
+no-follow，拒绝 absolute/traversal/NUL/symlink/escape；tool 注册时冻结 selected workspace 的 physical realpath + device/inode
+identity，每个 action 在首次 mkdir/read/write 前及最终 immutable write 前必须重新 CAS，root 被 rename、替换或改成 symlink 时须在
+workspace 外零副作用失败。credential path/content 不能靠分散词表：统一以 camel/separator-insensitive 的
+`credential stem × sensitive terminal`（如 `auth|api|oauth|access|refresh|id|session|security|bearer × token|key|secret|password|verifier|code`）
+分类，并保留 private-key、credential-store 等结构性禁项；新目录与文件使用 private mode。Tool 不读 confirmation ledger，也不能生成
 confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receipt、graph、readiness 或 manifest。
 
 通用 `str_replace_editor` 可读取 `domain-eval/`，但 mutation guard 必须拒绝 `sources/`、`candidates/`、`interviews/`、
