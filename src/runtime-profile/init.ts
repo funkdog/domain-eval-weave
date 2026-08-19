@@ -8,6 +8,8 @@ import {
   realpath,
   rename,
   rm,
+  rmdir,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
@@ -504,6 +506,7 @@ export interface Phase3ProfileInstallInput {
   readonly install: (profileRoot: string) => Promise<void>;
   readonly verifyPackageContent: (installedPackageRoot: string) => Promise<void>;
   readonly legacyPackageEvidence?: LegacyPhase2PackageEvidence;
+  readonly beforeMissingRootClaim?: (profileRoot: string) => Promise<void>;
 }
 
 export interface LegacyPhase2PackageEvidence {
@@ -920,6 +923,54 @@ async function prepareProfileTarget(
   }
 }
 
+async function activateClaimedMissingProfile(
+  target: PreparedProfileTarget,
+  beforeClaim?: (profileRoot: string) => Promise<void>,
+): Promise<void> {
+  await beforeClaim?.(target.root);
+  try {
+    await mkdir(target.root, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+      throw new ProfileContractError(
+        "PROFILE_CONCURRENT_MODIFICATION",
+        `${target.role} profile appeared before its exclusive root claim`,
+      );
+    }
+    throw error;
+  }
+  const tokenPath = resolveFrozenPath(target.root, ".dsh-eval-profile-transaction");
+  const moved: string[] = [];
+  try {
+    await writeFile(tokenPath, `${randomUUID()}\n`, { flag: "wx", mode: 0o600 });
+    const names = (await readdir(target.stage))
+      .filter((name) => name !== "package.json")
+      .sort((left, right) => left.localeCompare(right));
+    for (const name of names) {
+      await rename(join(target.stage, name), join(target.root, name));
+      moved.push(name);
+    }
+    await unlink(tokenPath);
+    await rename(join(target.stage, "package.json"), join(target.root, "package.json"));
+    moved.push("package.json");
+    await rmdir(target.stage);
+  } catch (error) {
+    for (const name of [...moved].reverse()) {
+      await rename(join(target.root, name), join(target.stage, name)).catch(() => undefined);
+    }
+    await unlink(tokenPath).catch(() => undefined);
+    try {
+      await rmdir(target.root);
+    } catch {
+      throw new ProfileContractError(
+        "PROFILE_TRANSACTION_ROLLBACK_FAILED",
+        `failed to release the claimed ${target.role} profile root`,
+      );
+    }
+    throw error;
+  }
+}
+
 async function rollbackCommittedProfiles(
   committed: readonly PreparedProfileTarget[],
 ): Promise<void> {
@@ -1027,17 +1078,14 @@ export async function installPhase3ProfilesAtomically(
             await rename(target.backup, target.root);
             throw error;
           }
-        } else if ((await lstatOrUndefined(target.root)) !== undefined) {
-          throw new ProfileContractError(
-            "PROFILE_CONCURRENT_MODIFICATION",
-            `${target.role} profile appeared after transaction preflight`,
-          );
-        }
-        try {
-          await rename(target.stage, target.root);
-        } catch (error) {
-          if (target.backup !== undefined) await rename(target.backup, target.root);
-          throw error;
+          try {
+            await rename(target.stage, target.root);
+          } catch (error) {
+            await rename(target.backup, target.root);
+            throw error;
+          }
+        } else {
+          await activateClaimedMissingProfile(target, input.beforeMissingRootClaim);
         }
         committed.push(target);
       }

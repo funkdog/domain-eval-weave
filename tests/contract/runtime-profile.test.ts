@@ -667,6 +667,92 @@ test("Phase 3 profile upgrade rejects a missing author that appears during stagi
   }
 });
 
+test("Phase 3 missing-root claim preserves a concurrent empty author inode", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-claim-cas-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+  let concurrentInode: number | undefined;
+
+  try {
+    const { evidence } = await prepareSyntheticLegacyProfile(root, runnerRoot);
+    const previousRunnerPackage = await readFile(`${runnerRoot}/package.json`, "utf8");
+
+    await assert.rejects(
+      installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        legacyPackageEvidence: evidence,
+        verifyPackageContent: acceptSyntheticPackageContent,
+        beforeMissingRootClaim: async (profileRoot) => {
+          if (profileRoot !== authorRoot) return;
+          await mkdir(authorRoot, { mode: 0o700 });
+          concurrentInode = (await lstat(authorRoot)).ino;
+        },
+        install: async (profileRoot) => {
+          installs += 1;
+          await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+        },
+      }),
+      (error: unknown) =>
+        error instanceof ProfileContractError && error.code === "PROFILE_CONCURRENT_MODIFICATION",
+    );
+
+    assert.equal(installs, 2);
+    assert.equal(await readFile(`${runnerRoot}/package.json`, "utf8"), previousRunnerPackage);
+    assert.equal((await lstat(authorRoot)).ino, concurrentInode);
+    assert.deepEqual(await readdir(authorRoot), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("Phase 3 init replays an owned author claim interrupted before package readiness", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const root = await mkdtemp(`${scratchParent}/profile-upgrade-claim-replay-`);
+  const runnerRoot = `${root}/eval-clowder-runner`;
+  const authorRoot = `${root}/eval-clowder-author`;
+  const nextSpec = "file:/runtime/packages/phase3/dsh-eval-lab-0.3.0-alpha.1.tgz";
+  let installs = 0;
+
+  try {
+    await materializeFrozenFiles(runnerRoot, runnerProfileFiles(nextSpec));
+    await writeSyntheticInstalledProfile(runnerRoot, nextSpec, "0.3.0-alpha.1");
+    const partialAuthorFiles = new Map(
+      [...authorProfileFiles(nextSpec)].filter(([name]) => name !== "package.json"),
+    );
+    await materializeFrozenFiles(authorRoot, partialAuthorFiles);
+    await writeFile(`${authorRoot}/.dsh-eval-profile-transaction`, "interrupted\n", "utf8");
+
+    assert.deepEqual(
+      await installPhase3ProfilesAtomically({
+        runnerRoot,
+        authorRoot,
+        packageSpec: nextSpec,
+        packageVersion: "0.3.0-alpha.1",
+        verifyPackageContent: acceptSyntheticPackageContent,
+        install: async (profileRoot) => {
+          installs += 1;
+          await writeSyntheticInstalledProfile(profileRoot, nextSpec, "0.3.0-alpha.1");
+        },
+      }),
+      [authorRoot],
+    );
+
+    assert.equal(installs, 1);
+    await verifyFrozenFiles(authorRoot, authorProfileFiles(nextSpec));
+    await assert.rejects(access(`${authorRoot}/.dsh-eval-profile-transaction`), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Phase 3 profile upgrade rolls back both switches when final set validation drifts", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
