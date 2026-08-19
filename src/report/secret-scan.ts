@@ -29,7 +29,11 @@ export class SecretScanError extends Error {
 }
 
 export function containsCredentialIdentifier(text: string): boolean {
-  return CREDENTIAL_IDENTIFIER_PATTERN.test(text);
+  if (CREDENTIAL_IDENTIFIER_PATTERN.test(text)) return true;
+  const normalizedIdentifiers = text
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2");
+  return CREDENTIAL_IDENTIFIER_PATTERN.test(normalizedIdentifiers);
 }
 
 export function assertSecretFreeText(text: string): void {
