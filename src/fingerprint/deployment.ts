@@ -57,7 +57,11 @@ export async function fingerprintPackageContent(root: string): Promise<string> {
       if (name === "node_modules") continue;
       const path = resolve(directory, name);
       const stat = await lstat(path);
-      if (stat.isSymbolicLink() || (!stat.isDirectory() && !stat.isFile())) {
+      if (
+        stat.isSymbolicLink() ||
+        (!stat.isDirectory() && !stat.isFile()) ||
+        (stat.isFile() && stat.nlink !== 1)
+      ) {
         throw new Error("installed package content contains an unsupported entry");
       }
       if (stat.isDirectory()) {

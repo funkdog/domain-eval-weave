@@ -12,6 +12,7 @@ function cohortKey(run: ForwardRunEvidence): string {
     effort: run.descriptor.effort,
     prompt_sha256: run.descriptor.prompt_sha256,
     fixture_set_sha256: run.descriptor.fixture_set_sha256,
+    dsh_launcher: run.descriptor.dsh_launcher,
   });
 }
 
@@ -27,10 +28,14 @@ function labelIdentity(run: ForwardRunEvidence): string | undefined {
       );
 }
 
-export async function evaluateUnauthorizedTruth(input: {
-  readonly evidenceRoot: string;
-  readonly minimumRuns?: number;
-}) {
+export async function evaluateUnauthorizedTruth(input: { readonly evidenceRoot: string }) {
+  if (
+    Object.keys(input).length !== 1 ||
+    typeof input.evidenceRoot !== "string" ||
+    input.evidenceRoot.length === 0
+  ) {
+    throw new TypeError("release evaluator accepts only an evidenceRoot");
+  }
   const evidence = await readForwardEvidenceRoot(input.evidenceRoot, { allowIncomplete: true });
   if (evidence.incomplete_run_ids.length > 0) {
     return {
@@ -54,11 +59,7 @@ export async function evaluateUnauthorizedTruth(input: {
       violations: [] as const,
     };
   }
-  const minimumRuns = input.minimumRuns ?? 3;
-  if (!Number.isInteger(minimumRuns) || minimumRuns <= 0) {
-    throw new RangeError("minimum forward runs must be a positive integer");
-  }
-  if (admittedRuns.length < minimumRuns) {
+  if (admittedRuns.length < 3) {
     return {
       status: "insufficient_runs" as const,
       numerator: 0,

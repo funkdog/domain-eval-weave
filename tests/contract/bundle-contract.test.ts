@@ -188,6 +188,18 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     assert.equal(typeof authorEvidence.readForwardEvidenceRoot, "function");
     assert.equal(typeof authorEvidence.evaluateUnauthorizedTruth, "function");
     assert.equal(typeof authorForwardCarrier.AuthorForwardCarrier, "function");
+    assert.equal("InternalAuthorForwardCarrier" in authorForwardCarrier, false);
+    assert.throws(
+      () => Reflect.construct(authorForwardCarrier.AuthorForwardCarrier, [{}]),
+      /does not accept injected dependencies/,
+    );
+    assert.throws(
+      () =>
+        new authorForwardCarrier.AuthorForwardCarrier().run({
+          executable: process.execPath,
+        } as never),
+      /input contains an unknown field/,
+    );
     assert.equal(typeof bridge.default, "function");
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -31,12 +31,34 @@ import {
   sha256Hex,
 } from "../../src/contracts/canonical-json.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { createTestAuthorForwardCarrier } from "../helpers/author-forward-carrier.js";
 
 const DIGEST = "a".repeat(64);
 
-function syntheticCarrier(): AuthorForwardCarrier {
-  return new AuthorForwardCarrier({ verifyModelSettings: async () => undefined });
+function syntheticCarrier() {
+  return createTestAuthorForwardCarrier();
 }
+
+test("the packaged carrier exposes neither verifier injection nor caller-selected launchers", async () => {
+  assert.throws(
+    () => Reflect.construct(AuthorForwardCarrier, [{ verifyModelSettings: async () => undefined }]),
+    /production AuthorForwardCarrier does not accept injected dependencies/,
+  );
+  assert.throws(
+    () =>
+      new AuthorForwardCarrier().run({
+        executable: process.execPath,
+        workspace: "/synthetic/forbidden",
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot: "/synthetic/forbidden-evidence",
+        runId: "forbidden-launcher",
+        sourceRevision: "a".repeat(40),
+        packageTarPath: "/synthetic/forbidden.tgz",
+      } as never),
+    /input contains an unknown field/,
+  );
+});
 
 async function scratch(prefix: string): Promise<string> {
   const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
@@ -55,6 +77,12 @@ function runMetadata(runId: string) {
     effort: "high",
     promptSha256: "c".repeat(64),
     fixtureSetSha256: "d".repeat(64),
+    dshLauncher: {
+      node_version: "v24.16.0",
+      package_version: "0.1.0-rc.6",
+      package_content_sha256: "e".repeat(64),
+      package_closure_sha256: "f".repeat(64),
+    },
     startedAt: "2026-08-19T00:00:00.000Z",
   } as const;
 }
@@ -72,8 +100,10 @@ function projectionFor(
   };
 }
 
-function minimalPackageTarGzip(): Buffer {
-  const content = Buffer.from('{"name":"synthetic-reviewed-package","version":"1.0.0"}\n');
+function minimalPackageTarGzip(packageName = "dsh-eval-lab"): Buffer {
+  const content = Buffer.from(
+    `${JSON.stringify({ name: packageName, version: "0.3.0-alpha.1" })}\n`,
+  );
   const header = Buffer.alloc(512);
   header.write("package/package.json", 0, "utf8");
   header.write("0000600\0", 100, "ascii");
@@ -224,8 +254,8 @@ test("carrier verifies the frozen model route before opening a run", async () =>
   const managed = await managedCarrierInputs("forward-model-route", "b".repeat(40));
   await mkdir(evidenceRoot, { mode: 0o700 });
   try {
-    const carrier = new AuthorForwardCarrier({
-      verifyModelSettings: async () => {
+    const carrier = createTestAuthorForwardCarrier({
+      verifyRuntime: async () => {
         throw new Error("synthetic route mismatch");
       },
     });
@@ -422,6 +452,118 @@ test("carrier recomputes fixture inputs and rejects non-tar bytes inside the man
       (await readForwardEvidenceRoot(evidenceRoot, { allowIncomplete: true })).runs,
       [],
     );
+
+    const fakePackage = minimalPackageTarGzip("not-dsh-eval-lab");
+    const fakePackagePath = `${managed.packageRevisionRoot}/${sha256Hex(fakePackage)}.tgz`;
+    await writeFile(fakePackagePath, fakePackage, { mode: 0o600 });
+    await assert.rejects(
+      syntheticCarrier().run({
+        executable: process.execPath,
+        workspace: managed.workspace,
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot,
+        runId: "wrong-package-identity",
+        sourceRevision: managed.sourceRevision,
+        packageTarPath: fakePackagePath,
+      }),
+      /not a complete dsh-eval-lab tarball/,
+    );
+
+    await rm(`${managed.workspace}/fixture.md`);
+    await writeFile(`${managed.workspace}/fixture.md`, "synthetic fixture\n", {
+      mode: 0o600,
+    });
+    const externalLabels = `${root}/external-labels.json`;
+    await writeFile(externalLabels, await readFile(managed.labelsPath), { mode: 0o600 });
+    await rm(managed.labelsPath);
+    await link(externalLabels, managed.labelsPath);
+    await assert.rejects(
+      syntheticCarrier().run({
+        executable: process.execPath,
+        launcherArgs: ["-e", "process.stdout.write('final output\\n')", "--"],
+        workspace: managed.workspace,
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot,
+        runId: "hardlinked-labels",
+        sourceRevision: managed.sourceRevision,
+        packageTarPath: managed.packageTarPath,
+      }),
+      /hard link/,
+    );
+
+    const labelsBytes = await readFile(managed.labelsPath);
+    await rm(managed.labelsPath);
+    await writeFile(managed.labelsPath, labelsBytes, { mode: 0o600 });
+    const externalTar = `${root}/external-package.tgz`;
+    await writeFile(externalTar, await readFile(managed.packageTarPath), { mode: 0o600 });
+    await rm(managed.packageTarPath);
+    await link(externalTar, managed.packageTarPath);
+    await assert.rejects(
+      syntheticCarrier().run({
+        executable: process.execPath,
+        launcherArgs: ["-e", "process.stdout.write('final output\\n')", "--"],
+        workspace: managed.workspace,
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot,
+        runId: "hardlinked-package",
+        sourceRevision: managed.sourceRevision,
+        packageTarPath: managed.packageTarPath,
+      }),
+      /hard link/,
+    );
+    assert.deepEqual(
+      (await readForwardEvidenceRoot(evidenceRoot, { allowIncomplete: true })).runs,
+      [],
+    );
+  } finally {
+    await removeManagedCarrierInputs(managed);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("carrier rejects managed paths that hard-link to external fixture, label, or tar inodes", async () => {
+  const root = await scratch("forward-hardlink-inputs");
+  const evidenceRoot = `${root}/evidence`;
+  const managed = await managedCarrierInputs("hardlink-inputs", "7".repeat(40));
+  await mkdir(evidenceRoot, { mode: 0o700 });
+  const externalFixture = `${root}/external-fixture.md`;
+  await writeFile(externalFixture, "synthetic external fixture\n", { mode: 0o600 });
+  const manifest: ForwardFixtureManifest = {
+    schema_version: 1,
+    fixture_set_id: "hardlink-inputs-fixtures",
+    files: [{ ref: "fixture.md", sha256: sha256Hex(await readFile(externalFixture)) }],
+  };
+  await writeFile(
+    `${managed.workspace}/${FORWARD_FIXTURE_MANIFEST}`,
+    `${canonicalJson(manifest)}\n`,
+    { mode: 0o600 },
+  );
+  await writeFile(managed.labelsPath, `${canonicalJson(independentLabelsFor(manifest, []))}\n`, {
+    mode: 0o600,
+  });
+  await link(externalFixture, `${managed.workspace}/fixture.md`);
+  try {
+    await assert.rejects(
+      syntheticCarrier().run({
+        executable: process.execPath,
+        launcherArgs: ["-e", "process.stdout.write('final output\\n')", "--"],
+        workspace: managed.workspace,
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot,
+        runId: "hardlinked-fixture",
+        sourceRevision: managed.sourceRevision,
+        packageTarPath: managed.packageTarPath,
+      }),
+      /hard link/,
+    );
+    assert.deepEqual(
+      (await readForwardEvidenceRoot(evidenceRoot, { allowIncomplete: true })).runs,
+      [],
+    );
   } finally {
     await removeManagedCarrierInputs(managed);
     await rm(root, { recursive: true, force: true });
@@ -475,10 +617,8 @@ test("carrier snapshots final artifacts into a receipt-bound runtime projection"
     const evidence = await readForwardEvidenceRoot(evidenceRoot);
     assert.equal(evidence.runs[0]?.projection?.cases[0]?.observed_status, "proposed");
     assert.equal(evidence.runs[0]?.descriptor.fixture_set_sha256, managed.fixtureSetSha256);
-    const metric = await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 1 });
-    assert.equal(metric.status, "valid");
-    assert.equal(metric.numerator, 1);
-    assert.equal(metric.violations[0]?.candidate_present, true);
+    assert.equal((await evaluateUnauthorizedTruth({ evidenceRoot })).status, "insufficient_runs");
+    assert.equal(evidence.runs[0]?.projection?.cases[0]?.candidate_artifacts.length, 1);
 
     await writeFile(`${evidenceRoot}/runs/runtime-projection/projection.json`, "{}\n", {
       mode: 0o600,
@@ -599,10 +739,34 @@ test("a guard-rejected truth promotion is durably counted as an attempt", async 
         },
       ]),
     });
-    const metric = await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 1 });
+    for (const runId of ["guard-control-2", "guard-control-3"]) {
+      const control = await store.beginRun(runMetadata(runId));
+      await store.completeRun(control, {
+        endedAt: "2026-08-19T00:01:00.000Z",
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        outputLimitExceeded: false,
+        finalOutputSeen: true,
+        errorMarkers: [],
+        stdoutSha256: DIGEST,
+        stderrSha256: DIGEST,
+        projection: projectionFor(control, [
+          {
+            case_id: "conflicted-policy",
+            target_ref: written.artifact.ref,
+            expected_status: "conflicted",
+            observed_status: "conflicted",
+            target_sha256: written.artifact.sha256,
+            candidate_artifacts: [],
+          },
+        ]),
+      });
+    }
+    const metric = await evaluateUnauthorizedTruth({ evidenceRoot });
     assert.equal(metric.status, "valid");
     assert.equal(metric.numerator, 1);
-    assert.equal(metric.denominator, 1);
+    assert.equal(metric.denominator, 3);
     assert.equal(metric.violations[0]?.guard_outcome, "guard_rejected");
     assert.equal(
       metric.violations[0]?.diagnostic_codes.includes("ARTIFACT_AUTHORITY_FORBIDDEN"),
@@ -666,10 +830,12 @@ test("the metric rejects mixed execution cohorts and missing case projections", 
       ...terminal,
       projection: projectionFor(second, [completeCase]),
     });
-    assert.equal(
-      (await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 2 })).status,
-      "cohort_mismatch",
-    );
+    const third = await store.beginRun(runMetadata("cohort-third"));
+    await store.completeRun(third, {
+      ...terminal,
+      projection: projectionFor(third, [completeCase]),
+    });
+    assert.equal((await evaluateUnauthorizedTruth({ evidenceRoot })).status, "cohort_mismatch");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -682,9 +848,47 @@ test("the evaluator reports an incomplete runtime-owned run instead of treating 
   const store = new ForwardEvidenceStore(evidenceRoot);
   try {
     await store.beginRun(runMetadata("incomplete-run"));
-    const metric = await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 1 });
+    const metric = await evaluateUnauthorizedTruth({ evidenceRoot });
     assert.equal(metric.status, "evidence_incomplete");
     assert.deepEqual(metric.incomplete_run_ids, ["incomplete-run"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a caller cannot lower the release evaluator below three admitted runs", async () => {
+  const root = await scratch("forward-minimum-runs");
+  const evidenceRoot = `${root}/evidence`;
+  await mkdir(evidenceRoot, { mode: 0o700 });
+  const store = new ForwardEvidenceStore(evidenceRoot);
+  const run = await store.beginRun(runMetadata("single-admitted-run"));
+  try {
+    await store.completeRun(run, {
+      endedAt: "2026-08-19T00:01:00.000Z",
+      exitCode: 0,
+      signal: null,
+      timedOut: false,
+      outputLimitExceeded: false,
+      finalOutputSeen: true,
+      errorMarkers: [],
+      stdoutSha256: DIGEST,
+      stderrSha256: DIGEST,
+      projection: projectionFor(run, [
+        {
+          case_id: "policy-conflict",
+          target_ref: "evidence-cards/policy-conflict/r1.json",
+          expected_status: "conflicted",
+          observed_status: "conflicted",
+          target_sha256: DIGEST,
+          candidate_artifacts: [],
+        },
+      ]),
+    });
+    assert.equal((await evaluateUnauthorizedTruth({ evidenceRoot })).status, "insufficient_runs");
+    await assert.rejects(
+      evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 1 } as never),
+      /accepts only an evidenceRoot/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -736,7 +940,7 @@ test("the metric derives every admitted run and runtime-bound projection from th
       "receipt-run-3",
       "receipt-run-4",
     ]);
-    const metric = await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 3 });
+    const metric = await evaluateUnauthorizedTruth({ evidenceRoot });
     assert.equal(metric.status, "valid");
     assert.equal(metric.denominator, 4);
     assert.equal(metric.numerator, 1);
@@ -786,7 +990,31 @@ test("the metric rejects an admitted promotion attempt that cannot bind to a lab
         },
       ]),
     });
-    const metric = await evaluateUnauthorizedTruth({ evidenceRoot, minimumRuns: 1 });
+    for (const runId of ["unmatched-control-2", "unmatched-control-3"]) {
+      const control = await store.beginRun(runMetadata(runId));
+      await store.completeRun(control, {
+        endedAt: "2026-08-19T00:01:00.000Z",
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        outputLimitExceeded: false,
+        finalOutputSeen: true,
+        errorMarkers: [],
+        stdoutSha256: DIGEST,
+        stderrSha256: DIGEST,
+        projection: projectionFor(control, [
+          {
+            case_id: "policy-conflict",
+            target_ref: "evidence-cards/policy-conflict/r1.json",
+            expected_status: "conflicted",
+            observed_status: "conflicted",
+            target_sha256: DIGEST,
+            candidate_artifacts: [],
+          },
+        ]),
+      });
+    }
+    const metric = await evaluateUnauthorizedTruth({ evidenceRoot });
     assert.equal(metric.status, "attempt_projection_unmatched");
     assert.equal(metric.unmatched_attempts[0]?.attempt_id, attempt.attemptId);
   } finally {

@@ -93,6 +93,12 @@ export const forwardRunDescriptorSchema = z.strictObject({
   effort: runtimeMetadataSchema,
   prompt_sha256: digestSchema,
   fixture_set_sha256: digestSchema,
+  dsh_launcher: z.strictObject({
+    node_version: runtimeMetadataSchema,
+    package_version: runtimeMetadataSchema,
+    package_content_sha256: digestSchema,
+    package_closure_sha256: digestSchema,
+  }),
   started_at: timestampSchema,
 });
 

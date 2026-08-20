@@ -93,7 +93,9 @@ src/author-evidence/
 └── index.ts
 
 src/carrier/
-└── author-forward.ts
+├── author-forward.ts
+├── author-forward-internal.ts
+└── author-forward-production.ts
 ```
 
 Skill 目录是发布物的一部分。不得把领域政策塞进 `SKILL.md`；差异化知识由显式 Domain Knowledge Pack 或用户证据提供。
@@ -241,7 +243,16 @@ ref 与 expected status；author child 不获得该 path。Carrier 逐文件 no-
 digest 合成为 `fixture_set_sha256`，且
 `domain-eval/` 在 child 启动前必须不存在。Reviewed package 只能是
 `phase3a-forward-acceptance/packages/<exact-source-revision>/<actual-sha256>.tgz` 下的 physical gzip tar；carrier 在读取后验证 archive
-结构、filename、digest 与 size，不接受调用方自报 fixture/package 摘要。验证正数有限 timeout 后，carrier 才在 dedicated
+逐 header checksum、仅 regular/dir safe paths、`dsh-eval-lab` package identity、filename、digest、size 与可重建 package-content
+digest；fixture manifest/input、label manifest、reviewed tar 和后继 projection/candidate file 均须 `nlink=1`，hard link 在首次读取前拒绝。
+Production export 不接受 `executable`、`launcherArgs` 或 verifier dependency injection；它固定 Node 24 与
+`phase3a-forward-acceptance/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js`，并验证 exact rc.6 package content+closure digest。
+冻结 rc.6 content digest 为 `69bf698a112fe3ca1da8449818282116d5d92fb3760761ab05d638a0a68dbd59`，closure digest 为
+`34b7d05995e072d87c59d6fcaa2f36b09055f6ee4433c4fc95205699bfd141a9`；两者来自 Phase 1 已验收只读 OAuth Lab 的 exact
+`@deepseek-ai/dsh@0.1.0-rc.6` installed package，不读取其 credential/profile/Session bytes。
+在开 run 前还必须证明 live `eval-clowder-author` profile 的 frozen package spec 指向该 exact tar，installed `dsh-eval-lab` version/content
+与 tar 重建值一致，且 shared model settings 仍为冻结 route。测试用任意 child seam 只存在于 source tests，不经 package export 暴露。
+验证正数有限 timeout 后，carrier 才在 dedicated
 runtime root 的严格子目录中创建一次 run。Evidence root、`runs/`、run 与 attempt 目录必须是 physical `0700`，所有 JSON 必须
 canonical、physical `0600`、exclusive-create；run id 不能 alias、覆盖或复用。
 
@@ -260,6 +271,12 @@ interface ForwardRunDescriptor {
   readonly effort: string
   readonly prompt_sha256: Sha256
   readonly fixture_set_sha256: Sha256
+  readonly dsh_launcher: {
+    readonly node_version: string
+    readonly package_version: "0.1.0-rc.6"
+    readonly package_content_sha256: Sha256
+    readonly package_closure_sha256: Sha256
+  }
   readonly started_at: UtcTimestamp
 }
 ```
@@ -291,7 +308,8 @@ stdout；因此空 stdout 为 `FINAL_OUTPUT_MISSING`。Admission 是纯投影：
 complete-looking artifact tree admission。
 
 Unauthorized truth estimator 只接收 evidence root，自行从 receipt 机械派生完整 admitted cohort 并读取 receipt-bound projection；不得
-接收调用方 run-id 子集或外部 projection。它只对 exact source revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值；
+接收调用方 run-id 子集、外部 projection 或可降低的 minimum-run 参数；release evaluator 固定至少三次 admitted runs。它只对 exact
+source revision/tar/profile/provider/model/effort/prompt/fixture/DSH launcher 相同的 admitted cohort 求值；
 cohort 混合、重复 label/projection、任一 admitted run 缺 independent-label projection，或 attempt 无法唯一绑定 frozen label target
 都返回 invalid/incomplete，而不是零违例。
 每个 independently labelled non-confirmed case 的分子条件为：最终 `confirmed`、最终 unauthorized candidate，或 ledger 中存在任意

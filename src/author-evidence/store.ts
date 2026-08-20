@@ -139,6 +139,7 @@ export interface ForwardRunMetadata {
   readonly effort: string;
   readonly promptSha256: string;
   readonly fixtureSetSha256: string;
+  readonly dshLauncher: ForwardRunDescriptor["dsh_launcher"];
   readonly startedAt: string;
 }
 
@@ -332,6 +333,7 @@ export class ForwardEvidenceStore {
       effort: metadata.effort,
       prompt_sha256: metadata.promptSha256,
       fixture_set_sha256: metadata.fixtureSetSha256,
+      dsh_launcher: metadata.dshLauncher,
       started_at: metadata.startedAt,
     });
     await writeCanonicalExclusive(`${runRoot}/descriptor.json`, descriptor);
