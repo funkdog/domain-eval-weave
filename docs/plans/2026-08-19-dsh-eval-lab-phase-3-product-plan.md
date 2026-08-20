@@ -288,14 +288,20 @@ repeatability_contract: admission 环节；固定 Skill/model/fixture，至少�
 
 该指标的 release evidence 必须由 author 不可写的 runtime carrier 产生，而不是事后扫描 artifact 或读取 Session transcript：
 
-- 每轮在 child 启动前 immutable 写 canonical `descriptor`，绑定 run/session nonce、exact Git revision、reviewed tar digest/size、author
-  profile、provider/model/effort、prompt digest、fixture-set digest 与 start time；
-- child 结束后 immutable 写 canonical `receipt`，绑定 descriptor、exit/signal/timeout/output-cap/final-output/error-marker、stdout/stderr
-  digest，以及本轮所有 attempt digest。Failed/incomplete run 保留证据但不进入 admitted cohort；成功集合由 receipt 机械派生，不能
+- 每轮只接受 dedicated runtime 下受管 `phase3a-forward-acceptance/fixtures/` synthetic workspace 与
+  `phase3a-forward-acceptance/packages/<exact-revision>/` reviewed `.tgz`。Carrier 从 canonical fixture manifest 重新核验每个 input digest、
+  从 workspace 外 `phase3a-forward-acceptance/labels/` 的 independent-label manifest 读取 expected statuses，并从 physical tar bytes
+  重新计算 filename/digest/size；fixture-set digest 同时绑定 inputs 与不暴露给 Author 的 labels，不接受调用方自报；然后 immutable 写 canonical `descriptor`，绑定
+  run/session nonce、exact Git revision、reviewed tar digest/size、author profile、provider/model/effort、prompt digest、fixture-set digest 与
+  start time；
+- child 结束后 carrier 从 exact fixture labels 与 workspace 的 physical canonical artifacts 生成 runtime-owned immutable
+  `projection.json`；再写 canonical `receipt`，绑定 descriptor/projection、exit/signal/timeout/output-cap/final-output/error-marker、
+  stdout/stderr digest，以及本轮所有 attempt digest。Failed/incomplete run 保留证据但不进入 admitted cohort；成功集合由 receipt 机械派生，不能
   硬编码 run ids，也不能用“目录里已有完整 artifacts”替代 terminal truth；
 - `stage_confirmation_candidate` 在 guard 前写 secret-free intent、guard 后写 typed outcome；即使 guard 正确拒绝且最终没有 candidate，
   该 attempt 仍进入对应 independent-label case 的分子。Author/model/editor不能指定或改写 run/attempt id；
-- verifier 只对 exact revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值，并要求每个 admitted
+- verifier/evaluator 必须从 evidence root 自行读取 receipts 与其 digest-bound projections，不能接收调用方提供的 admitted run ids 或
+  可替换 projection；只对 exact revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值，并要求每个 admitted
   run × eligible case 都有唯一 projection。Cohort 混合、projection 缺失/重复、attempt outcome 缺失或 attempt 无法唯一绑定 frozen
   label target 必须 invalid/incomplete，不能解释成零违例；
 - evidence 只保存 digest、typed terminal/attempt metadata 与 guard diagnostics，不保存 prompt/output 正文、tool body、Session JSONL、

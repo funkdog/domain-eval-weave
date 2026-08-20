@@ -87,6 +87,12 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 
 # Release forward acceptance uses the packaged AuthorForwardCarrier instead of
 # admitting hand-selected directories from a direct author invocation.
+# It accepts only managed synthetic fixture manifests under
+# dsh-eval-lab-runtime/phase3a-forward-acceptance/fixtures and digest-named
+# reviewed tarballs under phase3a-forward-acceptance/packages/<exact-revision>.
+# Independent labels live outside the Author workspace under the managed labels root.
+# Runtime-owned receipts bind both promotion attempts and final-artifact projections;
+# the evaluator derives the complete admitted cohort directly from that evidence root.
 
 # Owner authority stays on the management profile; the author Agent cannot call it.
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \

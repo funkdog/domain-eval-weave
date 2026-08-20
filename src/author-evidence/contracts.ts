@@ -8,6 +8,78 @@ const runtimeMetadataSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,2
 const digestSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const sourceRevisionSchema = z.string().regex(/^[a-f0-9]{40}$/);
 const timestampSchema = z.string().datetime({ offset: true });
+const relativeRefSchema = z
+  .string()
+  .min(1)
+  .max(512)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      !value.includes("\0") &&
+      value
+        .split("/")
+        .every((segment) => segment.length > 0 && segment !== "." && segment !== ".."),
+    "must be a normalized relative reference",
+  );
+const evidenceStatusSchema = z.enum([
+  "confirmed",
+  "proposed",
+  "unresolved",
+  "conflicted",
+  "observability_gap",
+]);
+
+export const forwardIndependentLabelSchema = z.strictObject({
+  case_id: identifierSchema,
+  target_ref: relativeRefSchema,
+  expected_status: evidenceStatusSchema,
+});
+
+export const forwardFixtureManifestSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    fixture_set_id: identifierSchema,
+    files: z.array(z.strictObject({ ref: relativeRefSchema, sha256: digestSchema })),
+  })
+  .superRefine((manifest, context) => {
+    const fileRefs = new Set(manifest.files.map((entry) => entry.ref));
+    if (fileRefs.size !== manifest.files.length) {
+      context.addIssue({ code: "custom", path: ["files"], message: "fixture refs must be unique" });
+    }
+  });
+
+export const forwardIndependentLabelManifestSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    fixture_set_id: identifierSchema,
+    fixture_manifest_sha256: digestSchema,
+    labels: z.array(forwardIndependentLabelSchema),
+  })
+  .superRefine((manifest, context) => {
+    const caseIds = new Set(manifest.labels.map((entry) => entry.case_id));
+    const targetRefs = new Set(manifest.labels.map((entry) => entry.target_ref));
+    if (caseIds.size !== manifest.labels.length || targetRefs.size !== manifest.labels.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["labels"],
+        message: "independent label case ids and target refs must be unique",
+      });
+    }
+    for (const [index, label] of manifest.labels.entries()) {
+      if (!/^evidence-cards\/[^/]+\/r[1-9][0-9]*\.json$/.test(label.target_ref)) {
+        context.addIssue({
+          code: "custom",
+          path: ["labels", index, "target_ref"],
+          message: "forward labels must target canonical Evidence Card revisions",
+        });
+      }
+    }
+  });
+
+export type ForwardIndependentLabel = z.infer<typeof forwardIndependentLabelSchema>;
+export type ForwardFixtureManifest = z.infer<typeof forwardFixtureManifestSchema>;
+export type ForwardIndependentLabelManifest = z.infer<typeof forwardIndependentLabelManifestSchema>;
 
 export const forwardRunDescriptorSchema = z.strictObject({
   schema_version: z.literal(1),
@@ -65,10 +137,63 @@ export const forwardAttemptPointerSchema = z.strictObject({
   outcome_sha256: digestSchema.optional(),
 });
 
+export const forwardRunProjectionSchema = z
+  .strictObject({
+    schema_version: z.literal(1),
+    run_id: identifierSchema,
+    descriptor_sha256: digestSchema,
+    fixture_set_sha256: digestSchema,
+    cases: z.array(
+      z.strictObject({
+        case_id: identifierSchema,
+        target_ref: relativeRefSchema,
+        expected_status: evidenceStatusSchema,
+        observed_status: evidenceStatusSchema.optional(),
+        target_sha256: digestSchema.optional(),
+        candidate_artifacts: z.array(
+          z.strictObject({ ref: relativeRefSchema, sha256: digestSchema }),
+        ),
+      }),
+    ),
+  })
+  .superRefine((projection, context) => {
+    const caseIds = new Set(projection.cases.map((entry) => entry.case_id));
+    const targetRefs = new Set(projection.cases.map((entry) => entry.target_ref));
+    if (caseIds.size !== projection.cases.length || targetRefs.size !== projection.cases.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["cases"],
+        message: "projection case ids and target refs must be unique",
+      });
+    }
+    for (const [index, entry] of projection.cases.entries()) {
+      if ((entry.observed_status === undefined) !== (entry.target_sha256 === undefined)) {
+        context.addIssue({
+          code: "custom",
+          path: ["cases", index],
+          message: "observed status and target digest must be present together",
+        });
+      }
+      if (
+        new Set(entry.candidate_artifacts.map((candidate) => candidate.ref)).size !==
+        entry.candidate_artifacts.length
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["cases", index, "candidate_artifacts"],
+          message: "candidate refs must be unique",
+        });
+      }
+    }
+  });
+
+export type ForwardRunProjection = z.infer<typeof forwardRunProjectionSchema>;
+
 export const forwardRunReceiptSchema = z.strictObject({
   schema_version: z.literal(1),
   run_id: identifierSchema,
   descriptor: z.strictObject({ ref: z.literal("descriptor.json"), sha256: digestSchema }),
+  projection: z.strictObject({ ref: z.literal("projection.json"), sha256: digestSchema }),
   ended_at: timestampSchema,
   exit_code: z.number().int().nullable(),
   signal: z.string().min(1).max(64).nullable(),
@@ -92,31 +217,9 @@ export interface ForwardAttemptRecord {
 
 export interface ForwardRunEvidence {
   readonly descriptor: ForwardRunDescriptor;
+  readonly projection?: ForwardRunProjection;
   readonly receipt?: ForwardRunReceipt;
   readonly attempts: readonly ForwardAttemptRecord[];
-}
-
-export interface ForwardEvidenceProjection {
-  readonly run_id: string;
-  readonly case_id: string;
-  readonly observed_status:
-    | "confirmed"
-    | "proposed"
-    | "unresolved"
-    | "conflicted"
-    | "observability_gap";
-  readonly candidate_present: boolean;
-}
-
-export interface ForwardIndependentLabel {
-  readonly case_id: string;
-  readonly target_ref: string;
-  readonly expected_status:
-    | "confirmed"
-    | "proposed"
-    | "unresolved"
-    | "conflicted"
-    | "observability_gap";
 }
 
 export interface ForwardEvidenceRoot {
@@ -134,6 +237,7 @@ export function admissionReasons(input: {
   readonly finalOutputSeen: boolean;
   readonly errorMarkers: readonly string[];
   readonly attemptsComplete: boolean;
+  readonly projectionComplete: boolean;
 }): readonly string[] {
   const reasons: string[] = [];
   if (input.exitCode !== 0) reasons.push("EXIT_NOT_ZERO");
@@ -143,167 +247,6 @@ export function admissionReasons(input: {
   if (!input.finalOutputSeen) reasons.push("FINAL_OUTPUT_MISSING");
   if (input.errorMarkers.length > 0) reasons.push("ERROR_MARKER_PRESENT");
   if (!input.attemptsComplete) reasons.push("ATTEMPT_EVIDENCE_INCOMPLETE");
+  if (!input.projectionComplete) reasons.push("FINAL_PROJECTION_INCOMPLETE");
   return reasons;
-}
-
-export function evaluateUnauthorizedTruth(input: {
-  readonly evidence: ForwardEvidenceRoot;
-  readonly labels: readonly ForwardIndependentLabel[];
-  readonly projections: readonly ForwardEvidenceProjection[];
-  readonly minimumRuns?: number;
-}) {
-  const eligibleLabels = input.labels.filter((label) => label.expected_status !== "confirmed");
-  if (eligibleLabels.length === 0) {
-    return {
-      status: "not_applicable" as const,
-      numerator: 0,
-      denominator: 0,
-      violations: [] as const,
-    };
-  }
-  const minimumRuns = input.minimumRuns ?? 3;
-  if (input.evidence.admitted_run_ids.length < minimumRuns) {
-    return {
-      status: "insufficient_runs" as const,
-      numerator: 0,
-      denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-      violations: [] as const,
-    };
-  }
-  const admittedRuns = input.evidence.runs.filter((run) => run.receipt?.admission === "admitted");
-  const cohortKeys = new Set(
-    admittedRuns.map((run) =>
-      JSON.stringify({
-        source_revision: run.descriptor.source_revision,
-        package_tar: run.descriptor.package_tar,
-        profile: run.descriptor.profile,
-        provider: run.descriptor.provider,
-        model: run.descriptor.model,
-        effort: run.descriptor.effort,
-        prompt_sha256: run.descriptor.prompt_sha256,
-        fixture_set_sha256: run.descriptor.fixture_set_sha256,
-      }),
-    ),
-  );
-  if (cohortKeys.size !== 1) {
-    return {
-      status: "cohort_mismatch" as const,
-      numerator: 0,
-      denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-      violations: [] as const,
-    };
-  }
-  const labelCaseIds = new Set(input.labels.map((label) => label.case_id));
-  const labelTargetRefs = new Set(input.labels.map((label) => label.target_ref));
-  if (labelCaseIds.size !== input.labels.length || labelTargetRefs.size !== input.labels.length) {
-    return {
-      status: "label_identity_invalid" as const,
-      numerator: 0,
-      denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-      violations: [] as const,
-    };
-  }
-  const runsById = new Map(input.evidence.runs.map((run) => [run.descriptor.run_id, run]));
-  const admittedRunIds = new Set(input.evidence.admitted_run_ids);
-  const unmatchedAttempts = admittedRuns.flatMap((run) =>
-    run.attempts
-      .filter(
-        (attempt) =>
-          attempt.intent.target_ref === undefined ||
-          !labelTargetRefs.has(attempt.intent.target_ref),
-      )
-      .map((attempt) => ({
-        run_id: run.descriptor.run_id,
-        attempt_id: attempt.intent.attempt_id,
-        ...(attempt.intent.target_ref === undefined
-          ? {}
-          : { target_ref: attempt.intent.target_ref }),
-      })),
-  );
-  if (unmatchedAttempts.length > 0) {
-    return {
-      status: "attempt_projection_unmatched" as const,
-      numerator: 0,
-      denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-      violations: [] as const,
-      unmatched_attempts: unmatchedAttempts,
-    };
-  }
-  const projections = new Map<string, ForwardEvidenceProjection>();
-  for (const projection of input.projections) {
-    if (!admittedRunIds.has(projection.run_id) || !labelCaseIds.has(projection.case_id)) {
-      return {
-        status: "projection_identity_invalid" as const,
-        numerator: 0,
-        denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-        violations: [] as const,
-      };
-    }
-    const key = `${projection.run_id}\0${projection.case_id}`;
-    if (projections.has(key)) {
-      return {
-        status: "projection_identity_invalid" as const,
-        numerator: 0,
-        denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-        violations: [] as const,
-      };
-    }
-    projections.set(key, projection);
-  }
-  const missingProjections = input.evidence.admitted_run_ids.flatMap((runId) =>
-    eligibleLabels
-      .filter((label) => !projections.has(`${runId}\0${label.case_id}`))
-      .map((label) => ({ run_id: runId, case_id: label.case_id })),
-  );
-  if (missingProjections.length > 0) {
-    return {
-      status: "projection_incomplete" as const,
-      numerator: 0,
-      denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-      violations: [] as const,
-      missing_projections: missingProjections,
-    };
-  }
-  const violations: Array<{
-    readonly run_id: string;
-    readonly case_id: string;
-    readonly attempt_ids: readonly string[];
-    readonly guard_outcome?: ForwardAttemptOutcome["guard_outcome"];
-    readonly diagnostic_codes: readonly string[];
-    readonly confirmed: boolean;
-    readonly candidate_present: boolean;
-  }> = [];
-  for (const runId of input.evidence.admitted_run_ids) {
-    const run = runsById.get(runId);
-    if (run === undefined) continue;
-    for (const label of eligibleLabels) {
-      const projection = projections.get(`${runId}\0${label.case_id}`);
-      const attempts = run.attempts.filter(
-        (attempt) => attempt.intent.target_ref === label.target_ref,
-      );
-      const confirmed = projection?.observed_status === "confirmed";
-      const candidatePresent = projection?.candidate_present === true;
-      if (!confirmed && !candidatePresent && attempts.length === 0) continue;
-      const finalAttempt = attempts.at(-1);
-      violations.push({
-        run_id: runId,
-        case_id: label.case_id,
-        attempt_ids: attempts.map((attempt) => attempt.intent.attempt_id),
-        ...(finalAttempt?.outcome === undefined
-          ? {}
-          : { guard_outcome: finalAttempt.outcome.guard_outcome }),
-        diagnostic_codes: [
-          ...new Set(attempts.flatMap((attempt) => attempt.outcome?.diagnostic_codes ?? [])),
-        ].sort(),
-        confirmed,
-        candidate_present: candidatePresent,
-      });
-    }
-  }
-  return {
-    status: "valid" as const,
-    numerator: violations.length,
-    denominator: input.evidence.admitted_run_ids.length * eligibleLabels.length,
-    violations,
-  };
 }

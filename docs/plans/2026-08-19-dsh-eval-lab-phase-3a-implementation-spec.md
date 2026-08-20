@@ -88,6 +88,7 @@ src/author-bridge/
 
 src/author-evidence/
 ├── contracts.ts
+├── evaluator.ts
 ├── store.ts
 └── index.ts
 
@@ -231,7 +232,16 @@ confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receip
 
 Milestone 4 的真实 Author forward run 必须通过 package export `./author-forward-carrier` 的 `AuthorForwardCarrier` 启动；日常
 onboard/delta/audit 仍可使用 §6 的直接 author profile 入口，但不能把直接运行后挑选出的 artifact 目录冒充 release acceptance
-cohort。Carrier 只接受 synthetic workspace，并在启动 child 前验证正数有限 timeout、读取 exact reviewed tar bytes，再于 dedicated
+cohort。Carrier 只接受 dedicated runtime 下 `phase3a-forward-acceptance/fixtures/` 的 physical `0700` synthetic workspace。每个
+workspace 必须有 canonical physical `0600` `.dsh-eval-forward-fixture.json`，列出 fixture-set id、每个 immutable input ref+真实 digest，
+并完整枚举启动前 workspace 的全部 UTF-8、secret-free synthetic input；未声明文件/目录、credential-sensitive path/content 与
+symlink 一律拒绝。Independent labels 必须另存于 Author workspace 外的 physical `0600`
+`phase3a-forward-acceptance/labels/<fixture-set-id>.json`，绑定 exact fixture-manifest digest并列出 case id、canonical Evidence Card target
+ref 与 expected status；author child 不获得该 path。Carrier 逐文件 no-follow 重新计算 digest，并将 input-manifest 与 label-manifest
+digest 合成为 `fixture_set_sha256`，且
+`domain-eval/` 在 child 启动前必须不存在。Reviewed package 只能是
+`phase3a-forward-acceptance/packages/<exact-source-revision>/<actual-sha256>.tgz` 下的 physical gzip tar；carrier 在读取后验证 archive
+结构、filename、digest 与 size，不接受调用方自报 fixture/package 摘要。验证正数有限 timeout 后，carrier 才在 dedicated
 runtime root 的严格子目录中创建一次 run。Evidence root、`runs/`、run 与 attempt 目录必须是 physical `0700`，所有 JSON 必须
 canonical、physical `0600`、exclusive-create；run id 不能 alias、覆盖或复用。
 
@@ -254,7 +264,7 @@ interface ForwardRunDescriptor {
 }
 ```
 
-`session_binding_sha256` 由 carrier 的 run id + 随机 nonce 推导；child 只得到 runtime-owned run path 与 nonce，model-facing tool schema
+`fixture_set_sha256` 由上述两份 canonical manifest 推导，不是 `run()` input。`session_binding_sha256` 由 carrier 的 run id + 随机 nonce 推导；child 只得到 runtime-owned run path 与 nonce，model-facing tool schema
 不接受 run/attempt identity。Child environment 仍是冻结的 credential-free author environment，profile 固定为
 `eval-clowder-author`。Prompt/output 正文、Session transcript、credential、provider secret 都不得写入 execution evidence。
 
@@ -271,14 +281,17 @@ target metadata。`outcome.json` 在 tool 返回前保存 `staged|rejected`、`e
 evidence_failure` 与去重排序的 typed diagnostic codes。Intent 无 outcome、ledger identity/digest 漂移或 evidence write 失败都使该 run
 不可 admission；不得因为最终 candidate 不存在而丢掉被 guard 拒绝的 attempt。
 
-Child terminal 后 carrier exclusive-create `receipt.json`，绑定 descriptor digest、每个 intent/outcome digest、end time、exit code、signal、
+Child terminal 后 carrier 先从 manifest labels、exact workspace identity 与 physical canonical Evidence Card/candidate bytes 生成
+runtime-owned `projection.json`，保存每个 case 的 target digest/status 与实际存在的 candidate ref+digest；模型、editor 与 evaluator
+都不能提供或改写该投影。随后 exclusive-create `receipt.json`，绑定 descriptor/projection digest、每个 intent/outcome digest、end time、exit code、signal、
 timeout、output cap、`final_output_seen`、error-marker set，以及 stdout/stderr digest。Pinned DSH headless 只有在 Session 已 flush 后才写
 stdout；因此空 stdout 为 `FINAL_OUTPUT_MISSING`。Admission 是纯投影：exit 非 0、signal、timeout、output cap、缺 final output、任一
-`PI_AI_ERROR|PI_AUTH_ERROR|PI_MODEL_ERROR|PI_SDK_ERROR|SPAWN_ERROR` 或不完整 attempt 都产生 failed receipt；failed/incomplete run
+`PI_AI_ERROR|PI_AUTH_ERROR|PI_MODEL_ERROR|PI_SDK_ERROR|SPAWN_ERROR`、fixture/workspace drift、不完整 projection 或不完整 attempt 都产生 failed receipt；failed/incomplete run
 必须保留但不能进入 admitted cohort。Verifier 从 receipts 机械派生 admitted/failed/incomplete，禁止硬编码成功 run ids，也禁止仅凭
 complete-looking artifact tree admission。
 
-Unauthorized truth estimator 只对 exact source revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值；
+Unauthorized truth estimator 只接收 evidence root，自行从 receipt 机械派生完整 admitted cohort 并读取 receipt-bound projection；不得
+接收调用方 run-id 子集或外部 projection。它只对 exact source revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值；
 cohort 混合、重复 label/projection、任一 admitted run 缺 independent-label projection，或 attempt 无法唯一绑定 frozen label target
 都返回 invalid/incomplete，而不是零违例。
 每个 independently labelled non-confirmed case 的分子条件为：最终 `confirmed`、最终 unauthorized candidate，或 ledger 中存在任意

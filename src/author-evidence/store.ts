@@ -13,10 +13,12 @@ import {
   type ForwardEvidenceRoot,
   type ForwardRunDescriptor,
   type ForwardRunEvidence,
+  type ForwardRunProjection,
   type ForwardRunReceipt,
   forwardAttemptIntentSchema,
   forwardAttemptOutcomeSchema,
   forwardRunDescriptorSchema,
+  forwardRunProjectionSchema,
   forwardRunReceiptSchema,
 } from "./contracts.js";
 
@@ -156,6 +158,7 @@ export interface ForwardTerminalEvidence {
   readonly errorMarkers: readonly string[];
   readonly stdoutSha256: string;
   readonly stderrSha256: string;
+  readonly projection: ForwardRunProjection;
 }
 
 async function readAttempts(runRoot: string): Promise<readonly ForwardAttemptRecord[]> {
@@ -228,6 +231,19 @@ async function readRun(runRoot: string, allowIncomplete: boolean): Promise<Forwa
     );
   }
   const attempts = await readAttempts(identity.path);
+  let projection: ForwardRunProjection | undefined;
+  try {
+    projection = await readCanonicalFile(
+      `${identity.path}/projection.json`,
+      forwardRunProjectionSchema,
+      "run projection",
+    );
+  } catch (error) {
+    if (allowIncomplete && (error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { descriptor, attempts };
+    }
+    throw error;
+  }
   let receipt: ForwardRunReceipt | undefined;
   try {
     receipt = await readCanonicalFile(
@@ -241,10 +257,10 @@ async function readRun(runRoot: string, allowIncomplete: boolean): Promise<Forwa
       error instanceof ForwardEvidenceError &&
       error.message === "run receipt must be a physical 0600 file"
     ) {
-      return { descriptor, attempts };
+      return { descriptor, projection, attempts };
     }
     if (allowIncomplete && (error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { descriptor, attempts };
+      return { descriptor, projection, attempts };
     }
     throw error;
   }
@@ -263,10 +279,17 @@ async function readRun(runRoot: string, allowIncomplete: boolean): Promise<Forwa
     finalOutputSeen: receipt.final_output_seen,
     errorMarkers: receipt.error_markers,
     attemptsComplete: attempts.every((attempt) => attempt.outcome !== undefined),
+    projectionComplete: projection.cases.every(
+      (entry) => entry.observed_status !== undefined && entry.target_sha256 !== undefined,
+    ),
   });
   if (
     receipt.run_id !== descriptor.run_id ||
     receipt.descriptor.sha256 !== canonicalJsonDigest(descriptor) ||
+    receipt.projection.sha256 !== canonicalJsonDigest(projection) ||
+    projection.run_id !== descriptor.run_id ||
+    projection.descriptor_sha256 !== canonicalJsonDigest(descriptor) ||
+    projection.fixture_set_sha256 !== descriptor.fixture_set_sha256 ||
     canonicalJson(receipt.attempts) !== canonicalJson(expectedPointers) ||
     canonicalJson(receipt.admission_reasons) !== canonicalJson(reasons) ||
     receipt.admission !== (reasons.length === 0 ? "admitted" : "failed")
@@ -276,7 +299,7 @@ async function readRun(runRoot: string, allowIncomplete: boolean): Promise<Forwa
       "run receipt does not close over descriptor, attempts, or terminal outcome",
     );
   }
-  return { descriptor, receipt, attempts };
+  return { descriptor, projection, receipt, attempts };
 }
 
 export class ForwardEvidenceStore {
@@ -330,12 +353,28 @@ export class ForwardEvidenceStore {
         "run handle does not match the immutable descriptor",
       );
     }
+    const projection = forwardRunProjectionSchema.parse(terminal.projection);
+    if (
+      projection.run_id !== run.descriptor.run_id ||
+      projection.descriptor_sha256 !== canonicalJsonDigest(run.descriptor) ||
+      projection.fixture_set_sha256 !== run.descriptor.fixture_set_sha256
+    ) {
+      throw new ForwardEvidenceError(
+        "FORWARD_PROJECTION_INVALID",
+        "run projection does not match the immutable descriptor",
+      );
+    }
+    await writeCanonicalExclusive(`${handle.runRoot}/projection.json`, projection);
     const attemptsComplete = run.attempts.every((attempt) => attempt.outcome !== undefined);
-    const reasons = admissionReasons({ ...terminal, attemptsComplete });
+    const projectionComplete = projection.cases.every(
+      (entry) => entry.observed_status !== undefined && entry.target_sha256 !== undefined,
+    );
+    const reasons = admissionReasons({ ...terminal, attemptsComplete, projectionComplete });
     const receipt = forwardRunReceiptSchema.parse({
       schema_version: 1,
       run_id: run.descriptor.run_id,
       descriptor: { ref: "descriptor.json", sha256: canonicalJsonDigest(run.descriptor) },
+      projection: { ref: "projection.json", sha256: canonicalJsonDigest(projection) },
       ended_at: terminal.endedAt,
       exit_code: terminal.exitCode,
       signal: terminal.signal,
