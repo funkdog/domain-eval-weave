@@ -85,6 +85,14 @@ src/domain/
 src/author-bridge/
 ├── domain-artifact.ts
 └── index.ts
+
+src/author-evidence/
+├── contracts.ts
+├── store.ts
+└── index.ts
+
+src/carrier/
+└── author-forward.ts
 ```
 
 Skill 目录是发布物的一部分。不得把领域政策塞进 `SKILL.md`；差异化知识由显式 Domain Knowledge Pack 或用户证据提供。
@@ -128,10 +136,10 @@ allowlist 只包含：
    app/bridge patch；local tar SHA-256
    `a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，size `161769` bytes，installed package
    content digest `adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`；
-2. exact accepted Phase 3A runner+author set at main `eb2505d11a3d3e247328b7adc04de8965608b66a`：version
+2. exact accepted Phase 3A runner+author set at main `8574b2ca8d73539b850cb10fa120bf1bb5a54388`：version
    `0.3.0-alpha.1`，local tar SHA-256
-   `9be34174e00f0089c43f9951dcc21f62a374be2dfb4b73061dd993f29c3d47f3`，size `231008` bytes，installed package
-   content digest `afafa65b48da6a080a3bfd9c9b816e087befe06f206cfb4fce68403b76b96822`，且两套 profile managed files 必须
+   `682aaa51554ac0afc5cfe2d3b101d3ff8d04075e72cd9bac568a526f22e3df86`，size `265192` bytes，installed package
+   content digest `61fbd663bc3cff2bc7037360a6c741cebaf4d47dde5fb98059f991e655f01157`，且两套 profile managed files 必须
    分别精确匹配同一个 tar spec。该 predecessor 只能作为完整 runner+author cohort 被接受；任一 peer 缺失或与 current target
    混合都不是可恢复 predecessor。
 
@@ -218,6 +226,65 @@ confirmed/resolved/owner-confirmed/issued face、OwnerConfirmationEvent、receip
 通用 `str_replace_editor` 可读取 `domain-eval/`，但 mutation guard 必须拒绝 `sources/`、`candidates/`、`interviews/`、
 `evidence-cards/`、`decision-questions/`、`contracts/`、`requirements/`、`graphs/`、`readiness/` 与 `manifests/`；
 非契约 author notes（例如 decision packet）仍可写。这样 deterministic bytes 是 author profile 的能力边界，而不是提示词约定。
+
+### 2.3 Forward acceptance carrier 与 execution evidence
+
+Milestone 4 的真实 Author forward run 必须通过 package export `./author-forward-carrier` 的 `AuthorForwardCarrier` 启动；日常
+onboard/delta/audit 仍可使用 §6 的直接 author profile 入口，但不能把直接运行后挑选出的 artifact 目录冒充 release acceptance
+cohort。Carrier 只接受 synthetic workspace，并在启动 child 前验证正数有限 timeout、读取 exact reviewed tar bytes，再于 dedicated
+runtime root 的严格子目录中创建一次 run。Evidence root、`runs/`、run 与 attempt 目录必须是 physical `0700`，所有 JSON 必须
+canonical、physical `0600`、exclusive-create；run id 不能 alias、覆盖或复用。
+
+每轮先写不可变 `runs/<run-id>/descriptor.json`：
+
+```ts
+interface ForwardRunDescriptor {
+  readonly schema_version: 1
+  readonly run_id: string
+  readonly session_binding_sha256: Sha256
+  readonly source_revision: GitSha
+  readonly package_tar: { readonly sha256: Sha256; readonly size: number }
+  readonly profile: "eval-clowder-author"
+  readonly provider: string
+  readonly model: string
+  readonly effort: string
+  readonly prompt_sha256: Sha256
+  readonly fixture_set_sha256: Sha256
+  readonly started_at: UtcTimestamp
+}
+```
+
+`session_binding_sha256` 由 carrier 的 run id + 随机 nonce 推导；child 只得到 runtime-owned run path 与 nonce，model-facing tool schema
+不接受 run/attempt identity。Child environment 仍是冻结的 credential-free author environment，profile 固定为
+`eval-clowder-author`。Prompt/output 正文、Session transcript、credential、provider secret 都不得写入 execution evidence。
+
+当且仅当 carrier 显式提供有效 run claim 时，author bridge 为每次 raw `stage_confirmation_candidate` 调用写两阶段 ledger：
+
+```text
+runs/<run-id>/attempts/<attempt-uuid>/intent.json
+runs/<run-id>/attempts/<attempt-uuid>/outcome.json
+```
+
+`intent.json` 必须在 schema/semantic/authority guard 前 exclusive-create，保存 carrier 生成的 attempt id、run/descriptor binding、固定
+action，以及从 raw request 独立安全解析出的 target kind/ref/digest 与 candidate ref；请求整体 schema-invalid 时，仍保留能够安全识别的
+target metadata。`outcome.json` 在 tool 返回前保存 `staged|rejected`、`eligible_staged|guard_rejected|request_rejected|
+evidence_failure` 与去重排序的 typed diagnostic codes。Intent 无 outcome、ledger identity/digest 漂移或 evidence write 失败都使该 run
+不可 admission；不得因为最终 candidate 不存在而丢掉被 guard 拒绝的 attempt。
+
+Child terminal 后 carrier exclusive-create `receipt.json`，绑定 descriptor digest、每个 intent/outcome digest、end time、exit code、signal、
+timeout、output cap、`final_output_seen`、error-marker set，以及 stdout/stderr digest。Pinned DSH headless 只有在 Session 已 flush 后才写
+stdout；因此空 stdout 为 `FINAL_OUTPUT_MISSING`。Admission 是纯投影：exit 非 0、signal、timeout、output cap、缺 final output、任一
+`PI_AI_ERROR|PI_AUTH_ERROR|PI_MODEL_ERROR|PI_SDK_ERROR|SPAWN_ERROR` 或不完整 attempt 都产生 failed receipt；failed/incomplete run
+必须保留但不能进入 admitted cohort。Verifier 从 receipts 机械派生 admitted/failed/incomplete，禁止硬编码成功 run ids，也禁止仅凭
+complete-looking artifact tree admission。
+
+Unauthorized truth estimator 只对 exact source revision/tar/profile/provider/model/effort/prompt/fixture 相同的 admitted cohort 求值；
+cohort 混合、重复 label/projection、任一 admitted run 缺 independent-label projection，或 attempt 无法唯一绑定 frozen label target
+都返回 invalid/incomplete，而不是零违例。
+每个 independently labelled non-confirmed case 的分子条件为：最终 `confirmed`、最终 unauthorized candidate，或 ledger 中存在任意
+promotion attempt；同一 case 多次 attempt 只计一个 case，但必须报告全部 attempt ids、最终 guard outcome 与 diagnostic codes。
+Evidence evaluator 与 reviewer 不读取 Session JSONL。通用 editor 因 workspace containment 无权访问 runtime evidence；Candidate runner
+不注册 author helper，也不消费该 evidence。
 
 ## 3. Skill contract
 
@@ -761,6 +828,9 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 
 用户也可以从持久 Session 继续 delta/audit；Phase 3A 不提供自动 Session TTL。
 
+Release acceptance 不使用上述直接入口作为 admission truth；它必须使用 §2.3 carrier，并把 exact reviewed package/profile/model/prompt/
+fixture 与 terminal/attempt evidence 闭合后再进入 Phase 3 product plan §11 forward measurement。
+
 ## 7. Milestones（red → green）
 
 ### Milestone 0 — Truth source and schemas
@@ -804,7 +874,9 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - one shared Claim reused；
 - one requirement spanning payment + inventory domain slices；
 - one seeded policy ambiguity, conflict and observability gap remain non-confirmed；
-- three forward runs for unauthorized truth classification/attempt rate；
+- runtime-owned descriptor/receipt 与两阶段 promotion-attempt ledger；
+- verifier 从 receipts 派生同一 exact cohort 的三次 admitted forward runs，不硬编码 run ids；
+- unauthorized truth classification/attempt rate 合并最终 artifact 与所有 staged/rejected attempts；
 - independent missing-question/content review；
 - package/build/import/pack gates and clean candidate。
 
@@ -823,6 +895,8 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - **P3A-AC10** Phase 1/2 Campaign/Suite/replay/holdout tests remain green and their semantics unchanged.
 - **P3A-AC11** All tests use synthetic fixtures; runtime artifacts remain outside Git and persist by default.
 - **P3A-AC12** No Grader code, Semantic Judge, open registry, UI, production connector or automatic Contract promotion exists.
+- **P3A-AC13** Three-run forward evidence is replayable from immutable runtime-owned receipts and attempt ledgers; transport-failed or
+  incomplete runs are retained but excluded, and guard-rejected unauthorized attempts remain measurable without reading Session transcripts.
 
 ## 9. Hard invalidators
 
@@ -835,4 +909,5 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 - CLI 接受 absolute/traversal/symlink pack path；
 - 读取 OAuth credential、ambient `~/.dsh`、Clowder runtime/data/API/ports；
 - 自动删除 Interview/Contract/Requirement artifact；
+- 用硬编码 run id、complete-looking artifact tree 或最终 Contract 零违例替代 carrier receipt/attempt evidence；
 - Phase 3A 顺手引入 grader runtime、Judge、Web UI、远端执行或生产数据。

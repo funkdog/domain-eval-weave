@@ -52,6 +52,8 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   assert.deepEqual(manifest.exports, {
     "./app": "./dist/app/index.js",
     "./author-bridge": "./dist/author-bridge/index.js",
+    "./author-evidence": "./dist/author-evidence/index.js",
+    "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
   });
@@ -164,15 +166,28 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       cwd: packageRoot,
     });
 
-    const [app, authorBridge, bridge, domainSkill, skillBody] = await Promise.all([
+    const [
+      app,
+      authorBridge,
+      authorEvidence,
+      authorForwardCarrier,
+      bridge,
+      domainSkill,
+      skillBody,
+    ] = await Promise.all([
       import(pathToFileURL(join(packageRoot, "dist/app/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/author-bridge/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/author-evidence/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/carrier/author-forward.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/bridge/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/domain/skill-provider.js")).href),
       readFile(join(packageRoot, "skills/design-domain-grader/SKILL.md"), "utf8"),
     ]);
     assert.equal(typeof app.default, "function");
     assert.equal(typeof authorBridge.default, "function");
+    assert.equal(typeof authorEvidence.readForwardEvidenceRoot, "function");
+    assert.equal(typeof authorEvidence.evaluateUnauthorizedTruth, "function");
+    assert.equal(typeof authorForwardCarrier.AuthorForwardCarrier, "function");
     assert.equal(typeof bridge.default, "function");
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);

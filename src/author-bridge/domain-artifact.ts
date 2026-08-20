@@ -6,6 +6,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import type { ToolDefinition } from "@deepseek-ai/dsh-tools";
 import { z } from "zod";
 
+import type { ForwardAttemptRecorder, ForwardAttemptToken } from "../author-evidence/index.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { packageRelativeRefSchema } from "../contracts/phase2.js";
 import {
@@ -195,6 +196,46 @@ function parseInput(value: unknown): DomainArtifactInput | FailureResult {
     ok: false,
     action,
     diagnostics: zodDiagnostics("ARTIFACT_INPUT_INVALID", parsed.error),
+  };
+}
+
+function sanitizedStageAttempt(value: unknown): {
+  readonly isStage: boolean;
+  readonly start: {
+    readonly targetKind?: "evidence_card" | "decision_question";
+    readonly targetRef?: string;
+    readonly targetSha256?: string;
+    readonly candidateRef?: string;
+  };
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("action" in value) ||
+    (value as { readonly action?: unknown }).action !== "stage_confirmation_candidate"
+  ) {
+    return { isStage: false, start: {} };
+  }
+  const record = value as Record<string, unknown>;
+  const artifact =
+    typeof record.artifact === "object" && record.artifact !== null
+      ? (record.artifact as Record<string, unknown>)
+      : undefined;
+  const targetKind = z.enum(["evidence_card", "decision_question"]).safeParse(record.target_kind);
+  const targetRef = z.string().min(1).max(512).safeParse(artifact?.ref);
+  const targetSha256 = z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .safeParse(artifact?.sha256);
+  const candidateRef = z.string().min(1).max(512).safeParse(record.candidate_ref);
+  return {
+    isStage: true,
+    start: {
+      ...(targetKind.success ? { targetKind: targetKind.data } : {}),
+      ...(targetRef.success ? { targetRef: targetRef.data } : {}),
+      ...(targetSha256.success ? { targetSha256: targetSha256.data } : {}),
+      ...(candidateRef.success ? { candidateRef: candidateRef.data } : {}),
+    },
   };
 }
 
@@ -1116,7 +1157,10 @@ const parameters = {
   },
 } as const;
 
-export function createDomainArtifactDefinition(input: { readonly workspaceRoot: string }) {
+export function createDomainArtifactDefinition(input: {
+  readonly workspaceRoot: string;
+  readonly attemptRecorder?: ForwardAttemptRecorder;
+}) {
   const requestedRoot = resolve(input.workspaceRoot);
   assertSourcePathAllowed(requestedRoot, "$.workspace_root");
   const workspaceRoot = realpathSync(requestedRoot);
@@ -1138,21 +1182,75 @@ export function createDomainArtifactDefinition(input: { readonly workspaceRoot: 
       ],
     },
     async execute(argumentsValue: unknown) {
-      const parsed = parseInput(argumentsValue);
-      if ("ok" in parsed) return parsed;
-      try {
-        await ensurePackRoot(workspaceIdentity, domainRoot);
-        switch (parsed.action) {
-          case "snapshot_source":
-            return await executeSnapshot(workspaceIdentity, domainRoot, parsed);
-          case "write_artifact":
-            return await executeWrite(workspaceIdentity, domainRoot, parsed);
-          case "stage_confirmation_candidate":
-            return await executeStage(workspaceIdentity, domainRoot, parsed);
+      const stageAttempt = sanitizedStageAttempt(argumentsValue);
+      let attemptToken: ForwardAttemptToken | undefined;
+      if (stageAttempt.isStage && input.attemptRecorder !== undefined) {
+        try {
+          attemptToken = await input.attemptRecorder.start(stageAttempt.start);
+        } catch (error) {
+          return failure(
+            "stage_confirmation_candidate",
+            new DomainArtifactToolError(
+              "FORWARD_EVIDENCE_UNAVAILABLE",
+              "$",
+              error instanceof Error ? error.message : "forward attempt evidence is unavailable",
+            ),
+          );
         }
-      } catch (error) {
-        return failure(parsed.action, error);
       }
+      const parsed = parseInput(argumentsValue);
+      let result: unknown;
+      if ("ok" in parsed) {
+        result = parsed;
+      } else {
+        try {
+          await ensurePackRoot(workspaceIdentity, domainRoot);
+          switch (parsed.action) {
+            case "snapshot_source":
+              result = await executeSnapshot(workspaceIdentity, domainRoot, parsed);
+              break;
+            case "write_artifact":
+              result = await executeWrite(workspaceIdentity, domainRoot, parsed);
+              break;
+            case "stage_confirmation_candidate":
+              result = await executeStage(workspaceIdentity, domainRoot, parsed);
+              break;
+          }
+        } catch (error) {
+          result = failure(parsed.action, error);
+        }
+      }
+      if (attemptToken !== undefined && input.attemptRecorder !== undefined) {
+        const outcome = result as {
+          readonly ok?: boolean;
+          readonly diagnostics?: ReadonlyArray<{ readonly code?: string }>;
+        };
+        const diagnosticCodes = (outcome.diagnostics ?? [])
+          .map((diagnostic) => diagnostic.code)
+          .filter((code): code is string => code !== undefined);
+        try {
+          await input.attemptRecorder.finish(attemptToken, {
+            result: outcome.ok === true ? "staged" : "rejected",
+            guardOutcome:
+              outcome.ok === true
+                ? "eligible_staged"
+                : diagnosticCodes.includes("ARTIFACT_AUTHORITY_FORBIDDEN")
+                  ? "guard_rejected"
+                  : "request_rejected",
+            diagnosticCodes,
+          });
+        } catch (error) {
+          return failure(
+            "stage_confirmation_candidate",
+            new DomainArtifactToolError(
+              "FORWARD_EVIDENCE_UNAVAILABLE",
+              "$",
+              error instanceof Error ? error.message : "forward attempt outcome is unavailable",
+            ),
+          );
+        }
+      }
+      return result;
     },
   } satisfies ToolDefinition;
 }

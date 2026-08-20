@@ -1,5 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { createForwardAttemptRecorderFromEnv } from "../author-evidence/index.js";
 import type { GuardedToolExecution } from "../bridge/guard.js";
 import {
   assertCurrentPhase3AuthorProfile,
@@ -101,14 +102,19 @@ async function applyDshEvalAuthorBridge(
   context: DshEvalAuthorBridgeContext,
   config: DshEvalAuthorBridgeConfig = {},
 ): Promise<void> {
-  resolvePhase2Instance(config.env ?? process.env);
+  const env = config.env ?? process.env;
+  resolvePhase2Instance(env);
   assertCurrentPhase3AuthorProfile(context.root.baseUrl);
   await (config.assertLayout ?? assertPhase3AuthorLayout)();
   context.tools.guard(
     createAuthorToolGuard({ workspaceRoot: config.workspaceRoot ?? process.cwd() }),
   );
+  const attemptRecorder = await createForwardAttemptRecorderFromEnv(env);
   context.tools.register(
-    createDomainArtifactDefinition({ workspaceRoot: config.workspaceRoot ?? process.cwd() }),
+    createDomainArtifactDefinition({
+      workspaceRoot: config.workspaceRoot ?? process.cwd(),
+      ...(attemptRecorder === undefined ? {} : { attemptRecorder }),
+    }),
   );
 }
 

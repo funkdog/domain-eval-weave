@@ -17,6 +17,9 @@ import { sha256Hex } from "../../src/contracts/canonical-json.js";
 import { fingerprintPackageContent } from "../../src/fingerprint/deployment.js";
 import { PHASE3A_AUTHOR } from "../../src/instance.js";
 import {
+  ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
+  ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
+  ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE,
   assertAuthorProfileRoles,
   assertProfileRoles,
   authorProfileFiles,
@@ -30,6 +33,18 @@ import {
   verifySharedModelSettings,
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+
+test("the successor allowlist pins the reviewed 8574b2c package bytes", () => {
+  assert.equal(
+    ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
+    "682aaa51554ac0afc5cfe2d3b101d3ff8d04075e72cd9bac568a526f22e3df86",
+  );
+  assert.equal(
+    ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
+    "61fbd663bc3cff2bc7037360a6c741cebaf4d47dde5fb98059f991e655f01157",
+  );
+  assert.equal(ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE, 265_192);
+});
 
 function syntheticProfileLockfile(packageSpec: string): string {
   return [

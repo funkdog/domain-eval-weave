@@ -11,6 +11,8 @@
   "exports": {
     "./app": "./dist/app/index.js",
     "./author-bridge": "./dist/author-bridge/index.js",
+    "./author-evidence": "./dist/author-evidence/index.js",
+    "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js"
   },

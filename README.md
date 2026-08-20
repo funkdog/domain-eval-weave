@@ -85,6 +85,9 @@ DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder-author "/design-domain-grader onboard"
 
+# Release forward acceptance uses the packaged AuthorForwardCarrier instead of
+# admitting hand-selected directories from a direct author invocation.
+
 # Owner authority stays on the management profile; the author Agent cannot call it.
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
@@ -104,8 +107,8 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A is the active implementation
 contract. The local `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
-an isolated author Skill/profile with an author-only `domain_artifact` helper, and a management-only confirmation ledger; it is not yet
-release-accepted.
+an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
+evidence, and a management-only confirmation ledger; it is not yet release-accepted.
 The Phase 2 rc.4 release implements the
 Milestone 0–4 code surfaces and adds
 digest-closed Harness/Registry/Eval Pack binding, typed rc.6 Goal activation,
