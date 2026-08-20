@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
@@ -9,7 +8,6 @@ import {
   ForwardEvidenceStore,
   type ForwardFixtureManifest,
   type ForwardIndependentLabelManifest,
-  type ForwardRunDescriptor,
   type ForwardRunHandle,
   type ForwardRunProjection,
   type ForwardRunReceipt,
@@ -22,11 +20,17 @@ import { parseDomainEvidenceCard } from "../domain/contracts.js";
 import { PHASE2_INSTANCE, PHASE3A_AUTHOR } from "../instance.js";
 import { assertSecretFreeText, isCredentialPathSegment } from "../report/secret-scan.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
+import { verifyAuthorForwardProductionRuntime } from "./author-forward-production.js";
 
-const MAX_OUTPUT_BYTES = 1024 * 1024;
-const POST_OUTPUT_EXIT_GRACE_MS = 5_000;
-const ERROR_MARKERS = ["PI_AI_ERROR", "PI_AUTH_ERROR", "PI_MODEL_ERROR", "PI_SDK_ERROR"] as const;
-const FORWARD_MODEL_ROUTE = {
+export const FORWARD_MAX_OUTPUT_BYTES = 1024 * 1024;
+export const FORWARD_POST_OUTPUT_EXIT_GRACE_MS = 5_000;
+export const FORWARD_ERROR_MARKERS = [
+  "PI_AI_ERROR",
+  "PI_AUTH_ERROR",
+  "PI_MODEL_ERROR",
+  "PI_SDK_ERROR",
+] as const;
+export const FORWARD_MODEL_ROUTE = {
   provider: "openai-codex",
   model: "gpt-5.6-sol",
   effort: "xhigh",
@@ -38,6 +42,12 @@ export const FORWARD_FIXTURES_ROOT = `${FORWARD_ACCEPTANCE_ROOT}/fixtures`;
 export const FORWARD_LABELS_ROOT = `${FORWARD_ACCEPTANCE_ROOT}/labels`;
 export const FORWARD_PACKAGES_ROOT = `${FORWARD_ACCEPTANCE_ROOT}/packages`;
 export const FORWARD_FIXTURE_MANIFEST = ".dsh-eval-forward-fixture.json";
+export const FORWARD_DSH_ROOT = `${FORWARD_ACCEPTANCE_ROOT}/dsh-runtime`;
+
+const PINNED_DSH_CONTENT_SHA256 =
+  "69bf698a112fe3ca1da8449818282116d5d92fb3760761ab05d638a0a68dbd59";
+const PINNED_DSH_CLOSURE_SHA256 =
+  "34b7d05995e072d87c59d6fcaa2f36b09055f6ee4433c4fc95205699bfd141a9";
 
 interface DirectoryIdentity {
   readonly path: string;
@@ -53,7 +63,7 @@ interface FixtureFileIdentity {
   readonly sha256: string;
 }
 
-interface VerifiedFixture {
+export interface VerifiedFixture {
   readonly workspace: DirectoryIdentity;
   readonly manifest: ForwardFixtureManifest;
   readonly manifestIdentity: FixtureFileIdentity;
@@ -217,7 +227,7 @@ async function assertFixtureTreeClosed(
   }
 }
 
-async function verifyFixture(workspaceInput: string): Promise<VerifiedFixture> {
+export async function verifyForwardFixture(workspaceInput: string): Promise<VerifiedFixture> {
   const managedRoot = await physicalDirectory(
     FORWARD_FIXTURES_ROOT,
     "managed synthetic fixture root",
@@ -294,7 +304,7 @@ async function verifyFixture(workspaceInput: string): Promise<VerifiedFixture> {
   };
 }
 
-interface ReviewedPackage {
+export interface ReviewedPackage {
   readonly bytes: Buffer;
   readonly contentSha256: string;
   readonly packageVersion: string;
@@ -419,7 +429,7 @@ function packageContentFromTar(bytes: Buffer): Omit<ReviewedPackage, "bytes"> {
   };
 }
 
-async function readReviewedPackage(
+export async function readForwardReviewedPackage(
   pathInput: string,
   sourceRevision: string,
 ): Promise<ReviewedPackage> {
@@ -502,7 +512,7 @@ async function readCandidateSnapshots(
   return snapshots;
 }
 
-async function captureProjection(input: {
+export async function captureForwardProjection(input: {
   readonly fixture: VerifiedFixture;
   readonly handle: ForwardRunHandle;
   readonly evidenceRoot: string;
@@ -568,7 +578,7 @@ async function captureProjection(input: {
   };
 }
 
-function incompleteProjection(
+export function incompleteForwardProjection(
   fixture: VerifiedFixture,
   handle: ForwardRunHandle,
 ): ForwardRunProjection {
@@ -607,31 +617,9 @@ export interface AuthorForwardOutput {
   readonly receipt: ForwardRunReceipt;
 }
 
-export interface InternalAuthorForwardRuntime {
-  readonly executable: string;
-  readonly launcherArgs: readonly string[];
-  readonly descriptor: ForwardRunDescriptor["dsh_launcher"];
-}
-
-export interface InternalAuthorForwardCarrierDependencies {
-  readonly verifyRuntime: (input: {
-    readonly sourceRevision: string;
-    readonly packageTarPath: string;
-    readonly packageTar: Buffer;
-    readonly packageContentSha256: string;
-    readonly packageVersion: string;
-  }) => Promise<InternalAuthorForwardRuntime>;
-}
-
-export class InternalAuthorForwardCarrier {
-  readonly #verifyRuntime: InternalAuthorForwardCarrierDependencies["verifyRuntime"];
-
-  constructor(dependencies: InternalAuthorForwardCarrierDependencies) {
-    this.#verifyRuntime = dependencies.verifyRuntime;
-  }
-
+class ProductionAuthorForwardRunner {
   async run(input: InternalAuthorForwardInput): Promise<AuthorForwardOutput> {
-    const postOutputExitGraceMs = input.postOutputExitGraceMs ?? POST_OUTPUT_EXIT_GRACE_MS;
+    const postOutputExitGraceMs = input.postOutputExitGraceMs ?? FORWARD_POST_OUTPUT_EXIT_GRACE_MS;
     if (!Number.isFinite(input.timeoutMs) || input.timeoutMs <= 0) {
       throw new RangeError("author forward timeout must be positive and finite");
     }
@@ -641,15 +629,27 @@ export class InternalAuthorForwardCarrier {
     if (!/^[a-f0-9]{40}$/.test(input.sourceRevision)) {
       throw new TypeError("author forward source revision must be an exact Git SHA");
     }
-    const fixture = await verifyFixture(input.workspace);
-    const reviewedPackage = await readReviewedPackage(input.packageTarPath, input.sourceRevision);
-    const runtime = await this.#verifyRuntime({
-      sourceRevision: input.sourceRevision,
-      packageTarPath: input.packageTarPath,
-      packageTar: reviewedPackage.bytes,
-      packageContentSha256: reviewedPackage.contentSha256,
-      packageVersion: reviewedPackage.packageVersion,
-    });
+    const fixture = await verifyForwardFixture(input.workspace);
+    const reviewedPackage = await readForwardReviewedPackage(
+      input.packageTarPath,
+      input.sourceRevision,
+    );
+    const runtime = await verifyAuthorForwardProductionRuntime(
+      {
+        packageTarPath: input.packageTarPath,
+        packageContentSha256: reviewedPackage.contentSha256,
+        packageVersion: reviewedPackage.packageVersion,
+      },
+      {
+        dshHome: DEDICATED_DSH_HOME,
+        authorProfileRoot: `${DEDICATED_DSH_HOME}/profiles/${PHASE3A_AUTHOR.profile}`,
+        dshRuntimeRoot: FORWARD_DSH_ROOT,
+        nodeExecutable: process.execPath,
+        nodeVersion: process.version,
+        expectedDshContentSha256: PINNED_DSH_CONTENT_SHA256,
+        expectedDshClosureSha256: PINNED_DSH_CLOSURE_SHA256,
+      },
+    );
     const store = new ForwardEvidenceStore(input.evidenceRoot);
     const handle = await store.beginRun({
       runId: input.runId,
@@ -667,25 +667,21 @@ export class InternalAuthorForwardCarrier {
       dshLauncher: runtime.descriptor,
       startedAt: new Date().toISOString(),
     });
-    const child = spawn(
-      runtime.executable,
-      [...runtime.launcherArgs, "--profile", PHASE3A_AUTHOR.profile, input.task],
-      {
-        cwd: fixture.workspace.path,
-        env: {
-          PATH: process.env.PATH ?? "/usr/bin:/bin",
-          LANG: "C",
-          LC_ALL: "C",
-          DSH_HOME: DEDICATED_DSH_HOME,
-          DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
-          DSH_TOOLS_MODE: "native",
-          DSH_PERMISSION_MODE: "workspace-write",
-          [FORWARD_RUN_ROOT_ENV]: handle.runRoot,
-          [FORWARD_RUN_NONCE_ENV]: handle.nonce,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
+    const child = await runtime.launch({
+      argv: ["--profile", PHASE3A_AUTHOR.profile, input.task],
+      cwd: fixture.workspace.path,
+      env: {
+        PATH: process.env.PATH ?? "/usr/bin:/bin",
+        LANG: "C",
+        LC_ALL: "C",
+        DSH_HOME: DEDICATED_DSH_HOME,
+        DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
+        DSH_TOOLS_MODE: "native",
+        DSH_PERMISSION_MODE: "workspace-write",
+        [FORWARD_RUN_ROOT_ENV]: handle.runRoot,
+        [FORWARD_RUN_NONCE_ENV]: handle.nonce,
       },
-    );
+    });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;
@@ -705,7 +701,7 @@ export class InternalAuthorForwardCarrier {
       postOutputExitTimer.unref();
     };
     const capture = (target: Buffer[], onData?: () => void) => (chunk: Buffer) => {
-      const remaining = Math.max(0, MAX_OUTPUT_BYTES - outputBytes);
+      const remaining = Math.max(0, FORWARD_MAX_OUTPUT_BYTES - outputBytes);
       if (remaining > 0) {
         const retained = chunk.subarray(0, remaining);
         target.push(Buffer.from(retained));
@@ -737,17 +733,30 @@ export class InternalAuthorForwardCarrier {
     clearTimeout(timeout);
     if (killTimer !== undefined) clearTimeout(killTimer);
     if (postOutputExitTimer !== undefined) clearTimeout(postOutputExitTimer);
+    let runtimeIdentityChanged = false;
+    try {
+      await runtime.assertUnchanged();
+    } catch {
+      runtimeIdentityChanged = true;
+    }
     const stdoutText = Buffer.concat(stdout).toString("utf8");
     const stderrText = Buffer.concat(stderr).toString("utf8");
     const combined = `${stdoutText}\n${stderrText}`;
-    const errorMarkers: string[] = ERROR_MARKERS.filter((marker) => combined.includes(marker));
+    const errorMarkers: string[] = FORWARD_ERROR_MARKERS.filter((marker) =>
+      combined.includes(marker),
+    );
     if (spawnError) errorMarkers.push("SPAWN_ERROR");
+    if (runtimeIdentityChanged) errorMarkers.push("RUNTIME_IDENTITY_CHANGED");
     let projection: ForwardRunProjection;
     try {
-      projection = await captureProjection({ fixture, handle, evidenceRoot: input.evidenceRoot });
+      projection = await captureForwardProjection({
+        fixture,
+        handle,
+        evidenceRoot: input.evidenceRoot,
+      });
     } catch {
       errorMarkers.push("PROJECTION_ERROR");
-      projection = incompleteProjection(fixture, handle);
+      projection = incompleteForwardProjection(fixture, handle);
     }
     const receipt = await store.completeRun(handle, {
       endedAt: new Date().toISOString(),
@@ -771,4 +780,11 @@ export class InternalAuthorForwardCarrier {
       receipt,
     };
   }
+}
+
+export function createProductionAuthorForwardRunner(): {
+  readonly run: (input: InternalAuthorForwardInput) => Promise<AuthorForwardOutput>;
+} {
+  const runner = new ProductionAuthorForwardRunner();
+  return { run: (input) => runner.run(input) };
 }

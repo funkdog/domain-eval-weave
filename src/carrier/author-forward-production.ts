@@ -1,7 +1,10 @@
+import { type ChildProcessByStdio, spawn } from "node:child_process";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+import { canonicalJson } from "../contracts/canonical-json.js";
 import { fingerprintPackageClosure, fingerprintPackageContent } from "../fingerprint/deployment.js";
 import {
   ACCEPTED_PHASE3A_EVAL_VERSION,
@@ -10,8 +13,6 @@ import {
   verifyFrozenFiles,
   verifySharedModelSettings,
 } from "../runtime-profile/init.js";
-import type { InternalAuthorForwardRuntime } from "./author-forward-internal.js";
-
 export interface AuthorForwardProductionConfig {
   readonly dshHome: string;
   readonly authorProfileRoot: string;
@@ -20,6 +21,49 @@ export interface AuthorForwardProductionConfig {
   readonly nodeVersion: string;
   readonly expectedDshContentSha256: string;
   readonly expectedDshClosureSha256: string;
+}
+
+interface RuntimePathIdentity {
+  readonly path: string;
+  readonly dev: number;
+  readonly ino: number;
+  readonly size: number;
+  readonly mtime_ms: number;
+}
+
+interface RuntimeInspection {
+  readonly executable: string;
+  readonly dshLauncher: string;
+  readonly descriptor: AuthorForwardLaunchCapability["descriptor"];
+  readonly identity: {
+    readonly node: RuntimePathIdentity;
+    readonly author_profile: RuntimePathIdentity;
+    readonly author_manifest: RuntimePathIdentity;
+    readonly author_package: RuntimePathIdentity;
+    readonly author_package_manifest: RuntimePathIdentity;
+    readonly author_package_content_sha256: string;
+    readonly dsh_runtime: RuntimePathIdentity;
+    readonly dsh_package: RuntimePathIdentity;
+    readonly dsh_manifest: RuntimePathIdentity;
+    readonly dsh_launcher: RuntimePathIdentity;
+    readonly dsh_package_content_sha256: string;
+    readonly dsh_package_closure_sha256: string;
+  };
+}
+
+export interface AuthorForwardLaunchCapability {
+  readonly descriptor: {
+    readonly node_version: string;
+    readonly package_version: string;
+    readonly package_content_sha256: string;
+    readonly package_closure_sha256: string;
+  };
+  readonly launch: (input: {
+    readonly argv: readonly string[];
+    readonly cwd: string;
+    readonly env: NodeJS.ProcessEnv;
+  }) => Promise<ChildProcessByStdio<null, Readable, Readable>>;
+  readonly assertUnchanged: () => Promise<void>;
 }
 
 async function physicalDirectory(path: string, label: string, mode?: number): Promise<string> {
@@ -48,6 +92,23 @@ async function physicalFile(path: string, label: string): Promise<string> {
     throw new Error(`${label} must be a physical regular file with no hard links`);
   }
   return absolute;
+}
+
+async function runtimePathIdentity(
+  path: string,
+  label: string,
+  kind: "directory" | "file",
+): Promise<RuntimePathIdentity> {
+  const absolute =
+    kind === "directory" ? await physicalDirectory(path, label) : await physicalFile(path, label);
+  const entry = await lstat(absolute);
+  return {
+    path: absolute,
+    dev: entry.dev,
+    ino: entry.ino,
+    size: entry.size,
+    mtime_ms: entry.mtimeMs,
+  };
 }
 
 async function readJsonFile(path: string, label: string): Promise<Record<string, unknown>> {
@@ -85,7 +146,13 @@ async function verifyLiveAuthorPackage(
     readonly packageVersion: string;
   },
   config: AuthorForwardProductionConfig,
-): Promise<void> {
+): Promise<{
+  readonly authorRoot: string;
+  readonly profileManifestPath: string;
+  readonly installedRoot: string;
+  readonly installedManifestPath: string;
+  readonly installedContentSha256: string;
+}> {
   if (input.packageVersion !== ACCEPTED_PHASE3A_EVAL_VERSION) {
     throw new Error("reviewed package version does not match the frozen Phase 3A release");
   }
@@ -94,10 +161,8 @@ async function verifyLiveAuthorPackage(
     "live author profile",
     0o700,
   );
-  const profileManifest = await readJsonFile(
-    `${authorRoot}/package.json`,
-    "author profile manifest",
-  );
+  const profileManifestPath = `${authorRoot}/package.json`;
+  const profileManifest = await readJsonFile(profileManifestPath, "author profile manifest");
   const dependencies = profileManifest.dependencies;
   if (typeof dependencies !== "object" || dependencies === null || Array.isArray(dependencies)) {
     throw new Error("author profile manifest is missing dependencies");
@@ -114,29 +179,38 @@ async function verifyLiveAuthorPackage(
     `${authorRoot}/node_modules/dsh-eval-lab`,
     "installed author package",
   );
+  const installedManifestPath = `${installedRoot}/package.json`;
   const installedManifest = await readJsonFile(
-    `${installedRoot}/package.json`,
+    installedManifestPath,
     "installed author package manifest",
   );
+  const installedContentSha256 = await fingerprintPackageContent(installedRoot);
   if (
     installedManifest.name !== "dsh-eval-lab" ||
     installedManifest.version !== input.packageVersion ||
-    (await fingerprintPackageContent(installedRoot)) !== input.packageContentSha256
+    installedContentSha256 !== input.packageContentSha256
   ) {
     throw new Error("live author profile package bytes do not match the reviewed tar");
   }
+  return {
+    authorRoot,
+    profileManifestPath,
+    installedRoot,
+    installedManifestPath,
+    installedContentSha256,
+  };
 }
 
-export async function verifyAuthorForwardProductionRuntime(
+async function inspectAuthorForwardProductionRuntime(
   input: {
     readonly packageTarPath: string;
     readonly packageContentSha256: string;
     readonly packageVersion: string;
   },
   config: AuthorForwardProductionConfig,
-): Promise<InternalAuthorForwardRuntime> {
+): Promise<RuntimeInspection> {
   await verifySharedModelSettings(config.dshHome);
-  await verifyLiveAuthorPackage(input, config);
+  const author = await verifyLiveAuthorPackage(input, config);
   if (!/^v24\./.test(config.nodeVersion)) {
     throw new Error("Phase 3A forward carrier requires Node 24");
   }
@@ -151,7 +225,8 @@ export async function verifyAuthorForwardProductionRuntime(
     "managed DSH package",
   );
   const dshLauncher = `${dshPackageRoot}/lib/bin.js`;
-  const dshManifest = await readJsonFile(`${dshPackageRoot}/package.json`, "managed DSH manifest");
+  const dshManifestPath = `${dshPackageRoot}/package.json`;
+  const dshManifest = await readJsonFile(dshManifestPath, "managed DSH manifest");
   const bin = dshManifest.bin;
   if (
     dshManifest.name !== "@deepseek-ai/dsh" ||
@@ -176,12 +251,83 @@ export async function verifyAuthorForwardProductionRuntime(
   }
   return {
     executable,
-    launcherArgs: [dshLauncher],
+    dshLauncher,
     descriptor: {
       node_version: config.nodeVersion,
       package_version: PINNED_DSH_VERSION,
       package_content_sha256: packageContentSha256,
       package_closure_sha256: packageClosureSha256,
+    },
+    identity: {
+      node: await runtimePathIdentity(executable, "Node executable", "file"),
+      author_profile: await runtimePathIdentity(
+        author.authorRoot,
+        "live author profile",
+        "directory",
+      ),
+      author_manifest: await runtimePathIdentity(
+        author.profileManifestPath,
+        "author profile manifest",
+        "file",
+      ),
+      author_package: await runtimePathIdentity(
+        author.installedRoot,
+        "installed author package",
+        "directory",
+      ),
+      author_package_manifest: await runtimePathIdentity(
+        author.installedManifestPath,
+        "installed author package manifest",
+        "file",
+      ),
+      author_package_content_sha256: author.installedContentSha256,
+      dsh_runtime: await runtimePathIdentity(dshRuntimeRoot, "managed DSH runtime", "directory"),
+      dsh_package: await runtimePathIdentity(dshPackageRoot, "managed DSH package", "directory"),
+      dsh_manifest: await runtimePathIdentity(dshManifestPath, "managed DSH manifest", "file"),
+      dsh_launcher: await runtimePathIdentity(dshLauncher, "managed DSH launcher", "file"),
+      dsh_package_content_sha256: packageContentSha256,
+      dsh_package_closure_sha256: packageClosureSha256,
+    },
+  };
+}
+
+export async function verifyAuthorForwardProductionRuntime(
+  input: {
+    readonly packageTarPath: string;
+    readonly packageContentSha256: string;
+    readonly packageVersion: string;
+  },
+  config: AuthorForwardProductionConfig,
+): Promise<AuthorForwardLaunchCapability> {
+  const frozenInput = { ...input };
+  const frozenConfig = { ...config };
+  const inspected = await inspectAuthorForwardProductionRuntime(frozenInput, frozenConfig);
+  const identity = canonicalJson(inspected.identity);
+  const assertUnchanged = async (): Promise<void> => {
+    let current: RuntimeInspection;
+    try {
+      current = await inspectAuthorForwardProductionRuntime(frozenInput, frozenConfig);
+    } catch (error) {
+      throw new Error("production runtime identity changed", { cause: error });
+    }
+    if (canonicalJson(current.identity) !== identity) {
+      throw new Error("production runtime identity changed");
+    }
+  };
+  return {
+    descriptor: inspected.descriptor,
+    assertUnchanged,
+    launch: async (launchInput) => {
+      try {
+        await assertUnchanged();
+      } catch (error) {
+        throw new Error("production runtime identity changed before launch", { cause: error });
+      }
+      return spawn(inspected.executable, [inspected.dshLauncher, ...launchInput.argv], {
+        cwd: launchInput.cwd,
+        env: launchInput.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
     },
   };
 }

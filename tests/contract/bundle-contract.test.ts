@@ -189,6 +189,15 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     assert.equal(typeof authorEvidence.evaluateUnauthorizedTruth, "function");
     assert.equal(typeof authorForwardCarrier.AuthorForwardCarrier, "function");
     assert.equal("InternalAuthorForwardCarrier" in authorForwardCarrier, false);
+    const facadeUrl = pathToFileURL(join(packageRoot, "dist/carrier/author-forward.js"));
+    const packedInternalCarrier = await import(
+      new URL("./author-forward-internal.js", facadeUrl).href
+    );
+    assert.equal(
+      "InternalAuthorForwardCarrier" in packedInternalCarrier,
+      false,
+      "a sibling file URL must not expose the test-only carrier constructor",
+    );
     assert.throws(
       () => Reflect.construct(authorForwardCarrier.AuthorForwardCarrier, [{}]),
       /does not accept injected dependencies/,

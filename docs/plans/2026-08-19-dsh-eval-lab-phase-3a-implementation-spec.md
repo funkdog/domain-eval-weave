@@ -251,7 +251,11 @@ Production export 不接受 `executable`、`launcherArgs` 或 verifier dependenc
 `34b7d05995e072d87c59d6fcaa2f36b09055f6ee4433c4fc95205699bfd141a9`；两者来自 Phase 1 已验收只读 OAuth Lab 的 exact
 `@deepseek-ai/dsh@0.1.0-rc.6` installed package，不读取其 credential/profile/Session bytes。
 在开 run 前还必须证明 live `eval-clowder-author` profile 的 frozen package spec 指向该 exact tar，installed `dsh-eval-lab` version/content
-与 tar 重建值一致，且 shared model settings 仍为冻结 route。测试用任意 child seam 只存在于 source tests，不经 package export 暴露。
+与 tar 重建值一致，且 shared model settings 仍为冻结 route。测试用任意 child seam 只存在于 repository tests，不进入 `dist` 或 package export。
+发布物内的 sibling module 也不得导出可注入 carrier constructor；只检查 facade namespace 不足以证明该边界。Production verifier 返回
+runtime-owned launch capability，而不是裸 executable/argv。Carrier 写 descriptor 后必须通过 capability 重新核验 Node、Author profile/manifest、
+installed package、DSH root/package/manifest/launcher 的 dev/ino/size/mtime 与 package content/closure digest，核验成功后在同一调用内 spawn；
+child 结束后再次核验，变化时写 failed/incomplete evidence，不得 admitted。
 验证正数有限 timeout 后，carrier 才在 dedicated
 runtime root 的严格子目录中创建一次 run。Evidence root、`runs/`、run 与 attempt 目录必须是 physical `0700`，所有 JSON 必须
 canonical、physical `0600`、exclusive-create；run id 不能 alias、覆盖或复用。

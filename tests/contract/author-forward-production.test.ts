@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
-
+import { readForwardEvidenceRoot } from "../../src/author-evidence/index.js";
 import {
   FORWARD_FIXTURE_MANIFEST,
   FORWARD_FIXTURES_ROOT,
   FORWARD_LABELS_ROOT,
   FORWARD_PACKAGES_ROOT,
-  InternalAuthorForwardCarrier,
-} from "../../src/carrier/author-forward-internal.js";
+} from "../../src/carrier/author-forward.js";
 import { verifyAuthorForwardProductionRuntime } from "../../src/carrier/author-forward-production.js";
 import {
   canonicalJson,
@@ -23,6 +22,7 @@ import {
 } from "../../src/fingerprint/deployment.js";
 import { authorProfileFiles, materializeFrozenFiles } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+import { createTestAuthorForwardCarrier } from "../helpers/author-forward-carrier.js";
 
 async function scratch(): Promise<string> {
   const parent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
@@ -115,10 +115,51 @@ test("production preflight closes live author bytes and the fixed DSH launcher",
       },
       config,
     );
-    assert.equal(runtime.executable, process.execPath);
-    assert.deepEqual(runtime.launcherArgs, [`${dshPackageRoot}/lib/bin.js`]);
+    assert.equal(typeof runtime.launch, "function");
     assert.equal(runtime.descriptor.package_content_sha256, expectedDshContentSha256);
     assert.equal(runtime.descriptor.package_closure_sha256, expectedDshClosureSha256);
+
+    const replacementManifest = `${root}/replacement-package.json`;
+    await writeFile(
+      replacementManifest,
+      `${JSON.stringify({ name: "dsh-eval-lab", version: "0.3.0-alpha.1", replaced: true })}\n`,
+      { mode: 0o600 },
+    );
+    await rename(replacementManifest, `${installedRoot}/package.json`);
+    await assert.rejects(
+      runtime.launch({
+        argv: ["--profile", "eval-clowder-author", "synthetic prompt"],
+        cwd: root,
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      }),
+      /runtime identity changed before launch/,
+    );
+
+    await writeFile(
+      replacementManifest,
+      `${JSON.stringify({ name: "dsh-eval-lab", version: "0.3.0-alpha.1" })}\n`,
+      { mode: 0o600 },
+    );
+    await rename(replacementManifest, `${installedRoot}/package.json`);
+    const launcherRuntime = await verifyAuthorForwardProductionRuntime(
+      {
+        packageTarPath: reviewedTar,
+        packageContentSha256,
+        packageVersion: "0.3.0-alpha.1",
+      },
+      config,
+    );
+    const replacementLauncher = `${root}/replacement-launcher.js`;
+    await writeFile(replacementLauncher, "process.stdout.write('REPLACED')\n", { mode: 0o700 });
+    await rename(replacementLauncher, `${dshPackageRoot}/lib/bin.js`);
+    await assert.rejects(
+      launcherRuntime.launch({
+        argv: ["--profile", "eval-clowder-author", "synthetic prompt"],
+        cwd: root,
+        env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      }),
+      /runtime identity changed before launch/,
+    );
 
     await assert.rejects(
       verifyAuthorForwardProductionRuntime(
@@ -213,7 +254,7 @@ test("internal carrier reaches admission only through the production tar-profile
       fingerprintPackageContent(dshPackageRoot),
       fingerprintPackageClosure(dshPackageRoot),
     ]);
-    const carrier = new InternalAuthorForwardCarrier({
+    const carrier = createTestAuthorForwardCarrier({
       verifyRuntime: async (input) =>
         verifyAuthorForwardProductionRuntime(input, {
           dshHome,
@@ -226,6 +267,7 @@ test("internal carrier reaches admission only through the production tar-profile
         }),
     });
     const result = await carrier.run({
+      executable: process.execPath,
       workspace,
       task: "synthetic forward prompt",
       timeoutMs: 5_000,
@@ -236,6 +278,85 @@ test("internal carrier reaches admission only through the production tar-profile
     });
     assert.equal(result.receipt.admission, "admitted");
     assert.equal(result.receipt.final_output_seen, true);
+
+    const casEvidenceRoot = `${root}/cas-evidence`;
+    await mkdir(casEvidenceRoot, { mode: 0o700 });
+    const casReplacement = `${root}/cas-replacement-launcher.js`;
+    const casCarrier = createTestAuthorForwardCarrier({
+      verifyRuntime: async (input) =>
+        verifyAuthorForwardProductionRuntime(input, {
+          dshHome,
+          authorProfileRoot: authorRoot,
+          dshRuntimeRoot,
+          nodeExecutable: process.execPath,
+          nodeVersion: process.version,
+          expectedDshContentSha256,
+          expectedDshClosureSha256,
+        }),
+      beforeLaunch: async () => {
+        await writeFile(casReplacement, "process.stdout.write('REPLACED')\n", { mode: 0o700 });
+        await rename(casReplacement, `${dshPackageRoot}/lib/bin.js`);
+      },
+    });
+    await assert.rejects(
+      casCarrier.run({
+        executable: process.execPath,
+        workspace,
+        task: "synthetic forward prompt",
+        timeoutMs: 5_000,
+        evidenceRoot: casEvidenceRoot,
+        runId: "production-chain-prelaunch-cas",
+        sourceRevision,
+        packageTarPath,
+      }),
+      /runtime identity changed before launch/,
+    );
+    const casEvidence = await readForwardEvidenceRoot(casEvidenceRoot, {
+      allowIncomplete: true,
+    });
+    assert.deepEqual(casEvidence.admitted_run_ids, []);
+    assert.deepEqual(casEvidence.incomplete_run_ids, ["production-chain-prelaunch-cas"]);
+
+    const changedEvidenceRoot = `${root}/changed-evidence`;
+    await mkdir(changedEvidenceRoot, { mode: 0o700 });
+    await writeFile(
+      `${dshPackageRoot}/lib/bin.js`,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        "writeFileSync(import.meta.filename, \"process.stdout.write('CHANGED')\\n\");",
+        "process.stdout.write('FINAL_SYNTHETIC_OUTPUT\\n');",
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+    const [changedDshContentSha256, changedDshClosureSha256] = await Promise.all([
+      fingerprintPackageContent(dshPackageRoot),
+      fingerprintPackageClosure(dshPackageRoot),
+    ]);
+    const changingCarrier = createTestAuthorForwardCarrier({
+      verifyRuntime: async (input) =>
+        verifyAuthorForwardProductionRuntime(input, {
+          dshHome,
+          authorProfileRoot: authorRoot,
+          dshRuntimeRoot,
+          nodeExecutable: process.execPath,
+          nodeVersion: process.version,
+          expectedDshContentSha256: changedDshContentSha256,
+          expectedDshClosureSha256: changedDshClosureSha256,
+        }),
+    });
+    const changed = await changingCarrier.run({
+      executable: process.execPath,
+      workspace,
+      task: "synthetic forward prompt",
+      timeoutMs: 5_000,
+      evidenceRoot: changedEvidenceRoot,
+      runId: "production-chain-changed-runtime",
+      sourceRevision,
+      packageTarPath,
+    });
+    assert.equal(changed.receipt.admission, "failed");
+    assert.ok(changed.receipt.error_markers.includes("RUNTIME_IDENTITY_CHANGED"));
   } finally {
     await rm(workspace, { recursive: true, force: true });
     await rm(labelsPath, { force: true });

@@ -95,7 +95,9 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 # the evaluator derives the complete admitted cohort directly from that evidence root.
 # The production carrier freezes a managed rc.6 DSH launcher and verifies the live
 # author profile installed bytes against the exact reviewed tar; launcher/verifier
-# injection and lowering the three-run release minimum are not public inputs.
+# injection and lowering the three-run release minimum are not public inputs. A
+# runtime capability repeats the same identity/content check immediately before
+# launch and after exit, so the receipt cannot outlive the verified runtime bytes.
 
 # Owner authority stays on the management profile; the author Agent cannot call it.
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \

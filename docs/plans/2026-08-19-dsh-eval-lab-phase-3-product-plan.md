@@ -293,7 +293,9 @@ repeatability_contract: admission 环节；固定 Skill/model/fixture，至少�
   从 workspace 外 `phase3a-forward-acceptance/labels/` 的 independent-label manifest 读取 expected statuses，并从 physical tar bytes
   重建并验证 `dsh-eval-lab` package identity/content digest；所有输入文件必须是 single-link physical file。Fixture-set digest 同时绑定
   inputs 与不暴露给 Author 的 labels，不接受调用方自报；production carrier 也不接受 launcher/verifier 注入，而是验证固定 rc.6 DSH
-  closure 以及 live author profile package spec/installed bytes 与该 tar/source revision 一致。然后 immutable 写 canonical `descriptor`，绑定
+  closure 以及 live author profile package spec/installed bytes 与该 tar/source revision 一致。验证结果形成不可由调用方构造的 launch
+  capability；descriptor 落盘后、实际 spawn 前以及 child 结束后必须再次核验相同 path identities 与 content digests，任一变化均不得产生
+  admitted receipt。然后 immutable 写 canonical `descriptor`，绑定
   run/session nonce、exact Git revision、reviewed tar digest/size、author profile、provider/model/effort、prompt digest、fixture-set digest 与
   DSH launcher digest、start time；
 - child 结束后 carrier 从 exact fixture labels 与 workspace 的 physical canonical artifacts 生成 runtime-owned immutable
