@@ -139,10 +139,10 @@ allowlist 只包含：
    app/bridge patch；local tar SHA-256
    `a725190e200bbb6a08edabbc7ac82ac883ae4567712686852900430872cf10e5`，size `161769` bytes，installed package
    content digest `adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65`；
-2. exact accepted Phase 3A runner+author set at main `8574b2ca8d73539b850cb10fa120bf1bb5a54388`：version
+2. exact accepted Phase 3A runner+author set at main `2cb0236fa6cb96cfa58f264fe9bce1ef387739a2`：version
    `0.3.0-alpha.1`，local tar SHA-256
-   `682aaa51554ac0afc5cfe2d3b101d3ff8d04075e72cd9bac568a526f22e3df86`，size `265192` bytes，installed package
-   content digest `61fbd663bc3cff2bc7037360a6c741cebaf4d47dde5fb98059f991e655f01157`，且两套 profile managed files 必须
+   `c3c6a20b8774a44daffb92634a9a6229e063690ea90a49814abc23c47db0df1d`，size `280782` bytes，installed package
+   content digest `7987d5a94107c2d54e5da9818201f756ff4008e06f1ec365da7bf1ad3c225185`，且两套 profile managed files 必须
    分别精确匹配同一个 tar spec。该 predecessor 只能作为完整 runner+author cohort 被接受；任一 peer 缺失或与 current target
    混合都不是可恢复 predecessor。
 
@@ -244,11 +244,12 @@ digest 合成为 `fixture_set_sha256`，且
 `domain-eval/` 在 child 启动前必须不存在。Reviewed package 只能是
 `phase3a-forward-acceptance/packages/<exact-source-revision>/<actual-sha256>.tgz` 下的 physical gzip tar；carrier 在读取后验证 archive
 逐 header checksum、仅 regular/dir safe paths、`dsh-eval-lab` package identity、filename、digest、size 与可重建 package-content
-digest；fixture manifest/input、label manifest、reviewed tar 和后继 projection/candidate file 均须 `nlink=1`，hard link 在首次读取前拒绝。
+digest；tar 与 installed directory 必须把 `(path, executable, sha256)` 集合按 UTF-8 bytes 全局升序排列后再 canonical JSON hash，禁止
+依赖 locale 或 traversal order。每轮 fixture manifest/input、label manifest、reviewed tar 和后继 projection/candidate file 均须 `nlink=1`，hard link 在首次读取前拒绝。
 Production export 不接受 `executable`、`launcherArgs` 或 verifier dependency injection；它固定 Node 24 与
 `phase3a-forward-acceptance/dsh-runtime/node_modules/@deepseek-ai/dsh/lib/bin.js`，并验证 exact rc.6 package content+closure digest。
 冻结 rc.6 content digest 为 `69bf698a112fe3ca1da8449818282116d5d92fb3760761ab05d638a0a68dbd59`，closure digest 为
-`34b7d05995e072d87c59d6fcaa2f36b09055f6ee4433c4fc95205699bfd141a9`；两者来自 Phase 1 已验收只读 OAuth Lab 的 exact
+`444ba58e0901635875e5fefc306097969b3a7828785355362bb39e8c79cd1b6b`；两者来自 Phase 1 已验收只读 OAuth Lab 的 exact
 `@deepseek-ai/dsh@0.1.0-rc.6` installed package，不读取其 credential/profile/Session bytes。
 在开 run 前还必须证明 live `eval-clowder-author` profile 的 frozen package spec 指向该 exact tar，installed `dsh-eval-lab` version/content
 与 tar 重建值一致，且 shared model settings 仍为冻结 route。测试用任意 child seam 只存在于 repository tests，不进入 `dist` 或 package export。

@@ -17,6 +17,7 @@ import {
 } from "../author-evidence/index.js";
 import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import { parseDomainEvidenceCard } from "../domain/contracts.js";
+import { fingerprintPackageEntries } from "../fingerprint/deployment.js";
 import { PHASE2_INSTANCE, PHASE3A_AUTHOR } from "../instance.js";
 import { assertSecretFreeText, isCredentialPathSegment } from "../report/secret-scan.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../runtime-root.js";
@@ -47,7 +48,7 @@ export const FORWARD_DSH_ROOT = `${FORWARD_ACCEPTANCE_ROOT}/dsh-runtime`;
 const PINNED_DSH_CONTENT_SHA256 =
   "69bf698a112fe3ca1da8449818282116d5d92fb3760761ab05d638a0a68dbd59";
 const PINNED_DSH_CLOSURE_SHA256 =
-  "34b7d05995e072d87c59d6fcaa2f36b09055f6ee4433c4fc95205699bfd141a9";
+  "444ba58e0901635875e5fefc306097969b3a7828785355362bb39e8c79cd1b6b";
 
 interface DirectoryIdentity {
   readonly path: string;
@@ -326,7 +327,7 @@ function tarOctal(header: Buffer, start: number, length: number): number {
   return parsed;
 }
 
-function packageContentFromTar(bytes: Buffer): Omit<ReviewedPackage, "bytes"> {
+export function fingerprintPackageTarContent(bytes: Buffer): Omit<ReviewedPackage, "bytes"> {
   if (bytes.byteLength === 0 || bytes.byteLength > MAX_PACKAGE_TAR_BYTES) {
     throw new Error("reviewed package tar size is invalid");
   }
@@ -422,9 +423,8 @@ function packageContentFromTar(bytes: Buffer): Omit<ReviewedPackage, "bytes"> {
   if (typeof packageManifest.version !== "string" || packageManifest.version.length === 0) {
     throw new Error("reviewed package version is invalid");
   }
-  files.sort((left, right) => left.path.localeCompare(right.path));
   return {
-    contentSha256: sha256Hex(canonicalJson(files)),
+    contentSha256: fingerprintPackageEntries(files),
     packageVersion: packageManifest.version,
   };
 }
@@ -447,7 +447,7 @@ export async function readForwardReviewedPackage(
   }
   const identity = await physicalFile(path, "reviewed package tar");
   const bytes = await readFile(identity.path);
-  const content = packageContentFromTar(bytes);
+  const content = fingerprintPackageTarContent(bytes);
   if (basename(identity.path) !== `${sha256Hex(bytes)}.tgz`) {
     throw new Error("reviewed package filename must bind its exact SHA-256");
   }

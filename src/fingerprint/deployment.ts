@@ -10,6 +10,31 @@ interface PackageManifest {
   readonly dependencies?: unknown;
 }
 
+export interface PackageContentEntry {
+  readonly path: string;
+  readonly executable: boolean;
+  readonly sha256: string;
+}
+
+function compareCanonicalText(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+export function fingerprintPackageEntries(entries: readonly PackageContentEntry[]): string {
+  const paths = new Set<string>();
+  const canonical = entries.map((entry) => {
+    if (paths.has(entry.path)) throw new Error("package content contains a duplicate path");
+    paths.add(entry.path);
+    return {
+      path: entry.path,
+      executable: entry.executable,
+      sha256: entry.sha256,
+    };
+  });
+  canonical.sort((left, right) => compareCanonicalText(left.path, right.path));
+  return sha256Hex(canonicalJson(canonical));
+}
+
 async function packageManifest(root: string): Promise<{
   readonly name: string;
   readonly version: string;
@@ -47,11 +72,7 @@ export async function findPackageRoot(start: string, expectedName: string): Prom
 
 export async function fingerprintPackageContent(root: string): Promise<string> {
   const canonicalRoot = await realpath(root);
-  const files: Array<{
-    readonly path: string;
-    readonly executable: boolean;
-    readonly sha256: string;
-  }> = [];
+  const files: PackageContentEntry[] = [];
   const visit = async (directory: string): Promise<void> => {
     for (const name of (await readdir(directory)).sort()) {
       if (name === "node_modules") continue;
@@ -76,7 +97,7 @@ export async function fingerprintPackageContent(root: string): Promise<string> {
     }
   };
   await visit(canonicalRoot);
-  return sha256Hex(canonicalJson(files));
+  return fingerprintPackageEntries(files);
 }
 
 export async function fingerprintPackageClosure(root: string): Promise<string> {
@@ -123,7 +144,8 @@ export async function fingerprintPackageClosure(root: string): Promise<string> {
     }
   }
   packages.sort((left, right) =>
-    `${left.name}@${left.version}:${left.content}`.localeCompare(
+    compareCanonicalText(
+      `${left.name}@${left.version}:${left.content}`,
       `${right.name}@${right.version}:${right.content}`,
     ),
   );

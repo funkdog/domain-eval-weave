@@ -6,6 +6,7 @@ import {
   findPackageRoot,
   fingerprintPackageClosure,
   fingerprintPackageContent,
+  fingerprintPackageEntries,
 } from "../../src/fingerprint/deployment.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
@@ -40,4 +41,16 @@ test("deployment fingerprint binds package bytes and transitive installed packag
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("package entry fingerprints use one locale-independent global path order", () => {
+  const entries = [
+    { path: "a/nested.js", executable: false, sha256: "1".repeat(64) },
+    { path: "a.js", executable: false, sha256: "2".repeat(64) },
+    { path: "README.md", executable: false, sha256: "3".repeat(64) },
+  ] as const;
+  assert.equal(
+    fingerprintPackageEntries(entries),
+    fingerprintPackageEntries([...entries].reverse()),
+  );
 });

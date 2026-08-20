@@ -9,6 +9,8 @@ import { promisify } from "node:util";
 
 import { parse } from "yaml";
 
+import { fingerprintPackageTarContent } from "../../src/carrier/author-forward-internal.js";
+import { fingerprintPackageContent } from "../../src/fingerprint/deployment.js";
 import { DEDICATED_DSH_HOME, DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 const execFileAsync = promisify(execFile);
@@ -170,6 +172,11 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as Record<string, unknown>;
     assert.equal("bin" in packedManifest, false);
+    assert.equal(
+      fingerprintPackageTarContent(await readFile(join(scratch, archive))).contentSha256,
+      await fingerprintPackageContent(packageRoot),
+      "the reviewed tar and its installed package must share one canonical content ordering",
+    );
     await execFileAsync(process.execPath, [pnpmCli, "install", "--ignore-scripts"], {
       cwd: packageRoot,
     });
