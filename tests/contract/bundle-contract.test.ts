@@ -63,6 +63,11 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
     "pnpm build",
     "local or Git plugin installs must build their exported entrypoints",
   );
+  assert.equal(
+    (manifest.scripts as Record<string, unknown>).build,
+    "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "every package build must remove ignored output from older compiler layouts",
+  );
 });
 
 test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay immutable", async () => {
@@ -158,6 +163,9 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     await execFileAsync("/usr/bin/tar", ["-xzf", join(scratch, archive), "-C", unpackRoot]);
 
     const packageRoot = join(unpackRoot, "package");
+    const packedDistEntries = await readdir(join(packageRoot, "dist"));
+    assert.equal(packedDistEntries.includes("src"), false);
+    assert.equal(packedDistEntries.includes("tests"), false);
     const packedManifest = JSON.parse(
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as Record<string, unknown>;
