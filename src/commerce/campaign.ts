@@ -8,7 +8,6 @@ import {
   writeCanonicalJsonArtifact,
 } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
-import type { VariantSpec } from "../contracts/parsers.js";
 import type { CommerceBehaviorVector } from "../oracle/commerce-order.js";
 import { assertSecretFreeText } from "../report/secret-scan.js";
 import type { TaskPackIdentity } from "../task-pack/loader.js";
@@ -17,6 +16,7 @@ import {
   type CommerceExperiment,
   type CommercePairedEvaluation,
   type CommercePairedImpactReport,
+  type CommerceVariant,
   parseCommerceEpisode,
   parseCommercePairedEvaluation,
 } from "./campaign-contracts.js";
@@ -87,7 +87,7 @@ async function persistCommerceArm(
 export async function runCommercePairedCampaign(input: {
   readonly campaignRoot: string;
   readonly experiment: CommerceExperiment;
-  readonly variants: { readonly control: VariantSpec; readonly treatment: VariantSpec };
+  readonly variants: { readonly control: CommerceVariant; readonly treatment: CommerceVariant };
   readonly taskPackIdentity: TaskPackIdentity;
   readonly publicTask: string;
   readonly executeArm: (arm: "control" | "treatment") => Promise<ArmExecutionOutput>;

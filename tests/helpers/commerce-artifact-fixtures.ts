@@ -4,6 +4,7 @@ import { buildCommerceGraderAdmission } from "../../src/commerce/admission.js";
 import {
   parseCommerceExperiment,
   parseCommercePairedEvaluation,
+  parseCommerceVariant,
 } from "../../src/commerce/campaign-contracts.js";
 import { buildCommercePairedImpactReport } from "../../src/commerce/campaign-report.js";
 import { parseCommerceObservationCatalog } from "../../src/commerce/catalog.js";
@@ -151,6 +152,17 @@ export const validCommerceAdmission = buildCommerceGraderAdmission({
   evalPackageDigest: validControlVariant.eval_package_sha256,
 });
 
+export const validCommerceControlVariant = parseCommerceVariant({
+  ...validControlVariant,
+  schema_version: 2,
+  template_id: "commerce-order-cancellation-v1",
+});
+export const validCommerceTreatmentVariant = parseCommerceVariant({
+  ...validTreatmentVariant,
+  schema_version: 2,
+  template_id: "commerce-order-cancellation-v1",
+});
+
 export const validCommerceExperiment = parseCommerceExperiment({
   schema_version: 2,
   template_id: "commerce-order-cancellation-v1",
@@ -159,8 +171,8 @@ export const validCommerceExperiment = parseCommerceExperiment({
   domain: "open-coding-commerce-delivery",
   eval_pack_id: "open-coding-commerce-delivery-v1",
   task_pack_digest: validCommerceClaimIr.source.task_pack_sha256,
-  control_variant_digest: canonicalJsonDigest(validControlVariant),
-  treatment_variant_digest: canonicalJsonDigest(validTreatmentVariant),
+  control_variant_digest: canonicalJsonDigest(validCommerceControlVariant),
+  treatment_variant_digest: canonicalJsonDigest(validCommerceTreatmentVariant),
   deployment: {
     digest: validExperiment.deployment.digest,
     eval_package_sha256: validControlVariant.eval_package_sha256,

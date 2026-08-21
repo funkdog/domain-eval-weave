@@ -104,6 +104,68 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+export function classifyAppFailure(
+  invocation: AppInvocation,
+  error: unknown,
+): { readonly exitCode: ExitCode; readonly code: string } {
+  if (
+    error instanceof ArtifactIntegrityError ||
+    invocation.kind === "report" ||
+    invocation.kind === "suite-report" ||
+    invocation.kind === "delivery-report"
+  ) {
+    return {
+      exitCode: EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+      code: "ARTIFACT_INTEGRITY_FAILURE",
+    };
+  }
+  if (error instanceof CarrierQualificationError) {
+    return {
+      exitCode: EXIT_CODE.CARRIER_QUALIFICATION_FAILED,
+      code: "CARRIER_QUALIFICATION_FAILED",
+    };
+  }
+  if (error instanceof VariantCompositionError) {
+    return { exitCode: EXIT_CODE.VARIANT_COMPOSITION_INVALID, code: "VARIANT_COMPOSITION_INVALID" };
+  }
+  if (
+    invocation.kind === "calibrate" ||
+    (error instanceof DeliveryProductionError &&
+      [
+        "DELIVERY_GRADER_NOT_ADMITTED",
+        "DELIVERY_CALIBRATION_DRIFT",
+        "COMMERCE_GRADER_NOT_ADMITTED",
+      ].includes(error.code))
+  ) {
+    return { exitCode: EXIT_CODE.CALIBRATION_NOT_READY, code: "CALIBRATION_NOT_READY" };
+  }
+  if (
+    error instanceof DomainPackError ||
+    (error instanceof DeliveryProductionError &&
+      ["DELIVERY_DOMAIN_TRUTH_NOT_READY", "COMMERCE_DOMAIN_TRUTH_NOT_READY"].includes(
+        error.code,
+      )) ||
+    invocation.kind === "domain-validate" ||
+    invocation.kind === "domain-impact" ||
+    invocation.kind === "domain-authority"
+  ) {
+    return { exitCode: EXIT_CODE.DOMAIN_TRUTH_NOT_READY, code: "DOMAIN_TRUTH_NOT_READY" };
+  }
+  if (
+    invocation.kind === "init" ||
+    invocation.kind === "doctor" ||
+    invocation.kind === "auth-status" ||
+    invocation.kind === "auth-login" ||
+    invocation.kind === "binding-show"
+  ) {
+    return { exitCode: EXIT_CODE.RUNTIME_NOT_READY, code: "RUNTIME_NOT_READY" };
+  }
+  return {
+    exitCode: EXIT_CODE.CAMPAIGN_INFRASTRUCTURE_INVALID,
+    code: "CAMPAIGN_INFRASTRUCTURE_INVALID",
+  };
+}
+
 async function assertToolchainVersions(): Promise<void> {
   const [node, pnpm, git] = await Promise.all([
     execFileAsync(process.execPath, ["--version"]),
@@ -834,49 +896,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         }
       }
     } catch (error) {
-      let exitCode: ExitCode = EXIT_CODE.CAMPAIGN_INFRASTRUCTURE_INVALID;
-      let code = "CAMPAIGN_INFRASTRUCTURE_INVALID";
-      if (
-        error instanceof ArtifactIntegrityError ||
-        invocation.kind === "report" ||
-        invocation.kind === "suite-report" ||
-        invocation.kind === "delivery-report"
-      ) {
-        exitCode = EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
-        code = "ARTIFACT_INTEGRITY_FAILURE";
-      } else if (error instanceof CarrierQualificationError) {
-        exitCode = EXIT_CODE.CARRIER_QUALIFICATION_FAILED;
-        code = "CARRIER_QUALIFICATION_FAILED";
-      } else if (error instanceof VariantCompositionError) {
-        exitCode = EXIT_CODE.VARIANT_COMPOSITION_INVALID;
-        code = "VARIANT_COMPOSITION_INVALID";
-      } else if (
-        invocation.kind === "calibrate" ||
-        (error instanceof DeliveryProductionError &&
-          ["DELIVERY_GRADER_NOT_ADMITTED", "DELIVERY_CALIBRATION_DRIFT"].includes(error.code))
-      ) {
-        exitCode = EXIT_CODE.CALIBRATION_NOT_READY;
-        code = "CALIBRATION_NOT_READY";
-      } else if (
-        error instanceof DomainPackError ||
-        (error instanceof DeliveryProductionError &&
-          error.code === "DELIVERY_DOMAIN_TRUTH_NOT_READY") ||
-        invocation.kind === "domain-validate" ||
-        invocation.kind === "domain-impact" ||
-        invocation.kind === "domain-authority"
-      ) {
-        exitCode = EXIT_CODE.DOMAIN_TRUTH_NOT_READY;
-        code = "DOMAIN_TRUTH_NOT_READY";
-      } else if (
-        invocation.kind === "init" ||
-        invocation.kind === "doctor" ||
-        invocation.kind === "auth-status" ||
-        invocation.kind === "auth-login" ||
-        invocation.kind === "binding-show"
-      ) {
-        exitCode = EXIT_CODE.RUNTIME_NOT_READY;
-        code = "RUNTIME_NOT_READY";
-      }
+      const { exitCode, code } = classifyAppFailure(invocation, error);
       this.#stderr(`DSH Eval Lab command failed (${code}).\n`);
       return exitCode;
     }

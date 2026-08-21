@@ -7,6 +7,7 @@ import {
   parseCommerceExperiment,
   parseCommercePairedEvaluation,
   parseCommercePairedImpactReport,
+  parseCommerceVariant,
 } from "../../src/commerce/campaign-contracts.js";
 import { parseCommerceObservationCatalog } from "../../src/commerce/catalog.js";
 import {
@@ -19,18 +20,21 @@ import {
   validCommerceAdmission,
   validCommerceCatalog,
   validCommerceClaimIr,
+  validCommerceControlVariant,
   validCommerceDeliveryReport,
   validCommerceExperiment,
   validCommerceOraclePlan,
   validCommercePairedEvaluation,
   validCommercePairedReport,
 } from "../helpers/commerce-artifact-fixtures.js";
+import { validControlVariant } from "../helpers/fixtures.js";
 
 const faces = [
   ["claim-observation-catalog", validCommerceCatalog, parseCommerceObservationCatalog],
   ["claim-ir", validCommerceClaimIr, parseCommerceClaimIr],
   ["oracle-plan", validCommerceOraclePlan, parseCommerceOraclePlan],
   ["grader-admission", validCommerceAdmission, parseCommerceGraderAdmission],
+  ["variant", validCommerceControlVariant, parseCommerceVariant],
   ["experiment", validCommerceExperiment, parseCommerceExperiment],
   ["paired-evaluation", validCommercePairedEvaluation, parseCommercePairedEvaluation],
   ["paired-report", validCommercePairedReport, parseCommercePairedImpactReport],
@@ -100,4 +104,10 @@ test("Commerce artifact refs reject traversal on both contract faces", async () 
   evaluation.arms.control.episode.ref = "artifact://campaign/arms/../secret.json";
   assert.equal(validators["paired-evaluation"]?.(evaluation), false);
   assert.throws(() => parseCommercePairedEvaluation(evaluation));
+});
+
+test("Commerce Variant is a v2 template-bound face, not a Reservation v1 artifact", async () => {
+  const validators = await commerceValidators();
+  assert.equal(validators.variant?.(validControlVariant), false);
+  assert.throws(() => parseCommerceVariant(validControlVariant));
 });

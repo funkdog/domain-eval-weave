@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { AppUsageError, EXIT_CODE, parseAppArguments } from "../../src/app/args.js";
-import { DefaultAppExecutor } from "../../src/app/default-executor.js";
+import { classifyAppFailure, DefaultAppExecutor } from "../../src/app/default-executor.js";
+import { DeliveryProductionError } from "../../src/delivery/production.js";
 
 test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A commands", () => {
   assert.deepEqual(parseAppArguments([]), { kind: "help" });
@@ -179,6 +180,31 @@ test("artifact-only report failures use the frozen integrity exit family", async
     EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
   );
   assert.match(stderr, /ARTIFACT_INTEGRITY_FAILURE/);
+});
+
+test("Commerce compiler and admission failures keep their operator-facing exit families", () => {
+  const invocation = {
+    kind: "delivery-run" as const,
+    packPath: "domain-eval",
+    manifestPath: "manifests/commerce-order-domain-v1.json",
+    requirementId: "self-service-order-cancellation",
+    timeoutMs: 900_000,
+    templateId: "commerce-order-cancellation-v1" as const,
+  };
+  assert.deepEqual(
+    classifyAppFailure(
+      invocation,
+      new DeliveryProductionError("COMMERCE_DOMAIN_TRUTH_NOT_READY", "not ready"),
+    ),
+    { exitCode: EXIT_CODE.DOMAIN_TRUTH_NOT_READY, code: "DOMAIN_TRUTH_NOT_READY" },
+  );
+  assert.deepEqual(
+    classifyAppFailure(
+      invocation,
+      new DeliveryProductionError("COMMERCE_GRADER_NOT_ADMITTED", "not admitted"),
+    ),
+    { exitCode: EXIT_CODE.CALIBRATION_NOT_READY, code: "CALIBRATION_NOT_READY" },
+  );
 });
 
 test("usage failures use the stable exit code and reject runtime-root overrides", () => {

@@ -5,7 +5,6 @@ import {
   episodeRecordSchema,
   measurementValiditySchema,
   qualificationEvidenceSchema,
-  variantSpecSchema,
 } from "../contracts/parsers.js";
 import { COMMERCE_BEHAVIORS } from "../oracle/commerce-order.js";
 
@@ -24,6 +23,40 @@ const artifactPointerSchema = z.strictObject({
 });
 const nullableCountSchema = z.number().finite().int().nonnegative().nullable();
 const finiteCountSchema = z.number().finite().int().nonnegative();
+
+export const commerceVariantSchema = z
+  .strictObject({
+    schema_version: z.literal(2),
+    template_id: z.literal("commerce-order-cancellation-v1"),
+    variant_id: z.enum(["goal-off", "goal-on"]),
+    common_patch_sha256: sha256Schema,
+    arm_patch_sha256: sha256Schema,
+    expected_goal_rows: z.strictObject({
+      goal: z.boolean(),
+      goal_round_driver: z.boolean(),
+      command_goal: z.boolean(),
+      tool_goal: z.boolean(),
+    }),
+    dsh_package_tree_sha256: sha256Schema,
+    codex_connect_package_sha256: sha256Schema,
+    eval_package_sha256: sha256Schema,
+    model_route: z.strictObject({
+      provider: z.literal("openai-codex"),
+      model: z.literal("gpt-5.6-sol"),
+      reasoning_effort: z.literal("xhigh"),
+    }),
+    resolved_config_sha256: sha256Schema,
+    tool_schema_sha256: sha256Schema,
+    tools_mode: z.literal("native"),
+    permission_mode: z.literal("workspace-write"),
+  })
+  .refine(
+    (variant) =>
+      Object.values(variant.expected_goal_rows).every(
+        (enabled) => enabled === (variant.variant_id === "goal-on"),
+      ),
+    "Commerce Variant Goal rows must all match its frozen variant id",
+  );
 
 export const commerceExperimentSchema = z.strictObject({
   schema_version: z.literal(2),
@@ -192,7 +225,7 @@ export const commercePairedImpactReportSchema = z.strictObject({
 });
 
 export type CommerceExperiment = z.infer<typeof commerceExperimentSchema>;
-export type CommerceVariant = z.infer<typeof variantSpecSchema>;
+export type CommerceVariant = z.infer<typeof commerceVariantSchema>;
 export type CommerceEpisode = z.infer<typeof episodeRecordSchema>;
 export type CommerceEvaluationResult = z.infer<typeof commerceEvaluationResultSchema>;
 export type CommercePairedEvaluation = z.infer<typeof commercePairedEvaluationSchema>;
@@ -203,7 +236,7 @@ export function parseCommerceExperiment(input: unknown): CommerceExperiment {
 }
 
 export function parseCommerceVariant(input: unknown): CommerceVariant {
-  return variantSpecSchema.parse(input);
+  return commerceVariantSchema.parse(input);
 }
 
 export function parseCommerceEpisode(input: unknown): CommerceEpisode {

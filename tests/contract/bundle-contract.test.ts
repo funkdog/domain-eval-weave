@@ -88,6 +88,21 @@ test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay 
   assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
 });
 
+test("the Commerce experience guide contains concrete operator judgments", async () => {
+  const guide = await readFile(
+    new URL(
+      "../../docs/guides/2026-08-21-phase3b1-commerce-experience-acceptance.md",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(guide, /实付 80/);
+  assert.match(guide, /订单已取消.*退款已成功/);
+  assert.match(guide, /库存.*优惠券/);
+  assert.match(guide, /已发货.*他人订单/);
+  assert.match(guide, /--template commerce-order-cancellation-v1/);
+});
+
 test("bundle defaults to management app only and keeps Candidate/authoring surfaces disabled", async () => {
   const source = await readFile(new URL("../../cordis.patch.yml", import.meta.url), "utf8");
   assert.deepEqual(parse(source), [

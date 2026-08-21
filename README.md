@@ -28,6 +28,7 @@ truths. It does not run a Semantic Judge or open a runtime template registry.
 - [Phase 3A implementation spec](docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [Phase 3B implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 - [Phase 3B.1 commerce implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
+- [Commerce experience acceptance guide](docs/guides/2026-08-21-phase3b1-commerce-experience-acceptance.md)
 
 ## Workspace boundary
 

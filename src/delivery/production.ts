@@ -36,6 +36,7 @@ import type { DeliveryEvaluationReport } from "./contracts.js";
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const TASK_PACK_ROOT = `${PACKAGE_ROOT}/task-packs/open-coding-ts-ledger-v1`;
 const DELIVERY_REPORT_REF = "artifact://campaign/delivery/report.json";
+type DeliveryTemplateId = "reservation-ledger-v1" | "commerce-order-cancellation-v1";
 
 export class DeliveryProductionError extends Error {
   readonly code: string;
@@ -45,6 +46,15 @@ export class DeliveryProductionError extends Error {
     this.name = "DeliveryProductionError";
     this.code = code;
   }
+}
+
+function parseDeliveryTemplateId(input: unknown): DeliveryTemplateId {
+  if (input === undefined || input === "reservation-ledger-v1") return "reservation-ledger-v1";
+  if (input === "commerce-order-cancellation-v1") return input;
+  throw new DeliveryProductionError(
+    "DELIVERY_TEMPLATE_INVALID",
+    "Delivery template must be one frozen production template id",
+  );
 }
 
 async function writeCurrentCalibrationEvidence(input: {
@@ -89,7 +99,7 @@ export async function runRealDeliveryEvaluation(input: {
   readonly requirementId: string;
   readonly timeoutMs: number;
   readonly confirm: (summary: string) => Promise<boolean>;
-  readonly templateId?: "reservation-ledger-v1" | "commerce-order-cancellation-v1";
+  readonly templateId?: DeliveryTemplateId;
 }): Promise<{
   readonly campaignId: string;
   readonly evaluationId: string;
@@ -97,7 +107,8 @@ export async function runRealDeliveryEvaluation(input: {
   readonly reportPointer: { readonly ref: string; readonly sha256: string };
   readonly markdownPointer: { readonly ref: string; readonly sha256: string };
 }> {
-  if (input.templateId === "commerce-order-cancellation-v1") {
+  const templateId = parseDeliveryTemplateId(input.templateId);
+  if (templateId === "commerce-order-cancellation-v1") {
     try {
       return await runRealCommerceDelivery(input);
     } catch (error) {
@@ -205,21 +216,21 @@ export async function runRealDeliveryEvaluation(input: {
 
 export function renderDeliveryEvaluationMarkdown(
   report: unknown,
-  templateId: "reservation-ledger-v1" | "commerce-order-cancellation-v1" = "reservation-ledger-v1",
+  templateId: DeliveryTemplateId = "reservation-ledger-v1",
 ): string {
-  return templateId === "commerce-order-cancellation-v1"
+  return parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v1"
     ? renderRealCommerceDelivery(report)
     : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
 }
 
 export async function replayRealDeliveryEvaluation(
   campaignId: string,
-  templateId: "reservation-ledger-v1" | "commerce-order-cancellation-v1" = "reservation-ledger-v1",
+  templateId: DeliveryTemplateId = "reservation-ledger-v1",
 ): Promise<{
   readonly report: unknown;
   readonly reportPointer: { readonly ref: string; readonly sha256: string };
 }> {
-  if (templateId === "commerce-order-cancellation-v1") {
+  if (parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v1") {
     return replayRealCommerceDelivery(campaignId);
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(campaignId)) {

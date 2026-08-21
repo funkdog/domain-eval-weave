@@ -9,18 +9,18 @@ import {
   readJsonArtifact,
 } from "../contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
-import type { VariantSpec } from "../contracts/parsers.js";
-import { parseVariantSpec } from "../contracts/parsers.js";
 import { fingerprintEvalDeployment } from "../fingerprint/deployment.js";
 import { COMMERCE_BEHAVIORS } from "../oracle/commerce-order.js";
 import { parseTaskPackIdentity } from "../task-pack/loader.js";
 import {
   type CommerceEpisode,
   type CommercePairedEvaluation,
+  type CommerceVariant,
   parseCommerceEpisode,
   parseCommerceExperiment,
   parseCommercePairedEvaluation,
   parseCommercePairedImpactReport,
+  parseCommerceVariant,
 } from "./campaign-contracts.js";
 import { buildCommercePairedImpactReport, combineCommerceValidity } from "./campaign-report.js";
 import { commerceEvaluationFromFrozenEvidence } from "./validity.js";
@@ -122,7 +122,7 @@ async function verifyEpisodeBytes(
   }
 }
 
-function commonVariant(variant: VariantSpec) {
+function commonVariant(variant: CommerceVariant) {
   return {
     common_patch_sha256: variant.common_patch_sha256,
     dsh_package_tree_sha256: variant.dsh_package_tree_sha256,
@@ -170,7 +170,7 @@ export async function replayCommerceCampaign(
         ref: parseArtifactRef("artifact://campaign/variants/control.json"),
         sha256: experiment.control_variant_digest,
       },
-      parseVariantSpec,
+      parseCommerceVariant,
     ),
     readJsonArtifact(
       campaignRoot,
@@ -178,7 +178,7 @@ export async function replayCommerceCampaign(
         ref: parseArtifactRef("artifact://campaign/variants/treatment.json"),
         sha256: experiment.treatment_variant_digest,
       },
-      parseVariantSpec,
+      parseCommerceVariant,
     ),
     readJsonArtifact(
       campaignRoot,

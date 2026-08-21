@@ -20,6 +20,10 @@ import { CommerceOrderOracle } from "../../src/oracle/commerce-order.js";
 import { StrictProcessRunner } from "../../src/process/strict-runner.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import { digestTaskPack, loadTaskPackIdentity } from "../../src/task-pack/loader.js";
+import {
+  validCommerceControlVariant,
+  validCommerceTreatmentVariant,
+} from "../helpers/commerce-artifact-fixtures.js";
 import { writeSyntheticCommerceDomainPack } from "../helpers/commerce-domain-pack.js";
 import {
   validControlVariant,
@@ -91,8 +95,8 @@ test("a Commerce paired Campaign freezes two Agent outcomes without ledger seman
       domain: "open-coding-commerce-delivery",
       eval_pack_id: "open-coding-commerce-delivery-v1",
       task_pack_digest: taskPackDigest,
-      control_variant_digest: canonicalJsonDigest(validControlVariant),
-      treatment_variant_digest: canonicalJsonDigest(validTreatmentVariant),
+      control_variant_digest: canonicalJsonDigest(validCommerceControlVariant),
+      treatment_variant_digest: canonicalJsonDigest(validCommerceTreatmentVariant),
       deployment: {
         digest: deploymentDigest,
         eval_package_sha256: validControlVariant.eval_package_sha256,
@@ -127,7 +131,10 @@ test("a Commerce paired Campaign freezes two Agent outcomes without ledger seman
     const result = await runCommercePairedCampaign({
       campaignRoot,
       experiment,
-      variants: { control: validControlVariant, treatment: validTreatmentVariant },
+      variants: {
+        control: validCommerceControlVariant,
+        treatment: validCommerceTreatmentVariant,
+      },
       taskPackIdentity,
       publicTask,
       executeArm: async (arm) => ({

@@ -1,8 +1,11 @@
 import { canonicalJson } from "../contracts/canonical-json.js";
-import type { VariantSpec } from "../contracts/parsers.js";
 import type { CommerceBehaviorVector } from "../oracle/commerce-order.js";
 import { projectFrozenSession } from "../validity/reconstruction.js";
-import type { CommerceEpisode, CommerceEvaluationResult } from "./campaign-contracts.js";
+import type {
+  CommerceEpisode,
+  CommerceEvaluationResult,
+  CommerceVariant,
+} from "./campaign-contracts.js";
 
 const GOAL_TOOL_NAMES = new Set(["get_goal", "create_goal", "update_goal"]);
 
@@ -20,7 +23,7 @@ function candidateAuthorizationMatches(episode: CommerceEpisode): boolean {
 
 function deploymentMatches(
   projection: ReturnType<typeof projectFrozenSession>,
-  variant: VariantSpec,
+  variant: CommerceVariant,
 ): boolean {
   const goalTools = projection.deployment.tool_names.filter((name) => GOAL_TOOL_NAMES.has(name));
   const goalSurfaceMatches =
@@ -154,7 +157,7 @@ export function commerceEvaluationFromFrozenEvidence(input: {
   readonly episode: CommerceEpisode;
   readonly sessionText: string;
   readonly publicTask: string;
-  readonly variant: VariantSpec;
+  readonly variant: CommerceVariant;
   readonly behavior: CommerceBehaviorVector;
 }): CommerceEvaluationResult {
   const projection = projectFrozenSession({

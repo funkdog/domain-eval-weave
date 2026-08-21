@@ -29,7 +29,7 @@ import {
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import { digestTaskPack, loadTaskPackIdentity } from "../task-pack/loader.js";
 import { type CommerceArmEvaluationOutput, runCommercePairedCampaign } from "./campaign.js";
-import { parseCommerceExperiment } from "./campaign-contracts.js";
+import { parseCommerceExperiment, parseCommerceVariant } from "./campaign-contracts.js";
 
 function errorVector(): CommerceBehaviorVector {
   return Object.fromEntries(
@@ -88,7 +88,19 @@ export async function runRealCommerceCampaign(input: {
   } catch {
     throw new CarrierQualificationError();
   }
-  const variants = variantsForQualification(deployment, qualification);
+  const baseVariants = variantsForQualification(deployment, qualification);
+  const variants = {
+    control: parseCommerceVariant({
+      ...baseVariants.control,
+      schema_version: 2,
+      template_id: "commerce-order-cancellation-v1",
+    }),
+    treatment: parseCommerceVariant({
+      ...baseVariants.treatment,
+      schema_version: 2,
+      template_id: "commerce-order-cancellation-v1",
+    }),
+  } as const;
   const controlDigest = sha256Hex(canonicalJson(variants.control));
   const treatmentDigest = sha256Hex(canonicalJson(variants.treatment));
   const qualificationProjection =

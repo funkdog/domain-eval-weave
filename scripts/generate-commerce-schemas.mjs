@@ -413,6 +413,85 @@ const defs = {
       ),
     },
   ),
+  variant: object(
+    [
+      "schema_version",
+      "template_id",
+      "variant_id",
+      "common_patch_sha256",
+      "arm_patch_sha256",
+      "expected_goal_rows",
+      "dsh_package_tree_sha256",
+      "codex_connect_package_sha256",
+      "eval_package_sha256",
+      "model_route",
+      "resolved_config_sha256",
+      "tool_schema_sha256",
+      "tools_mode",
+      "permission_mode",
+    ],
+    {
+      schema_version: { const: 2 },
+      template_id: { const: "commerce-order-cancellation-v1" },
+      variant_id: { enum: ["goal-off", "goal-on"] },
+      common_patch_sha256: ref("sha256"),
+      arm_patch_sha256: ref("sha256"),
+      expected_goal_rows: object(["goal", "goal_round_driver", "command_goal", "tool_goal"], {
+        goal: { type: "boolean" },
+        goal_round_driver: { type: "boolean" },
+        command_goal: { type: "boolean" },
+        tool_goal: { type: "boolean" },
+      }),
+      dsh_package_tree_sha256: ref("sha256"),
+      codex_connect_package_sha256: ref("sha256"),
+      eval_package_sha256: ref("sha256"),
+      model_route: object(["provider", "model", "reasoning_effort"], {
+        provider: { const: "openai-codex" },
+        model: { const: "gpt-5.6-sol" },
+        reasoning_effort: { const: "xhigh" },
+      }),
+      resolved_config_sha256: ref("sha256"),
+      tool_schema_sha256: ref("sha256"),
+      tools_mode: { const: "native" },
+      permission_mode: { const: "workspace-write" },
+    },
+    {
+      allOf: [
+        {
+          if: { properties: { variant_id: { const: "goal-off" } } },
+          then: {
+            properties: {
+              expected_goal_rows: {
+                type: "object",
+                properties: Object.fromEntries(
+                  ["goal", "goal_round_driver", "command_goal", "tool_goal"].map((name) => [
+                    name,
+                    { const: false },
+                  ]),
+                ),
+              },
+            },
+          },
+        },
+        {
+          if: { properties: { variant_id: { const: "goal-on" } } },
+          then: {
+            properties: {
+              expected_goal_rows: {
+                type: "object",
+                properties: Object.fromEntries(
+                  ["goal", "goal_round_driver", "command_goal", "tool_goal"].map((name) => [
+                    name,
+                    { const: true },
+                  ]),
+                ),
+              },
+            },
+          },
+        },
+      ],
+    },
+  ),
   experiment: object(
     [
       "schema_version",
@@ -642,6 +721,7 @@ const faces = {
   "claim-ir": "claimIr",
   "oracle-plan": "oraclePlan",
   "grader-admission": "graderAdmission",
+  variant: "variant",
   experiment: "experiment",
   "paired-evaluation": "pairedEvaluation",
   "paired-report": "pairedReport",

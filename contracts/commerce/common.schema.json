@@ -2255,6 +2255,161 @@
         }
       }
     },
+    "variant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "variant_id",
+        "common_patch_sha256",
+        "arm_patch_sha256",
+        "expected_goal_rows",
+        "dsh_package_tree_sha256",
+        "codex_connect_package_sha256",
+        "eval_package_sha256",
+        "model_route",
+        "resolved_config_sha256",
+        "tool_schema_sha256",
+        "tools_mode",
+        "permission_mode"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "variant_id": {
+          "enum": ["goal-off", "goal-on"]
+        },
+        "common_patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "arm_patch_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "expected_goal_rows": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["goal", "goal_round_driver", "command_goal", "tool_goal"],
+          "properties": {
+            "goal": {
+              "type": "boolean"
+            },
+            "goal_round_driver": {
+              "type": "boolean"
+            },
+            "command_goal": {
+              "type": "boolean"
+            },
+            "tool_goal": {
+              "type": "boolean"
+            }
+          }
+        },
+        "dsh_package_tree_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "codex_connect_package_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eval_package_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "model_route": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model", "reasoning_effort"],
+          "properties": {
+            "provider": {
+              "const": "openai-codex"
+            },
+            "model": {
+              "const": "gpt-5.6-sol"
+            },
+            "reasoning_effort": {
+              "const": "xhigh"
+            }
+          }
+        },
+        "resolved_config_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tool_schema_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "tools_mode": {
+          "const": "native"
+        },
+        "permission_mode": {
+          "const": "workspace-write"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "variant_id": {
+                "const": "goal-off"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "expected_goal_rows": {
+                "type": "object",
+                "properties": {
+                  "goal": {
+                    "const": false
+                  },
+                  "goal_round_driver": {
+                    "const": false
+                  },
+                  "command_goal": {
+                    "const": false
+                  },
+                  "tool_goal": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "variant_id": {
+                "const": "goal-on"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "expected_goal_rows": {
+                "type": "object",
+                "properties": {
+                  "goal": {
+                    "const": true
+                  },
+                  "goal_round_driver": {
+                    "const": true
+                  },
+                  "command_goal": {
+                    "const": true
+                  },
+                  "tool_goal": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
     "experiment": {
       "type": "object",
       "additionalProperties": false,
