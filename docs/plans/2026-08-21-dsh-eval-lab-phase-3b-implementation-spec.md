@@ -174,6 +174,14 @@ facade URL 推导并直接 import 同目录文件。
 Task Pack 与 report 读取拒绝 symlink、hardlink、非 canonical JSON 与 path escape。Candidate 运行前只得到公开任务与
 base workspace；Domain Pack、catalog、Oracle source、Gold、mutants、admission artifact 不进入 Candidate surface。
 
+### 4.1 Release predecessor
+
+Phase 3B 的同版本 content-addressed successor 只允许从 exact accepted Phase 3A runner+author cohort 升级：
+main `2c5c55440d747fb4b79699eb7e8aa5338ed4992a`，tar SHA-256
+`1119b2db18f6b02365fd1ab496611d23346877248cb82a20e9c935378bd2691a`，size `281097`，installed-content
+SHA-256 `69c4caefc1e570da2c81dc631b66f3863f3cb7be603036dbc32c3833c9afc738`。旧+缺失、旧+current、split spec、
+tampered bytes 必须继续在 staging 前 fail closed；management reinstall 后仍由既有 runner+author 原子事务提交。
+
 ## 5. Artifact layout
 
 ```text

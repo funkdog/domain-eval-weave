@@ -137,7 +137,8 @@ compilation, actual Gold/red/mutant calibration admission, a single production `
 and a replayable report across Requirement Delta, Domain Preservation, Semantic Residual,
 Measurement Validity, and Harness Impact. Its release build physically omits trusted builder siblings;
 replay revalidates the entire paired Campaign deployment and rebuilds the Oracle Plan from Claim IR plus
-the frozen observation catalog. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+the frozen observation catalog. Its profile successor accepts only the exact reviewed `2c5c554` Phase 3A
+runner+author package cohort. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
 an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
 evidence, and a management-only confirmation ledger; it is not yet release-accepted.
 The Phase 2 rc.4 release implements the
