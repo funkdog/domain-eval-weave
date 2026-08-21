@@ -1,4 +1,3 @@
-export { renderDeliveryEvaluationMarkdown } from "./artifacts.js";
 export type {
   ClaimIr,
   DeliveryEvaluationReport,
@@ -15,6 +14,7 @@ export {
 } from "./contracts.js";
 export {
   DeliveryProductionError,
+  renderDeliveryEvaluationMarkdown,
   replayRealDeliveryEvaluation,
   runRealDeliveryEvaluation,
 } from "./production.js";

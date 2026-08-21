@@ -135,7 +135,9 @@ the bounded Phase 3B implementation contract is active on an isolated successor 
 Phase 3B vertical adds explicit Claim observation bindings, deterministic Claim IR and Oracle Plan
 compilation, actual Gold/red/mutant calibration admission, a single production `delivery run` entry,
 and a replayable report across Requirement Delta, Domain Preservation, Semantic Residual,
-Measurement Validity, and Harness Impact. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+Measurement Validity, and Harness Impact. Its release build physically omits trusted builder siblings;
+replay revalidates the entire paired Campaign deployment and rebuilds the Oracle Plan from Claim IR plus
+the frozen observation catalog. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
 an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
 evidence, and a management-only confirmation ledger; it is not yet release-accepted.
 The Phase 2 rc.4 release implements the

@@ -4,13 +4,9 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runRealCampaign } from "../campaign/real.js";
-import { readArtifactBytesByRef, readJsonArtifact } from "../contracts/artifacts.js";
+import { readArtifactBytesByRef } from "../contracts/artifacts.js";
 import { canonicalJson } from "../contracts/canonical-json.js";
-import {
-  parseCurrentCalibrationEvidence,
-  parsePairedEvaluationArtifact,
-  parsePairedImpactReport,
-} from "../contracts/parsers.js";
+import { parseCurrentCalibrationEvidence } from "../contracts/parsers.js";
 import { validateDomainPack } from "../domain/pack.js";
 import { fingerprintPackageContent } from "../fingerprint/deployment.js";
 import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
@@ -23,8 +19,13 @@ import {
   loadTaskPackIdentity,
 } from "../task-pack/loader.js";
 import { buildGraderAdmission } from "./admission.js";
-import { persistDeliveryEvaluation, replayDeliveryEvaluation } from "./artifacts.js";
-import { compileValidatedDeterministicGrader } from "./compiler.js";
+import {
+  persistDeliveryEvaluation,
+  renderDeliveryEvaluationMarkdown as renderDeliveryEvaluationMarkdownInternal,
+  replayDeliveryEvaluation,
+} from "./artifacts.js";
+import { compileValidatedDeterministicGrader, DeterministicCompilerError } from "./compiler.js";
+import type { DeliveryEvaluationReport } from "./contracts.js";
 
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const TASK_PACK_ROOT = `${PACKAGE_ROOT}/task-packs/open-coding-ts-ledger-v1`;
@@ -106,12 +107,20 @@ export async function runRealDeliveryEvaluation(input: {
     digestTaskPack(TASK_PACK_ROOT),
     fingerprintPackageContent(PACKAGE_ROOT),
   ]);
-  const compiled = compileValidatedDeterministicGrader({
-    pack,
-    requirementId: input.requirementId,
-    taskPackDigest,
-    catalog,
-  });
+  let compiled: ReturnType<typeof compileValidatedDeterministicGrader>;
+  try {
+    compiled = compileValidatedDeterministicGrader({
+      pack,
+      requirementId: input.requirementId,
+      taskPackDigest,
+      catalog,
+    });
+  } catch (error) {
+    if (error instanceof DeterministicCompilerError) {
+      throw new DeliveryProductionError("DELIVERY_DOMAIN_TRUTH_NOT_READY", error.message);
+    }
+    throw error;
+  }
   const scratchParent = `${PHASE2_INSTANCE.instanceRoot}/calibration/delivery`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const scratchRoot = await mkdtemp(`${scratchParent}/run-${randomUUID().slice(0, 8)}-`);
@@ -158,20 +167,14 @@ export async function runRealDeliveryEvaluation(input: {
       ),
   });
   const campaignRoot = `${PHASE2_INSTANCE.instanceRoot}/campaigns/${campaign.campaignId}`;
-  const [pairedEvaluation, pairedReport] = await Promise.all([
-    readJsonArtifact(campaignRoot, campaign.pointers.evaluation, parsePairedEvaluationArtifact),
-    readJsonArtifact(campaignRoot, campaign.pointers.report, parsePairedImpactReport),
-  ]);
   const evaluationId = `delivery-${campaign.campaignId}`;
   const persisted = await persistDeliveryEvaluation({
     campaignRoot,
     evaluationId,
     claimIr: compiled.claimIr,
     oraclePlan: compiled.oraclePlan,
+    catalog,
     admission,
-    pairedEvaluation,
-    pairedReport,
-    pairedEvaluationPointer: campaign.pointers.evaluation,
     pairedReportPointer: campaign.pointers.report,
   });
   return {
@@ -181,6 +184,10 @@ export async function runRealDeliveryEvaluation(input: {
     reportPointer: persisted.reportPointer,
     markdownPointer: persisted.markdownPointer,
   };
+}
+
+export function renderDeliveryEvaluationMarkdown(report: DeliveryEvaluationReport): string {
+  return renderDeliveryEvaluationMarkdownInternal(report);
 }
 
 export async function replayRealDeliveryEvaluation(campaignId: string) {

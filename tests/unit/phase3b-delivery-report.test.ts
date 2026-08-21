@@ -7,6 +7,7 @@ import { validPairedEvaluation, validReport } from "../helpers/fixtures.js";
 import {
   validClaimIr,
   validGraderAdmission,
+  validObservationCatalog,
   validOraclePlan,
 } from "../helpers/phase3b-fixtures.js";
 
@@ -15,20 +16,34 @@ function build(
   admission: unknown = validGraderAdmission,
   pairedReport: unknown = validReport,
 ) {
+  const pairedEvaluationPointer = {
+    ref: "artifact://campaign/evaluation.json",
+    sha256: canonicalJsonDigest(pairedEvaluation),
+  };
+  const paired = pairedEvaluation as typeof validPairedEvaluation;
+  const closedPairedReport = {
+    ...(pairedReport as typeof validReport),
+    arms: {
+      control: paired.arms.control.result,
+      treatment: paired.arms.treatment.result,
+    },
+    evidence: {
+      ...(pairedReport as typeof validReport).evidence,
+      evaluation: pairedEvaluationPointer,
+    },
+  };
   return buildDeliveryEvaluationReport({
     evaluationId: "delivery-implement-reservation-ledger-v1",
     claimIr: validClaimIr,
     oraclePlan: validOraclePlan,
+    catalog: validObservationCatalog,
     admission,
     pairedEvaluation,
-    pairedReport,
-    pairedEvaluationPointer: {
-      ref: "artifact://campaign/evaluation.json",
-      sha256: canonicalJsonDigest(pairedEvaluation),
-    },
+    pairedReport: closedPairedReport,
+    pairedEvaluationPointer,
     pairedReportPointer: {
       ref: "artifact://campaign/report.json",
-      sha256: canonicalJsonDigest(pairedReport),
+      sha256: canonicalJsonDigest(closedPairedReport),
     },
   });
 }
@@ -158,6 +173,7 @@ test("persisted Campaign pointer drift is rejected before report projection", ()
         evaluationId: "delivery-implement-reservation-ledger-v1",
         claimIr: validClaimIr,
         oraclePlan: validOraclePlan,
+        catalog: validObservationCatalog,
         admission: validGraderAdmission,
         pairedEvaluation: validPairedEvaluation,
         pairedReport: validReport,
@@ -171,5 +187,46 @@ test("persisted Campaign pointer drift is rejected before report projection", ()
         },
       }),
     /pointer digest/,
+  );
+});
+
+test("Oracle Plan semantics are replayed from Claim IR and the frozen catalog", () => {
+  const ghostPlan = {
+    ...validOraclePlan,
+    checks: validOraclePlan.checks.map((check, index) =>
+      index === 0
+        ? {
+            ...check,
+            claim_ids: ["ghost-claim"],
+            axes: ["domain_preservation"],
+            risk_weight: check.risk_weight === 5 ? 4 : 5,
+          }
+        : check,
+    ),
+  };
+  const reboundAdmission = {
+    ...validGraderAdmission,
+    oracle_plan_sha256: canonicalJsonDigest(ghostPlan),
+  };
+  assert.throws(
+    () =>
+      buildDeliveryEvaluationReport({
+        evaluationId: "delivery-implement-reservation-ledger-v1",
+        claimIr: validClaimIr,
+        oraclePlan: ghostPlan,
+        catalog: validObservationCatalog,
+        admission: reboundAdmission,
+        pairedEvaluation: validPairedEvaluation,
+        pairedReport: validReport,
+        pairedEvaluationPointer: {
+          ref: "artifact://campaign/evaluation.json",
+          sha256: canonicalJsonDigest(validPairedEvaluation),
+        },
+        pairedReportPointer: {
+          ref: "artifact://campaign/report.json",
+          sha256: canonicalJsonDigest(validReport),
+        },
+      }),
+    /Oracle Plan semantic replay/,
   );
 });

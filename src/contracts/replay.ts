@@ -40,6 +40,11 @@ export interface ReplayedPairedImpactReport {
   readonly control_variant: VariantSpec;
   readonly treatment_variant: VariantSpec;
   readonly task_pack: TaskPackIdentity;
+  readonly oracle_seed: {
+    readonly schema_version: 1;
+    readonly seed: number;
+    readonly oracle_version: string;
+  };
 }
 
 function crossReferenceFailure(message: string): never {
@@ -68,7 +73,7 @@ function decodeCanonicalJson(bytes: Buffer): unknown {
   return value;
 }
 
-function parseOracleSeed(value: unknown): Record<string, unknown> {
+function parseOracleSeed(value: unknown): ReplayedPairedImpactReport["oracle_seed"] {
   const record = recordValue(value);
   if (
     Object.keys(record).sort().join(",") !== "oracle_version,schema_version,seed" ||
@@ -80,7 +85,11 @@ function parseOracleSeed(value: unknown): Record<string, unknown> {
   ) {
     crossReferenceFailure("Oracle seed artifact is invalid");
   }
-  return record;
+  return {
+    schema_version: 1,
+    seed: record.seed as number,
+    oracle_version: record.oracle_version as string,
+  };
 }
 
 function parseOracleBehavior(value: unknown): BehaviorVector {
@@ -414,5 +423,6 @@ export async function replayPairedImpactReport(
     control_variant: controlVariant,
     treatment_variant: treatmentVariant,
     task_pack: taskPack,
+    oracle_seed: oracleSeed,
   };
 }

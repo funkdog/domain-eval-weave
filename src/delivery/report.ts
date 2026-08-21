@@ -1,13 +1,14 @@
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { parsePairedEvaluationArtifact, parsePairedImpactReport } from "../contracts/parsers.js";
 import { type BehaviorStatus, LEDGER_BEHAVIORS } from "../oracle/ledger.js";
+import { rawCostDelta } from "../report/reporter.js";
+import { replayOraclePlanSemantics } from "./compiler.js";
 import {
   type ClaimIr,
   type DeliveryEvaluationReport,
   parseClaimIr,
   parseDeliveryEvaluationReport,
   parseGraderAdmission,
-  parseOraclePlan,
 } from "./contracts.js";
 
 function deterministicStatus(statuses: readonly BehaviorStatus[]): BehaviorStatus {
@@ -57,6 +58,7 @@ export function buildDeliveryEvaluationReport(input: {
   readonly evaluationId: string;
   readonly claimIr: unknown;
   readonly oraclePlan: unknown;
+  readonly catalog: unknown;
   readonly admission: unknown;
   readonly pairedEvaluation: unknown;
   readonly pairedReport: unknown;
@@ -64,7 +66,11 @@ export function buildDeliveryEvaluationReport(input: {
   readonly pairedReportPointer: { readonly ref: string; readonly sha256: string };
 }): DeliveryEvaluationReport {
   const claimIr = parseClaimIr(input.claimIr);
-  const oraclePlan = parseOraclePlan(input.oraclePlan);
+  const oraclePlan = replayOraclePlanSemantics({
+    claimIr,
+    oraclePlan: input.oraclePlan,
+    catalog: input.catalog,
+  });
   const admission = parseGraderAdmission(input.admission);
   const pairedEvaluation = parsePairedEvaluationArtifact(input.pairedEvaluation);
   const pairedReport = parsePairedImpactReport(input.pairedReport);
@@ -82,10 +88,24 @@ export function buildDeliveryEvaluationReport(input: {
   pointerDigest(pairedReport, input.pairedReportPointer, "paired report");
   if (
     pairedEvaluation.campaign_id !== pairedReport.campaign_id ||
+    canonicalJson(pairedReport.evidence.evaluation) !==
+      canonicalJson(input.pairedEvaluationPointer) ||
+    canonicalJson(pairedReport.arms) !==
+      canonicalJson({
+        control: pairedEvaluation.arms.control.result,
+        treatment: pairedEvaluation.arms.treatment.result,
+      }) ||
+    canonicalJson(pairedReport.cost_delta) !==
+      canonicalJson(
+        rawCostDelta(
+          pairedEvaluation.arms.control.result.cost,
+          pairedEvaluation.arms.treatment.result.cost,
+        ),
+      ) ||
     canonicalJson(pairedEvaluation.measurement_validity) !==
       canonicalJson(pairedReport.measurement_validity)
   ) {
-    throw new Error("paired Campaign evaluation and report identity drifted");
+    throw new Error("paired Campaign evaluation and report semantic identity drifted");
   }
   const treatmentBehavior = pairedEvaluation.arms.treatment.result.outcome.behavior_vector;
   const controlBehavior = pairedEvaluation.arms.control.result.outcome.behavior_vector;

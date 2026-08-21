@@ -1,4 +1,4 @@
-import { canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import type { DomainSourceRef, ProductDomainContract } from "../domain/contracts.js";
 import type { ValidatedDomainPack } from "../domain/pack.js";
 import { LEDGER_BEHAVIORS, type LedgerBehavior } from "../oracle/ledger.js";
@@ -22,6 +22,90 @@ export class DeterministicCompilerError extends Error {
     this.name = "DeterministicCompilerError";
     this.code = code;
   }
+}
+
+function oracleChecks(claimIr: ClaimIr, catalog: ObservationCatalog): OraclePlan["checks"] {
+  const catalogDigest = canonicalJsonDigest(catalog);
+  if (claimIr.source.observation_catalog_sha256 !== catalogDigest) {
+    throw new DeterministicCompilerError(
+      "ORACLE_CATALOG_DRIFT",
+      "Claim IR does not bind the supplied observation catalog",
+    );
+  }
+  const catalogByBehavior = new Map(catalog.behaviors.map((entry) => [entry.behavior_id, entry]));
+  const claimByCompiledId = new Map(claimIr.claims.map((claim) => [claim.claim_id, claim]));
+  for (const claim of claimIr.claims) {
+    for (const binding of claim.observation_bindings) {
+      const entry = catalogByBehavior.get(binding.behavior_id);
+      if (entry === undefined || binding.entry_sha256 !== canonicalJsonDigest(entry)) {
+        throw new DeterministicCompilerError(
+          "ORACLE_BINDING_DRIFT",
+          `Claim observation binding drifted from the catalog: ${claim.claim_id}`,
+        );
+      }
+    }
+  }
+  return LEDGER_BEHAVIORS.map((behavior) => {
+    const catalogEntry = catalogByBehavior.get(behavior);
+    const claimIds = claimIr.traceability.behavior_to_claims[behavior];
+    if (catalogEntry === undefined || claimIds.length === 0) {
+      throw new DeterministicCompilerError(
+        "ORACLE_PLAN_INCOMPLETE",
+        `bounded template behavior is not covered by an impacted Claim: ${behavior}`,
+      );
+    }
+    const projectedAxes = claimIds.map((claimId) => claimByCompiledId.get(claimId)?.axis);
+    if (projectedAxes.includes(undefined)) {
+      throw new DeterministicCompilerError(
+        "ORACLE_PLAN_TRACE_INVALID",
+        `Oracle behavior points to an unknown Claim: ${behavior}`,
+      );
+    }
+    const axes = [...new Set(projectedAxes)].filter(
+      (axis): axis is ClaimIr["claims"][number]["axis"] => axis !== undefined,
+    );
+    return {
+      behavior_id: behavior,
+      template_id: catalogEntry.template_id,
+      claim_ids: claimIds,
+      axes,
+      risk_weight: catalogEntry.risk_weight,
+      hard_gate: true,
+    };
+  });
+}
+
+export function rebuildOraclePlan(input: {
+  readonly claimIr: unknown;
+  readonly catalog: unknown;
+}): OraclePlan {
+  const claimIr = parseClaimIr(input.claimIr);
+  const catalog = parseObservationCatalog(input.catalog);
+  return parseOraclePlan({
+    schema_version: 1,
+    plan_id: `${claimIr.requirement.requirement_id}-v${claimIr.requirement.requirement_version}`,
+    claim_ir_sha256: canonicalJsonDigest(claimIr),
+    task_pack_sha256: claimIr.source.task_pack_sha256,
+    observation_catalog_sha256: canonicalJsonDigest(catalog),
+    oracle_version: catalog.oracle_version,
+    checks: oracleChecks(claimIr, catalog),
+  });
+}
+
+export function replayOraclePlanSemantics(input: {
+  readonly claimIr: unknown;
+  readonly oraclePlan: unknown;
+  readonly catalog: unknown;
+}): OraclePlan {
+  const oraclePlan = parseOraclePlan(input.oraclePlan);
+  const rebuilt = rebuildOraclePlan({ claimIr: input.claimIr, catalog: input.catalog });
+  if (canonicalJson(oraclePlan) !== canonicalJson(rebuilt)) {
+    throw new DeterministicCompilerError(
+      "ORACLE_PLAN_SEMANTIC_DRIFT",
+      "Oracle Plan semantic replay drifted from Claim IR and the frozen catalog",
+    );
+  }
+  return oraclePlan;
 }
 
 function samePointer(
@@ -272,41 +356,6 @@ export function compileValidatedDeterministicGrader(input: {
       behavior_to_claims: behaviorToClaims,
     },
   });
-  const catalogByBehavior = new Map(catalog.behaviors.map((entry) => [entry.behavior_id, entry]));
-  const claimByCompiledId = new Map(claimIr.claims.map((claim) => [claim.claim_id, claim]));
-  const checks = LEDGER_BEHAVIORS.map((behavior) => {
-    const catalogEntry = catalogByBehavior.get(behavior);
-    const claimIds = claimIr.traceability.behavior_to_claims[behavior];
-    if (catalogEntry === undefined || claimIds.length === 0) {
-      throw new DeterministicCompilerError(
-        "ORACLE_PLAN_INCOMPLETE",
-        `bounded template behavior is not covered by an impacted Claim: ${behavior}`,
-      );
-    }
-    const axes = [...new Set(claimIds.map((claimId) => claimByCompiledId.get(claimId)?.axis))];
-    if (axes.includes(undefined)) {
-      throw new DeterministicCompilerError(
-        "ORACLE_PLAN_TRACE_INVALID",
-        `Oracle behavior points to an unknown Claim: ${behavior}`,
-      );
-    }
-    return {
-      behavior_id: behavior,
-      template_id: catalogEntry.template_id,
-      claim_ids: claimIds,
-      axes,
-      risk_weight: catalogEntry.risk_weight,
-      hard_gate: true,
-    };
-  });
-  const oraclePlan = parseOraclePlan({
-    schema_version: 1,
-    plan_id: `${requirement.requirement_id}-v${requirement.version}`,
-    claim_ir_sha256: canonicalJsonDigest(claimIr),
-    task_pack_sha256: input.taskPackDigest,
-    observation_catalog_sha256: canonicalJsonDigest(catalog),
-    oracle_version: catalog.oracle_version,
-    checks,
-  });
+  const oraclePlan = rebuildOraclePlan({ claimIr, catalog });
   return { claimIr, oraclePlan };
 }

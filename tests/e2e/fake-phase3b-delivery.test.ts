@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { runPairedCampaign } from "../../src/campaign/coordinator.js";
-import { canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
 import { parseExperimentSpec } from "../../src/contracts/parsers.js";
 import { buildGraderAdmission } from "../../src/delivery/admission.js";
 import {
@@ -155,15 +155,73 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
         oracleSeed: { schema_version: 1, seed: 1729, oracle_version: "ledger-oracle-v3" },
       }),
     });
+    const deploymentMismatchRoot = `${projectRoot}/delivery-eval/deployment-mismatch`;
+    await cp(campaignRoot, deploymentMismatchRoot, { recursive: true });
+    await assert.rejects(
+      persistDeliveryEvaluation({
+        campaignRoot: deploymentMismatchRoot,
+        evaluationId: "delivery-deployment-mismatch",
+        claimIr: compiled.claimIr,
+        oraclePlan: compiled.oraclePlan,
+        catalog,
+        admission: { ...admission, eval_package_sha256: "0".repeat(64) },
+        pairedReportPointer: campaign.pointers.report,
+      }),
+      /Campaign deployment/,
+    );
+
+    const seedMismatchRoot = `${projectRoot}/delivery-eval/seed-mismatch`;
+    await cp(campaignRoot, seedMismatchRoot, { recursive: true });
+    await assert.rejects(
+      persistDeliveryEvaluation({
+        campaignRoot: seedMismatchRoot,
+        evaluationId: "delivery-seed-mismatch",
+        claimIr: compiled.claimIr,
+        oraclePlan: compiled.oraclePlan,
+        catalog,
+        admission: {
+          ...admission,
+          calibration: { ...admission.calibration, seed: admission.calibration.seed + 1 },
+        },
+        pairedReportPointer: campaign.pointers.report,
+      }),
+      /Campaign deployment/,
+    );
+
+    const ghostPlan = {
+      ...compiled.oraclePlan,
+      checks: compiled.oraclePlan.checks.map((check, index) =>
+        index === 0
+          ? {
+              ...check,
+              claim_ids: ["ghost-claim"],
+              axes: ["domain_preservation" as const],
+              risk_weight: check.risk_weight === 5 ? 4 : 5,
+            }
+          : check,
+      ),
+    };
+    const ghostPlanRoot = `${projectRoot}/delivery-eval/ghost-plan`;
+    await cp(campaignRoot, ghostPlanRoot, { recursive: true });
+    await assert.rejects(
+      persistDeliveryEvaluation({
+        campaignRoot: ghostPlanRoot,
+        evaluationId: "delivery-ghost-plan",
+        claimIr: compiled.claimIr,
+        oraclePlan: ghostPlan,
+        catalog,
+        admission: { ...admission, oracle_plan_sha256: canonicalJsonDigest(ghostPlan) },
+        pairedReportPointer: campaign.pointers.report,
+      }),
+      /Oracle Plan semantic replay/,
+    );
     const persisted = await persistDeliveryEvaluation({
       campaignRoot,
       evaluationId: "delivery-implement-reservation-ledger-v1",
       claimIr: compiled.claimIr,
       oraclePlan: compiled.oraclePlan,
+      catalog,
       admission,
-      pairedEvaluation: campaign.pairedEvaluation,
-      pairedReport: campaign.report,
-      pairedEvaluationPointer: campaign.pointers.evaluation,
       pairedReportPointer: campaign.pointers.report,
     });
     assert.equal(persisted.report.verdict, "accept");
@@ -176,6 +234,73 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
     });
     assert.equal(replayed.reportPointer.sha256, persisted.reportPointer.sha256);
     assert.equal(canonicalJsonDigest(replayed.report), canonicalJsonDigest(persisted.report));
+
+    const deploymentReplayRoot = `${projectRoot}/delivery-eval/deployment-replay-drift`;
+    await cp(campaignRoot, deploymentReplayRoot, { recursive: true });
+    const deploymentReplayAdmission = {
+      ...admission,
+      eval_package_sha256: "0".repeat(64),
+    };
+    const deploymentReplayReport = {
+      ...persisted.report,
+      source: {
+        ...persisted.report.source,
+        grader_admission_sha256: canonicalJsonDigest(deploymentReplayAdmission),
+      },
+    };
+    await Promise.all([
+      writeFile(
+        `${deploymentReplayRoot}/delivery/grader-admission.json`,
+        canonicalJson(deploymentReplayAdmission),
+      ),
+      writeFile(
+        `${deploymentReplayRoot}/delivery/report.json`,
+        canonicalJson(deploymentReplayReport),
+      ),
+    ]);
+    await assert.rejects(
+      replayDeliveryEvaluation({
+        campaignRoot: deploymentReplayRoot,
+        reportPointer: {
+          ref: persisted.reportPointer.ref,
+          sha256: canonicalJsonDigest(deploymentReplayReport),
+        },
+      }),
+      /Campaign deployment/,
+    );
+
+    const planReplayRoot = `${projectRoot}/delivery-eval/plan-replay-drift`;
+    await cp(campaignRoot, planReplayRoot, { recursive: true });
+    const planReplayAdmission = {
+      ...admission,
+      oracle_plan_sha256: canonicalJsonDigest(ghostPlan),
+    };
+    const planReplayReport = {
+      ...persisted.report,
+      source: {
+        ...persisted.report.source,
+        oracle_plan_sha256: canonicalJsonDigest(ghostPlan),
+        grader_admission_sha256: canonicalJsonDigest(planReplayAdmission),
+      },
+    };
+    await Promise.all([
+      writeFile(`${planReplayRoot}/delivery/oracle-plan.json`, canonicalJson(ghostPlan)),
+      writeFile(
+        `${planReplayRoot}/delivery/grader-admission.json`,
+        canonicalJson(planReplayAdmission),
+      ),
+      writeFile(`${planReplayRoot}/delivery/report.json`, canonicalJson(planReplayReport)),
+    ]);
+    await assert.rejects(
+      replayDeliveryEvaluation({
+        campaignRoot: planReplayRoot,
+        reportPointer: {
+          ref: persisted.reportPointer.ref,
+          sha256: canonicalJsonDigest(planReplayReport),
+        },
+      }),
+      /Oracle Plan semantic replay/,
+    );
 
     const mutantExperiment = parseExperimentSpec({
       ...experiment,
@@ -237,10 +362,8 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
       evaluationId: "delivery-implement-reservation-ledger-mutant-no-lock",
       claimIr: compiled.claimIr,
       oraclePlan: compiled.oraclePlan,
+      catalog,
       admission,
-      pairedEvaluation: mutantCampaign.pairedEvaluation,
-      pairedReport: mutantCampaign.report,
-      pairedEvaluationPointer: mutantCampaign.pointers.evaluation,
       pairedReportPointer: mutantCampaign.pointers.report,
     });
     assert.equal(mutantPersisted.report.verdict, "reject");

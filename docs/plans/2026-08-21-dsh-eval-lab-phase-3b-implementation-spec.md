@@ -166,7 +166,9 @@ Harness Impact 从同一次 paired Campaign 的 control/treatment 与 cost delta
 8. canonical report write + replay。
 
 不得暴露“传入任意 `ValidatedDomainPack` / 任意 behavior vector / 自定义 verifier”即可生产 admitted report 的入口。
-测试 seam 留在 tests helper；发布 export 只暴露 production facade。
+测试 seam 留在源码测试图；发布构建把 production closure 收进一个 module-private bundle，并物理移除
+`compiler/admission/report/artifacts` sibling modules。只从 package export map 隐藏名字不构成边界，因为调用方可以从
+facade URL 推导并直接 import 同目录文件。
 
 所有 runtime artifact 仍位于 `/Users/slipshod/AIBuild/dsh-eval-lab-runtime`，默认永久保存。Domain Pack、
 Task Pack 与 report 读取拒绝 symlink、hardlink、非 canonical JSON 与 path escape。Candidate 运行前只得到公开任务与
@@ -178,6 +180,7 @@ base workspace；Domain Pack、catalog、Oracle source、Gold、mutants、admiss
 instances/clowder-ai/campaigns/<campaign-id>/
 ├── manifest.json / arms/... / evaluation.json / report.json
 └── delivery/
+    ├── observation-catalog.json
     ├── claim-ir.json
     ├── oracle-plan.json
     ├── grader-admission.json

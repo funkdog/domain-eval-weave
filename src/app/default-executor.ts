@@ -30,10 +30,9 @@ import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/cano
 import { parseCurrentCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
-import { renderDeliveryEvaluationMarkdown } from "../delivery/artifacts.js";
-import { DeterministicCompilerError } from "../delivery/compiler.js";
 import {
   DeliveryProductionError,
+  renderDeliveryEvaluationMarkdown,
   replayRealDeliveryEvaluation,
   runRealDeliveryEvaluation,
 } from "../delivery/production.js";
@@ -853,7 +852,8 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
         code = "CALIBRATION_NOT_READY";
       } else if (
         error instanceof DomainPackError ||
-        error instanceof DeterministicCompilerError ||
+        (error instanceof DeliveryProductionError &&
+          error.code === "DELIVERY_DOMAIN_TRUTH_NOT_READY") ||
         invocation.kind === "domain-validate" ||
         invocation.kind === "domain-impact" ||
         invocation.kind === "domain-authority"

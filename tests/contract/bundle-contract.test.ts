@@ -68,8 +68,8 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   );
   assert.equal(
     (manifest.scripts as Record<string, unknown>).build,
-    "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
-    "every package build must remove ignored output from older compiler layouts",
+    "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "every package build must clean output and hide trusted Delivery builders in one facade bundle",
   );
 });
 
@@ -233,6 +233,22 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     assert.equal("compileValidatedDeterministicGrader" in delivery, false);
     assert.equal("buildGraderAdmission" in delivery, false);
     assert.equal("persistDeliveryEvaluation" in delivery, false);
+    const deliveryFacadeUrl = pathToFileURL(join(packageRoot, "dist/delivery/index.js"));
+    const deliveryProduction = await import(new URL("./production.js", deliveryFacadeUrl).href);
+    assert.deepEqual(Object.keys(deliveryProduction).sort(), [
+      "DeliveryProductionError",
+      "renderDeliveryEvaluationMarkdown",
+      "replayRealDeliveryEvaluation",
+      "runRealDeliveryEvaluation",
+    ]);
+    for (const internalModule of ["compiler", "admission", "report", "artifacts"] as const) {
+      await assert.rejects(
+        import(new URL(`./${internalModule}.js`, deliveryFacadeUrl).href),
+        (error: unknown) =>
+          error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND",
+        `packed delivery sibling ${internalModule}.js must be physically absent`,
+      );
+    }
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);
     assert.deepEqual(
