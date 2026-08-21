@@ -57,7 +57,6 @@ async function replayBoundCampaign(input: {
     input.oraclePlan.observation_catalog_sha256 !== catalogDigest ||
     input.admission.observation_catalog_sha256 !== catalogDigest ||
     input.oraclePlan.oracle_version !== replayed.task_pack.pack.oracle_version ||
-    input.admission.calibration.seed !== replayed.oracle_seed.seed ||
     input.admission.eval_package_sha256 !== replayed.experiment.deployment.eval_package_sha256
   ) {
     throw new Error(

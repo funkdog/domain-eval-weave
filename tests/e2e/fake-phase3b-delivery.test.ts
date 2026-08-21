@@ -4,6 +4,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { runPairedCampaign } from "../../src/campaign/coordinator.js";
+import { ArtifactIntegrityError } from "../../src/contracts/artifacts.js";
 import { canonicalJson, canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
 import { parseExperimentSpec } from "../../src/contracts/parsers.js";
 import { buildGraderAdmission } from "../../src/delivery/admission.js";
@@ -116,6 +117,8 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
       }),
     ]);
     const trees = { control: "1".repeat(40), treatment: "2".repeat(40) } as const;
+    const campaignSeed = 1730;
+    assert.notEqual(admission.calibration.seed, campaignSeed);
     const campaign = await runPairedCampaign({
       campaignRoot,
       experiment,
@@ -148,11 +151,15 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
       evaluateArm: async (arm) => ({
         behavior: await oracle.evaluateDirectory(
           workspaces[arm],
-          1729,
+          campaignSeed,
           `${projectRoot}/oracle/${arm}`,
         ),
         candidateTreeAfterOracle: trees[arm],
-        oracleSeed: { schema_version: 1, seed: 1729, oracle_version: "ledger-oracle-v3" },
+        oracleSeed: {
+          schema_version: 1,
+          seed: campaignSeed,
+          oracle_version: "ledger-oracle-v3",
+        },
       }),
     });
     const deploymentMismatchRoot = `${projectRoot}/delivery-eval/deployment-mismatch`;
@@ -165,24 +172,6 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
         oraclePlan: compiled.oraclePlan,
         catalog,
         admission: { ...admission, eval_package_sha256: "0".repeat(64) },
-        pairedReportPointer: campaign.pointers.report,
-      }),
-      /Campaign deployment/,
-    );
-
-    const seedMismatchRoot = `${projectRoot}/delivery-eval/seed-mismatch`;
-    await cp(campaignRoot, seedMismatchRoot, { recursive: true });
-    await assert.rejects(
-      persistDeliveryEvaluation({
-        campaignRoot: seedMismatchRoot,
-        evaluationId: "delivery-seed-mismatch",
-        claimIr: compiled.claimIr,
-        oraclePlan: compiled.oraclePlan,
-        catalog,
-        admission: {
-          ...admission,
-          calibration: { ...admission.calibration, seed: admission.calibration.seed + 1 },
-        },
         pairedReportPointer: campaign.pointers.report,
       }),
       /Campaign deployment/,
@@ -234,6 +223,24 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
     });
     assert.equal(replayed.reportPointer.sha256, persisted.reportPointer.sha256);
     assert.equal(canonicalJsonDigest(replayed.report), canonicalJsonDigest(persisted.report));
+
+    const seedReplayRoot = `${projectRoot}/delivery-eval/campaign-seed-drift`;
+    await cp(campaignRoot, seedReplayRoot, { recursive: true });
+    await writeFile(
+      `${seedReplayRoot}/oracle/seed.json`,
+      canonicalJson({
+        schema_version: 1,
+        seed: campaignSeed + 1,
+        oracle_version: "ledger-oracle-v3",
+      }),
+    );
+    await assert.rejects(
+      replayDeliveryEvaluation({
+        campaignRoot: seedReplayRoot,
+        reportPointer: persisted.reportPointer,
+      }),
+      ArtifactIntegrityError,
+    );
 
     const deploymentReplayRoot = `${projectRoot}/delivery-eval/deployment-replay-drift`;
     await cp(campaignRoot, deploymentReplayRoot, { recursive: true });
