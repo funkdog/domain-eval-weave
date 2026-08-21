@@ -3,6 +3,10 @@ import { isAbsolute, relative, resolve } from "node:path";
 
 import { z } from "zod";
 
+import {
+  type CommerceObservationCatalog,
+  parseCommerceObservationCatalog,
+} from "../commerce/catalog.js";
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
 import { type ObservationCatalog, parseObservationCatalog } from "../delivery/contracts.js";
 
@@ -28,7 +32,27 @@ const currentTaskPackSchema = frozenTaskPackSchema.extend({
   oracle_version: z.literal("ledger-oracle-v3"),
 });
 
-export type TaskPack = z.infer<typeof frozenTaskPackSchema>;
+const commerceTaskPackSchema = z.strictObject({
+  schema_version: z.literal(2),
+  template_id: z.literal("commerce-order-cancellation-v1"),
+  task_id: z.literal("open-coding-ts-commerce-order-v1"),
+  eval_pack_id: z.literal("open-coding-commerce-delivery-v1"),
+  base_tree_sha256: sha256Schema,
+  public_task_ref: z.literal("public-task.md"),
+  allowed_candidate_globs: z.tuple([z.literal("src/**")]),
+  forbidden_entry_types: z.tuple([z.literal("symlink"), z.literal("submodule")]),
+  public_test_command: z.tuple([
+    z.literal("node"),
+    z.literal("--test"),
+    z.literal("test/public/*.test.ts"),
+  ]),
+  oracle_version: z.literal("commerce-order-oracle-v1"),
+  calibration_digest: sha256Schema,
+});
+
+const currentPackSchema = z.union([currentTaskPackSchema, commerceTaskPackSchema]);
+
+export type TaskPack = z.infer<typeof currentPackSchema>;
 
 const taskPackIdentitySchema = z.strictObject({
   schema_version: z.literal(1),
@@ -38,7 +62,19 @@ const taskPackIdentitySchema = z.strictObject({
   observation_catalog_sha256: sha256Schema.optional(),
 });
 
-export type TaskPackIdentity = z.infer<typeof taskPackIdentitySchema>;
+const commerceTaskPackIdentitySchema = z.strictObject({
+  schema_version: z.literal(2),
+  template_id: z.literal("commerce-order-cancellation-v1"),
+  pack: commerceTaskPackSchema,
+  public_task_sha256: sha256Schema,
+  oracle_runner_sha256: sha256Schema,
+  observation_catalog_sha256: sha256Schema,
+});
+
+const anyTaskPackIdentitySchema = z.union([taskPackIdentitySchema, commerceTaskPackIdentitySchema]);
+
+export type TaskPackIdentity = z.infer<typeof anyTaskPackIdentitySchema>;
+export type AnyObservationCatalog = ObservationCatalog | CommerceObservationCatalog;
 
 function contained(root: string, target: string): boolean {
   const relation = relative(root, target);
@@ -103,7 +139,7 @@ export async function digestTaskPack(packRoot: string): Promise<string> {
 export async function loadTaskPack(packRoot: string): Promise<TaskPack> {
   if (!isAbsolute(packRoot)) throw new Error("Task Pack root must be absolute");
   const decoded = JSON.parse((await readPhysicalPackFile(packRoot, "pack.json")).toString("utf8"));
-  const pack = currentTaskPackSchema.parse(decoded);
+  const pack = currentPackSchema.parse(decoded);
   const [baseDigest, calibrationDigest] = await Promise.all([
     digestDirectory(resolve(packRoot, "base")),
     digestDirectory(resolve(packRoot, "calibration")),
@@ -126,22 +162,27 @@ export async function loadTaskPackIdentity(packRoot: string): Promise<TaskPackId
     readPhysicalPackFile(packRoot, "oracle/runner.mjs"),
     loadObservationCatalog(packRoot),
   ]);
-  return taskPackIdentitySchema.parse({
-    schema_version: 1,
+  const identity = {
+    schema_version: pack.schema_version,
+    ...(pack.schema_version === 2 ? { template_id: pack.template_id } : {}),
     pack,
     public_task_sha256: sha256Hex(publicTask),
     oracle_runner_sha256: sha256Hex(oracleRunner),
     observation_catalog_sha256: sha256Hex(canonicalJson(observationCatalog)),
-  });
+  };
+  return anyTaskPackIdentitySchema.parse(identity);
 }
 
-export async function loadObservationCatalog(packRoot: string): Promise<ObservationCatalog> {
+export async function loadObservationCatalog(packRoot: string): Promise<AnyObservationCatalog> {
   if (!isAbsolute(packRoot)) throw new Error("Task Pack root must be absolute");
   const source = (await readPhysicalPackFile(packRoot, "claim-observation-catalog.json")).toString(
     "utf8",
   );
-  const catalog = parseObservationCatalog(JSON.parse(source));
   const pack = await loadTaskPack(packRoot);
+  const catalog =
+    pack.schema_version === 2
+      ? parseCommerceObservationCatalog(JSON.parse(source))
+      : parseObservationCatalog(JSON.parse(source));
   if (catalog.task_id !== pack.task_id || catalog.oracle_version !== pack.oracle_version) {
     throw new Error("observation catalog identity does not match the frozen Task Pack");
   }
@@ -149,5 +190,5 @@ export async function loadObservationCatalog(packRoot: string): Promise<Observat
 }
 
 export function parseTaskPackIdentity(input: unknown): TaskPackIdentity {
-  return taskPackIdentitySchema.parse(input);
+  return anyTaskPackIdentitySchema.parse(input);
 }

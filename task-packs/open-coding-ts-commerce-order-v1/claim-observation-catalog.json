@@ -1,0 +1,99 @@
+{
+  "schema_version": 2,
+  "catalog_id": "commerce-order-cancellation-v1",
+  "catalog_version": 1,
+  "task_id": "open-coding-ts-commerce-order-v1",
+  "oracle_version": "commerce-order-oracle-v1",
+  "template_id": "commerce-order-cancellation-v1",
+  "behaviors": [
+    {
+      "behavior_id": "unpaid_cancel_has_no_refund",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "An unpaid cancellation creates no refund.",
+      "risk_weight": 4
+    },
+    {
+      "behavior_id": "paid_unshipped_creates_paid_amount_refund",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "A paid unshipped cancellation requests exactly the paid amount.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "shipped_order_requires_after_sales",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "A shipped order cannot use self-service cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "cancellation_and_refund_states_are_separate",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "Order cancellation and refund completion remain separate states.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "inventory_release_is_exactly_once",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "Inventory reservation is released exactly once.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "coupon_restore_requires_current_eligibility",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "Coupon restoration requires current eligibility.",
+      "risk_weight": 4
+    },
+    {
+      "behavior_id": "customer_ownership_is_enforced",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "Only the order owner can request cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "restart_recovery_preserves_idempotency_and_audit",
+      "template_id": "commerce-order-cancellation-v1",
+      "statement": "Restart recovery preserves idempotency, effects, and audit evidence.",
+      "risk_weight": 5
+    }
+  ],
+  "counterexamples": [
+    {
+      "candidate_id": "red",
+      "expected_failures": [
+        "unpaid_cancel_has_no_refund",
+        "paid_unshipped_creates_paid_amount_refund",
+        "shipped_order_requires_after_sales",
+        "cancellation_and_refund_states_are_separate",
+        "inventory_release_is_exactly_once",
+        "coupon_restore_requires_current_eligibility",
+        "customer_ownership_is_enforced",
+        "restart_recovery_preserves_idempotency_and_audit"
+      ]
+    },
+    {
+      "candidate_id": "mutant-shipped-cancel",
+      "expected_failures": ["shipped_order_requires_after_sales"]
+    },
+    {
+      "candidate_id": "mutant-overrefund",
+      "expected_failures": ["paid_unshipped_creates_paid_amount_refund"]
+    },
+    {
+      "candidate_id": "mutant-double-effects",
+      "expected_failures": [
+        "inventory_release_is_exactly_once",
+        "restart_recovery_preserves_idempotency_and_audit"
+      ]
+    },
+    {
+      "candidate_id": "mutant-coupon-always-restored",
+      "expected_failures": ["coupon_restore_requires_current_eligibility"]
+    },
+    {
+      "candidate_id": "mutant-no-ownership-or-persistence",
+      "expected_failures": [
+        "customer_ownership_is_enforced",
+        "restart_recovery_preserves_idempotency_and_audit"
+      ]
+    }
+  ]
+}

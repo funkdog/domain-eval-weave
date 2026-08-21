@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { canonicalJson } from "../contracts/canonical-json.js";
 import { fingerprintPackageClosure, fingerprintPackageContent } from "../fingerprint/deployment.js";
 import {
-  ACCEPTED_PHASE3A_EVAL_VERSION,
+  ACCEPTED_PHASE3B_EVAL_VERSION,
   authorProfileFiles,
   PINNED_DSH_VERSION,
   verifyFrozenFiles,
@@ -153,7 +153,7 @@ async function verifyLiveAuthorPackage(
   readonly installedManifestPath: string;
   readonly installedContentSha256: string;
 }> {
-  if (input.packageVersion !== ACCEPTED_PHASE3A_EVAL_VERSION) {
+  if (input.packageVersion !== ACCEPTED_PHASE3B_EVAL_VERSION) {
     throw new Error("reviewed package version does not match the frozen Phase 3A release");
   }
   const authorRoot = await physicalDirectory(

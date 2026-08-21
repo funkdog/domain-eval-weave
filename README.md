@@ -13,8 +13,10 @@ interviews, provenance-bound product truth, requirement deltas, deterministic
 source/artifact handoff, and deterministic impact closure. The bounded Phase 3B
 slice compiles confirmed Claims into one frozen deterministic ledger Grader,
 calibrates it against Gold and risk-weighted mutants, runs the existing paired
-Agent Campaign, and emits a replayable five-axis delivery report. It does not run
-a Semantic Judge.
+Agent Campaign, and emits a replayable five-axis delivery report. Phase 3B.1 adds
+one equally bounded commerce template for self-service order cancellation, with
+payment/refund, fulfilment, inventory, coupon, ownership, idempotency, and audit
+truths. It does not run a Semantic Judge or open a runtime template registry.
 
 ## Canonical plans
 
@@ -25,6 +27,7 @@ a Semantic Judge.
 - [Phase 3 product plan](docs/plans/2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
 - [Phase 3A implementation spec](docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [Phase 3B implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
+- [Phase 3B.1 commerce implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
 
 ## Workspace boundary
 
@@ -122,6 +125,18 @@ DSH_EVAL_INSTANCE_ID=clowder-ai \
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder delivery report <campaign-id>
+
+# The general-audience Commerce acceptance case is explicit; Reservation remains
+# the backward-compatible default when --template is omitted.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder delivery run domain-eval \
+    manifests/<commerce-snapshot-id>.json self-service-order-cancellation \
+    --template commerce-order-cancellation-v1
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder delivery report <campaign-id> \
+    --template commerce-order-cancellation-v1
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -130,15 +145,16 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A remains in release acceptance, while
-the bounded Phase 3B implementation contract is active on an isolated successor branch. The
-Phase 3B vertical adds explicit Claim observation bindings, deterministic Claim IR and Oracle Plan
-compilation, actual Gold/red/mutant calibration admission, a single production `delivery run` entry,
-and a replayable report across Requirement Delta, Domain Preservation, Semantic Residual,
-Measurement Validity, and Harness Impact. Its release build physically omits trusted builder siblings;
+Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 3A Author forward slice and the
+Reservation Phase 3B production vertical have completed isolated acceptance and independent replay;
+neither result is presented as full Phase 3 completion. Phase 3B.1 is the bounded second-template
+successor. Both Delivery templates add explicit Claim observation bindings, deterministic Claim IR
+and Oracle Plan compilation, actual Gold/red/mutant calibration admission, one production
+`delivery run` entry, and a replayable report across Requirement Delta, Domain Preservation,
+Semantic Residual, Measurement Validity, and Harness Impact. The release build physically omits trusted builder siblings;
 replay revalidates the entire paired Campaign deployment and rebuilds the Oracle Plan from Claim IR plus
-the frozen observation catalog. Its profile successor accepts only the exact reviewed `2c5c554` Phase 3A
-runner+author package cohort. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+the frozen observation catalog. Its profile successor accepts only the exact accepted `f274e7f` Phase 3B
+runner+author package cohort. The Phase 3A `0.3.0-alpha.1` package adds strict domain artifacts, immutable snapshot replay,
 an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
 evidence, and a management-only confirmation ledger; it is not yet release-accepted.
 The Phase 2 rc.4 release implements the

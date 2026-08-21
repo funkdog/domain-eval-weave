@@ -12,8 +12,9 @@ description: "DSH Eval Lab Phase 3 产品方案：把可信测量内核升级为
 > 本文取代旧路线中“Phase 3 = Calibrated Open-Task Judge”的过窄定义。Phase 3 的正式目标是
 > **Requirements Delivery Evaluation**；Semantic Judge 只属于最后的残差层，不能成为需求交付判定的起点。
 >
-> 当前获准实施的范围是 Phase 3A，以及
-> `2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md` 冻结的 bounded Phase 3B vertical。
+> 当前获准实施的范围是 Phase 3A、
+> `2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md` 冻结的首个 bounded Phase 3B vertical，
+> 以及 `2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md` 冻结的第二个 commerce template。
 > Phase 3C 仍只有产品方向，必须另有 implementation spec 才能开始编码。
 >
 > **Phase 3A scope contraction（2026-08-19）**：本阶段只保留建立可信真相闭环所需的显式 `confirm`。通用
@@ -227,6 +228,10 @@ risk-weighted mutants、counterexamples、grader calibration holdout、repeatabi
 
 Phase 3B 不允许自由代码生成器自己生成 Grader、自己生成 Gold、再自己宣布准入。
 
+Phase 3B.1 只把编译期冻结模板从一个扩为两个：`reservation-ledger-v1` 与
+`commerce-order-cancellation-v1`。它不引入开放注册表；每个 template 仍需独立 Task Pack、行为向量、Gold/mutants、
+校准 expectation 与 release acceptance。
+
 ## 8. Phase 3C — Calibrated Semantic Residual
 
 只有无法转成确定性 Claim 的剩余语义进入 Phase 3C，例如架构适配、可维护性、handoff 理解与开放文档质量。
@@ -344,3 +349,4 @@ Phase 3A 不建设：
 - [Phase 2 implementation spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
 - [Phase 3A implementation spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [Phase 3B implementation spec](./2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
+- [Phase 3B.1 commerce implementation spec](./2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)

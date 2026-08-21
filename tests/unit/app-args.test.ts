@@ -67,6 +67,7 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
       manifestPath: "manifests/reservation-v1.json",
       requirementId: "implement-reservation-ledger",
       timeoutMs: 2_700_000,
+      templateId: "reservation-ledger-v1",
     },
   );
   assert.deepEqual(
@@ -85,12 +86,49 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
       manifestPath: "manifests/reservation-v1.json",
       requirementId: "implement-reservation-ledger",
       timeoutMs: 5_400_000,
+      templateId: "reservation-ledger-v1",
     },
   );
   assert.deepEqual(parseAppArguments(["delivery", "report", "campaign-phase3b"]), {
     kind: "delivery-report",
     campaignId: "campaign-phase3b",
+    templateId: "reservation-ledger-v1",
   });
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
+      "run",
+      "domain-eval",
+      "manifests/commerce-v1.json",
+      "self-service-order-cancellation",
+      "--template",
+      "commerce-order-cancellation-v1",
+      "--timeout-ms",
+      "900000",
+    ]),
+    {
+      kind: "delivery-run",
+      packPath: "domain-eval",
+      manifestPath: "manifests/commerce-v1.json",
+      requirementId: "self-service-order-cancellation",
+      timeoutMs: 900_000,
+      templateId: "commerce-order-cancellation-v1",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
+      "report",
+      "commerce-campaign-v1",
+      "--template",
+      "commerce-order-cancellation-v1",
+    ]),
+    {
+      kind: "delivery-report",
+      campaignId: "commerce-campaign-v1",
+      templateId: "commerce-order-cancellation-v1",
+    },
+  );
   assert.deepEqual(
     parseAppArguments([
       "domain",
@@ -136,6 +174,7 @@ test("artifact-only report failures use the frozen integrity exit family", async
     await executor.execute({
       kind: "delivery-report",
       campaignId: "campaign-that-does-not-exist",
+      templateId: "reservation-ledger-v1",
     }),
     EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
   );
@@ -182,6 +221,16 @@ test("usage failures use the stable exit code and reject runtime-root overrides"
       "5400001",
     ],
     ["delivery", "report", "../campaign"],
+    ["delivery", "report", "campaign", "--template", "unknown-template"],
+    [
+      "delivery",
+      "run",
+      "domain-eval",
+      "manifests/a.json",
+      "requirement",
+      "--template",
+      "unknown-template",
+    ],
     ["run", "--runtime-root", "/tmp/elsewhere"],
     ["run", "--timeout-ms", "0"],
     ["run", "--timeout-ms", "5400001"],

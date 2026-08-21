@@ -4,6 +4,12 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runRealCampaign } from "../campaign/real.js";
+import {
+  CommerceProductionError,
+  renderRealCommerceDelivery,
+  replayRealCommerceDelivery,
+  runRealCommerceDelivery,
+} from "../commerce/production.js";
 import { readArtifactBytesByRef } from "../contracts/artifacts.js";
 import { canonicalJson } from "../contracts/canonical-json.js";
 import { parseCurrentCalibrationEvidence } from "../contracts/parsers.js";
@@ -83,6 +89,7 @@ export async function runRealDeliveryEvaluation(input: {
   readonly requirementId: string;
   readonly timeoutMs: number;
   readonly confirm: (summary: string) => Promise<boolean>;
+  readonly templateId?: "reservation-ledger-v1" | "commerce-order-cancellation-v1";
 }): Promise<{
   readonly campaignId: string;
   readonly evaluationId: string;
@@ -90,6 +97,16 @@ export async function runRealDeliveryEvaluation(input: {
   readonly reportPointer: { readonly ref: string; readonly sha256: string };
   readonly markdownPointer: { readonly ref: string; readonly sha256: string };
 }> {
+  if (input.templateId === "commerce-order-cancellation-v1") {
+    try {
+      return await runRealCommerceDelivery(input);
+    } catch (error) {
+      if (error instanceof CommerceProductionError) {
+        throw new DeliveryProductionError(error.code, error.message);
+      }
+      throw error;
+    }
+  }
   if (
     !Number.isSafeInteger(input.timeoutMs) ||
     input.timeoutMs <= 0 ||
@@ -186,11 +203,25 @@ export async function runRealDeliveryEvaluation(input: {
   };
 }
 
-export function renderDeliveryEvaluationMarkdown(report: DeliveryEvaluationReport): string {
-  return renderDeliveryEvaluationMarkdownInternal(report);
+export function renderDeliveryEvaluationMarkdown(
+  report: unknown,
+  templateId: "reservation-ledger-v1" | "commerce-order-cancellation-v1" = "reservation-ledger-v1",
+): string {
+  return templateId === "commerce-order-cancellation-v1"
+    ? renderRealCommerceDelivery(report)
+    : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
 }
 
-export async function replayRealDeliveryEvaluation(campaignId: string) {
+export async function replayRealDeliveryEvaluation(
+  campaignId: string,
+  templateId: "reservation-ledger-v1" | "commerce-order-cancellation-v1" = "reservation-ledger-v1",
+): Promise<{
+  readonly report: unknown;
+  readonly reportPointer: { readonly ref: string; readonly sha256: string };
+}> {
+  if (templateId === "commerce-order-cancellation-v1") {
+    return replayRealCommerceDelivery(campaignId);
+  }
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(campaignId)) {
     throw new DeliveryProductionError(
       "DELIVERY_CAMPAIGN_ID_INVALID",

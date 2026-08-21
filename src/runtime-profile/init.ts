@@ -29,12 +29,12 @@ export const LEGACY_PHASE2_EVAL_TARBALL_SHA256 =
 export const LEGACY_PHASE2_EVAL_CONTENT_SHA256 =
   "adc309b1e729d0f99e6765af6d46f48d4f3e83753f8662c6888f1c1a7cc4ca65";
 export const LEGACY_PHASE2_EVAL_TARBALL_SIZE = 161_769;
-export const ACCEPTED_PHASE3A_EVAL_VERSION = "0.3.0-alpha.1";
-export const ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256 =
-  "1119b2db18f6b02365fd1ab496611d23346877248cb82a20e9c935378bd2691a";
-export const ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256 =
-  "69c4caefc1e570da2c81dc631b66f3863f3cb7be603036dbc32c3833c9afc738";
-export const ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE = 281_097;
+export const ACCEPTED_PHASE3B_EVAL_VERSION = "0.3.0-alpha.1";
+export const ACCEPTED_PHASE3B_EVAL_TARBALL_SHA256 =
+  "7a240adde5c14596184c2a9a425e40636c51809771b46dbc320860b28b5e8bcd";
+export const ACCEPTED_PHASE3B_EVAL_CONTENT_SHA256 =
+  "cb3f1e27688e5795e2aece8e239390e5be4c2b6c4e6276064d6976a194d156c4";
+export const ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE = 362_247;
 const PROFILE_TRANSACTION_MARKER = ".dsh-eval-profile-transaction";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -561,10 +561,10 @@ const ACCEPTED_LEGACY_PHASE2_PACKAGE: AcceptedPackageEvidence = {
   contentSha256: LEGACY_PHASE2_EVAL_CONTENT_SHA256,
 };
 
-const ACCEPTED_PHASE3A_PREDECESSOR_PACKAGE: AcceptedPackageEvidence = {
-  tarballSha256: ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
-  tarballSize: ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE,
-  contentSha256: ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
+const ACCEPTED_PHASE3B_PREDECESSOR_PACKAGE: AcceptedPackageEvidence = {
+  tarballSha256: ACCEPTED_PHASE3B_EVAL_TARBALL_SHA256,
+  tarballSize: ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE,
+  contentSha256: ACCEPTED_PHASE3B_EVAL_CONTENT_SHA256,
 };
 
 interface PreparedProfileTarget extends Phase3ProfileTarget {
@@ -1051,19 +1051,19 @@ async function inspectPhase3ProfileTarget(
         (await profileInstallState(
           target.root,
           previousPhase3Spec,
-          ACCEPTED_PHASE3A_EVAL_VERSION,
+          ACCEPTED_PHASE3B_EVAL_VERSION,
         )) !== "ready"
       ) {
         throw new ProfileContractError(
           "PROFILE_INSTALL_MISMATCH",
-          "accepted Phase 3A predecessor is not a complete installed profile",
+          "accepted Phase 3 predecessor is not a complete installed profile",
         );
       }
       await verifyAcceptedPackage(
         resolveFrozenPath(target.root, "node_modules/dsh-eval-lab"),
         previousPhase3Spec,
         acceptedPhase3PackageEvidence,
-        "accepted Phase 3A predecessor",
+        "accepted Phase 3 predecessor",
       );
       return {
         state: "replace",
@@ -1099,7 +1099,7 @@ function assertAcceptedPhase3Cohort(preflight: readonly ProfilePreflight[]): voi
   ) {
     throw new ProfileContractError(
       "PROFILE_CONTENT_MISMATCH",
-      "accepted Phase 3A predecessor must be an exact runner and author package set",
+      "accepted Phase 3 predecessor must be an exact runner and author package set",
     );
   }
 }
@@ -1254,7 +1254,7 @@ export async function installPhase3ProfilesAtomically(
   ];
   const legacyPackageEvidence = input.legacyPackageEvidence ?? ACCEPTED_LEGACY_PHASE2_PACKAGE;
   const acceptedPhase3PackageEvidence =
-    input.acceptedPhase3PackageEvidence ?? ACCEPTED_PHASE3A_PREDECESSOR_PACKAGE;
+    input.acceptedPhase3PackageEvidence ?? ACCEPTED_PHASE3B_PREDECESSOR_PACKAGE;
   const preflight: ProfilePreflight[] = [];
   for (const target of targets) {
     const inspection = await inspectPhase3ProfileTarget(

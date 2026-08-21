@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "mutants": [
+    {
+      "candidate_id": "mutant-shipped-cancel",
+      "operations": ["allow_shipped_cancel"]
+    },
+    {
+      "candidate_id": "mutant-overrefund",
+      "operations": ["refund_list_amount"]
+    },
+    {
+      "candidate_id": "mutant-double-effects",
+      "operations": ["duplicate_inventory_on_replay"]
+    },
+    {
+      "candidate_id": "mutant-coupon-always-restored",
+      "operations": ["restore_expired_coupon"]
+    },
+    {
+      "candidate_id": "mutant-no-ownership-or-persistence",
+      "operations": ["disable_ownership", "skip_cancellation_persist"]
+    }
+  ]
+}

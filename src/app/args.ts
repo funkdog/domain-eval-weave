@@ -12,6 +12,8 @@ export const EXIT_CODE = {
 
 export type ExitCode = (typeof EXIT_CODE)[keyof typeof EXIT_CODE];
 
+export type DeliveryTemplateId = "reservation-ledger-v1" | "commerce-order-cancellation-v1";
+
 export type AppInvocation =
   | { readonly kind: "help" }
   | { readonly kind: "version" }
@@ -35,8 +37,13 @@ export type AppInvocation =
       readonly manifestPath: string;
       readonly requirementId: string;
       readonly timeoutMs: number;
+      readonly templateId: DeliveryTemplateId;
     }
-  | { readonly kind: "delivery-report"; readonly campaignId: string }
+  | {
+      readonly kind: "delivery-report";
+      readonly campaignId: string;
+      readonly templateId: DeliveryTemplateId;
+    }
   | { readonly kind: "domain-validate"; readonly packPath: string; readonly manifestPath: string }
   | {
       readonly kind: "domain-impact";
@@ -141,17 +148,30 @@ function parseDeliveryRunArguments(args: readonly string[]): AppInvocation {
     throw new AppUsageError("delivery run requires one valid Requirement id");
   }
   let timeoutMs = DEFAULT_TIMEOUT_MS;
-  if (options.length > 0) {
-    if (options.length !== 2 || options[0] !== "--timeout-ms") {
-      throw new AppUsageError("delivery run accepts only --timeout-ms <positive integer>");
+  let templateId: DeliveryTemplateId = "reservation-ledger-v1";
+  const seen = new Set<string>();
+  for (let index = 0; index < options.length; index += 2) {
+    const option = options[index];
+    const value = options[index + 1];
+    if (option === undefined || value === undefined || seen.has(option)) {
+      throw new AppUsageError("delivery run options require unique name/value pairs");
     }
-    const value = options[1];
-    if (value === undefined || !/^[1-9]\d*$/.test(value)) {
-      throw new AppUsageError("--timeout-ms requires a positive integer");
-    }
-    timeoutMs = Number(value);
-    if (!Number.isSafeInteger(timeoutMs) || timeoutMs > MAX_TIMEOUT_MS) {
-      throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
+    seen.add(option);
+    if (option === "--timeout-ms") {
+      if (!/^[1-9]\d*$/.test(value)) {
+        throw new AppUsageError("--timeout-ms requires a positive integer");
+      }
+      timeoutMs = Number(value);
+      if (!Number.isSafeInteger(timeoutMs) || timeoutMs > MAX_TIMEOUT_MS) {
+        throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
+      }
+    } else if (option === "--template") {
+      if (value !== "reservation-ledger-v1" && value !== "commerce-order-cancellation-v1") {
+        throw new AppUsageError("delivery --template is not a frozen template id");
+      }
+      templateId = value;
+    } else {
+      throw new AppUsageError(`unknown delivery run option: ${option}`);
     }
   }
   return {
@@ -160,6 +180,7 @@ function parseDeliveryRunArguments(args: readonly string[]): AppInvocation {
     manifestPath: parsePackPath(manifestPathValue),
     requirementId,
     timeoutMs,
+    templateId,
   };
 }
 
@@ -258,11 +279,22 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
       if (subcommand === "run") return parseDeliveryRunArguments(deliveryRest);
       if (
         subcommand === "report" &&
-        deliveryRest.length === 1 &&
+        (deliveryRest.length === 1 || deliveryRest.length === 3) &&
         deliveryRest[0] !== undefined &&
         CAMPAIGN_ID_PATTERN.test(deliveryRest[0])
       ) {
-        return { kind: "delivery-report", campaignId: deliveryRest[0] };
+        let templateId: DeliveryTemplateId = "reservation-ledger-v1";
+        if (deliveryRest.length === 3) {
+          const value = deliveryRest[2];
+          if (
+            deliveryRest[1] !== "--template" ||
+            (value !== "reservation-ledger-v1" && value !== "commerce-order-cancellation-v1")
+          ) {
+            throw new AppUsageError("delivery report --template is invalid");
+          }
+          templateId = value;
+        }
+        return { kind: "delivery-report", campaignId: deliveryRest[0], templateId };
       }
       throw new AppUsageError(
         "delivery requires run <pack> <manifest> <requirement-id> or report <campaign-id>",

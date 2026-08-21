@@ -1,0 +1,3907 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/commerce/common.schema.json",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifactPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "behavior": {
+      "enum": [
+        "unpaid_cancel_has_no_refund",
+        "paid_unshipped_creates_paid_amount_refund",
+        "shipped_order_requires_after_sales",
+        "cancellation_and_refund_states_are_separate",
+        "inventory_release_is_exactly_once",
+        "coupon_restore_requires_current_eligibility",
+        "customer_ownership_is_enforced",
+        "restart_recovery_preserves_idempotency_and_audit"
+      ]
+    },
+    "behaviorVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unpaid_cancel_has_no_refund",
+        "paid_unshipped_creates_paid_amount_refund",
+        "shipped_order_requires_after_sales",
+        "cancellation_and_refund_states_are_separate",
+        "inventory_release_is_exactly_once",
+        "coupon_restore_requires_current_eligibility",
+        "customer_ownership_is_enforced",
+        "restart_recovery_preserves_idempotency_and_audit"
+      ],
+      "properties": {
+        "unpaid_cancel_has_no_refund": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "paid_unshipped_creates_paid_amount_refund": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "shipped_order_requires_after_sales": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "cancellation_and_refund_states_are_separate": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "inventory_release_is_exactly_once": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "coupon_restore_requires_current_eligibility": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "customer_ownership_is_enforced": {
+          "enum": ["pass", "fail", "error"]
+        },
+        "restart_recovery_preserves_idempotency_and_audit": {
+          "enum": ["pass", "fail", "error"]
+        }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_to_behaviors", "behavior_to_claims"],
+      "properties": {
+        "claim_to_behaviors": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unshipped_creates_paid_amount_refund",
+                "shipped_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "inventory_release_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "restart_recovery_preserves_idempotency_and_audit"
+              ]
+            },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        },
+        "behavior_to_claims": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unpaid_cancel_has_no_refund",
+            "paid_unshipped_creates_paid_amount_refund",
+            "shipped_order_requires_after_sales",
+            "cancellation_and_refund_states_are_separate",
+            "inventory_release_is_exactly_once",
+            "coupon_restore_requires_current_eligibility",
+            "customer_ownership_is_enforced",
+            "restart_recovery_preserves_idempotency_and_audit"
+          ],
+          "properties": {
+            "unpaid_cancel_has_no_refund": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "paid_unshipped_creates_paid_amount_refund": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "shipped_order_requires_after_sales": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "cancellation_and_refund_states_are_separate": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "inventory_release_is_exactly_once": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "coupon_restore_requires_current_eligibility": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "customer_ownership_is_enforced": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            },
+            "restart_recovery_preserves_idempotency_and_audit": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              },
+              "minItems": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "residual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "axis", "reason_code"],
+      "properties": {
+        "claim_id": {
+          "$ref": "#/$defs/id"
+        },
+        "axis": {
+          "enum": ["requirement_delta", "domain_preservation"]
+        },
+        "reason_code": {
+          "enum": [
+            "OBSERVATION_BINDING_MISSING",
+            "OBSERVATION_TEMPLATE_UNSUPPORTED",
+            "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+          ]
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message", "evidence_refs"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$"
+        },
+        "severity": {
+          "enum": ["info", "warning", "error"]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overall", "dimensions", "reasons"],
+      "properties": {
+        "overall": {
+          "enum": ["valid", "invalid", "insufficient"]
+        },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["outcome", "mechanism", "cost"],
+          "properties": {
+            "outcome": {
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "mechanism": {
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "cost": {
+              "enum": ["valid", "invalid", "insufficient"]
+            }
+          }
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "severity", "message", "evidence_refs"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "severity": {
+                "enum": ["info", "warning", "error"]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "evaluationResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "measurement_validity",
+        "outcome",
+        "mechanism",
+        "cost",
+        "hard_gates",
+        "claim_strength",
+        "effect_claim_eligible"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "measurement_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall", "dimensions", "reasons"],
+          "properties": {
+            "overall": {
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "dimensions": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["outcome", "mechanism", "cost"],
+              "properties": {
+                "outcome": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "mechanism": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "cost": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                }
+              }
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "severity", "message", "evidence_refs"],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  },
+                  "severity": {
+                    "enum": ["info", "warning", "error"]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "outcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "externally_verified_completion",
+            "behavior_vector",
+            "completion_claim",
+            "false_completion_claim"
+          ],
+          "properties": {
+            "externally_verified_completion": {
+              "type": ["boolean", "null"]
+            },
+            "behavior_vector": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unshipped_creates_paid_amount_refund",
+                "shipped_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "inventory_release_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "restart_recovery_preserves_idempotency_and_audit"
+              ],
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unshipped_creates_paid_amount_refund": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "shipped_order_requires_after_sales": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_release_is_exactly_once": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_idempotency_and_audit": {
+                  "enum": ["pass", "fail", "error"]
+                }
+              }
+            },
+            "completion_claim": {
+              "enum": ["complete", "blocked", "absent"]
+            },
+            "false_completion_claim": {
+              "type": ["boolean", "null"]
+            }
+          }
+        },
+        "mechanism": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "goal_created",
+            "goal_rounds_started",
+            "goal_terminal_phase",
+            "tool_calls",
+            "turns",
+            "steps"
+          ],
+          "properties": {
+            "goal_created": {
+              "type": ["boolean", "null"]
+            },
+            "goal_rounds_started": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "goal_terminal_phase": {
+              "type": ["string", "null"],
+              "enum": ["complete", "blocked", "paused", "active", "none", null]
+            },
+            "tool_calls": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "turns": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "steps": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            }
+          }
+        },
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "elapsed_ms",
+            "input_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "failed_tool_calls"
+          ],
+          "properties": {
+            "elapsed_ms": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "input_tokens": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "cached_input_tokens": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "output_tokens": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "failed_tool_calls": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            }
+          }
+        },
+        "hard_gates": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["pass", "fail", "unknown"]
+          }
+        },
+        "claim_strength": {
+          "const": "diagnostic"
+        },
+        "effect_claim_eligible": {
+          "const": false
+        }
+      }
+    },
+    "observationCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "catalog_id",
+        "catalog_version",
+        "task_id",
+        "oracle_version",
+        "template_id",
+        "behaviors",
+        "counterexamples"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "catalog_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "catalog_version": {
+          "const": 1
+        },
+        "task_id": {
+          "const": "open-coding-ts-commerce-order-v1"
+        },
+        "oracle_version": {
+          "const": "commerce-order-oracle-v1"
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "behaviors": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "unpaid_cancel_has_no_refund"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "paid_unshipped_creates_paid_amount_refund"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "shipped_order_requires_after_sales"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "cancellation_and_refund_states_are_separate"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "inventory_release_is_exactly_once"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "coupon_restore_requires_current_eligibility"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "customer_ownership_is_enforced"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+              "properties": {
+                "behavior_id": {
+                  "const": "restart_recovery_preserves_idempotency_and_audit"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              }
+            }
+          ],
+          "items": false,
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "counterexamples": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "red"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "unpaid_cancel_has_no_refund"
+                    },
+                    {
+                      "const": "paid_unshipped_creates_paid_amount_refund"
+                    },
+                    {
+                      "const": "shipped_order_requires_after_sales"
+                    },
+                    {
+                      "const": "cancellation_and_refund_states_are_separate"
+                    },
+                    {
+                      "const": "inventory_release_is_exactly_once"
+                    },
+                    {
+                      "const": "coupon_restore_requires_current_eligibility"
+                    },
+                    {
+                      "const": "customer_ownership_is_enforced"
+                    },
+                    {
+                      "const": "restart_recovery_preserves_idempotency_and_audit"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 8,
+                  "maxItems": 8
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "mutant-shipped-cancel"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "shipped_order_requires_after_sales"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 1,
+                  "maxItems": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "mutant-overrefund"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "paid_unshipped_creates_paid_amount_refund"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 1,
+                  "maxItems": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "mutant-double-effects"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "inventory_release_is_exactly_once"
+                    },
+                    {
+                      "const": "restart_recovery_preserves_idempotency_and_audit"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "mutant-coupon-always-restored"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "coupon_restore_requires_current_eligibility"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 1,
+                  "maxItems": 1
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "expected_failures"],
+              "properties": {
+                "candidate_id": {
+                  "const": "mutant-no-ownership-or-persistence"
+                },
+                "expected_failures": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "const": "customer_ownership_is_enforced"
+                    },
+                    {
+                      "const": "restart_recovery_preserves_idempotency_and_audit"
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            }
+          ],
+          "items": false,
+          "minItems": 6,
+          "maxItems": 6
+        }
+      }
+    },
+    "claimIr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "compiler",
+        "source",
+        "requirement",
+        "claims",
+        "semantic_residual",
+        "traceability"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "compiler": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["compiler_id", "compiler_version"],
+          "properties": {
+            "compiler_id": {
+              "const": "phase3b1-commerce-compiler"
+            },
+            "compiler_version": {
+              "const": 1
+            }
+          }
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "domain_manifest",
+            "contract",
+            "requirement",
+            "task_pack_sha256",
+            "observation_catalog_sha256"
+          ],
+          "properties": {
+            "domain_manifest": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "contract": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "requirement": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "task_pack_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "observation_catalog_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "requirement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requirement_id", "requirement_version", "product_id"],
+          "properties": {
+            "requirement_id": {
+              "$ref": "#/$defs/id"
+            },
+            "requirement_version": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "product_id": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "claim_id",
+              "contract_version",
+              "domain_id",
+              "effect",
+              "axis",
+              "statement_sha256",
+              "false_accept_risk",
+              "false_reject_risk",
+              "dependencies",
+              "observation_bindings"
+            ],
+            "properties": {
+              "claim_id": {
+                "$ref": "#/$defs/id"
+              },
+              "contract_version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "domain_id": {
+                "$ref": "#/$defs/id"
+              },
+              "effect": {
+                "enum": ["uses", "preserves"]
+              },
+              "axis": {
+                "enum": ["requirement_delta", "domain_preservation"]
+              },
+              "statement_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "false_accept_risk": {
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "false_reject_risk": {
+                "enum": ["low", "medium", "high", "critical"]
+              },
+              "dependencies": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/id"
+                },
+                "uniqueItems": true
+              },
+              "observation_bindings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["behavior_id", "entry_sha256"],
+                  "properties": {
+                    "behavior_id": {
+                      "enum": [
+                        "unpaid_cancel_has_no_refund",
+                        "paid_unshipped_creates_paid_amount_refund",
+                        "shipped_order_requires_after_sales",
+                        "cancellation_and_refund_states_are_separate",
+                        "inventory_release_is_exactly_once",
+                        "coupon_restore_requires_current_eligibility",
+                        "customer_ownership_is_enforced",
+                        "restart_recovery_preserves_idempotency_and_audit"
+                      ]
+                    },
+                    "entry_sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          },
+          "minItems": 1
+        },
+        "semantic_residual": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["claim_id", "axis", "reason_code"],
+            "properties": {
+              "claim_id": {
+                "$ref": "#/$defs/id"
+              },
+              "axis": {
+                "enum": ["requirement_delta", "domain_preservation"]
+              },
+              "reason_code": {
+                "enum": [
+                  "OBSERVATION_BINDING_MISSING",
+                  "OBSERVATION_TEMPLATE_UNSUPPORTED",
+                  "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+                ]
+              }
+            }
+          }
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claim_to_behaviors", "behavior_to_claims"],
+          "properties": {
+            "claim_to_behaviors": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/id"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "behavior_to_claims": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unshipped_creates_paid_amount_refund",
+                "shipped_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "inventory_release_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "restart_recovery_preserves_idempotency_and_audit"
+              ],
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "paid_unshipped_creates_paid_amount_refund": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "shipped_order_requires_after_sales": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "inventory_release_is_exactly_once": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "restart_recovery_preserves_idempotency_and_audit": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "oraclePlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "plan_id",
+        "claim_ir_sha256",
+        "task_pack_sha256",
+        "observation_catalog_sha256",
+        "oracle_version",
+        "checks"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "plan_id": {
+          "$ref": "#/$defs/id"
+        },
+        "claim_ir_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "task_pack_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observation_catalog_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "oracle_version": {
+          "const": "commerce-order-oracle-v1"
+        },
+        "checks": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "unpaid_cancel_has_no_refund"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "paid_unshipped_creates_paid_amount_refund"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "shipped_order_requires_after_sales"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "cancellation_and_refund_states_are_separate"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "inventory_release_is_exactly_once"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "coupon_restore_requires_current_eligibility"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "customer_ownership_is_enforced"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "behavior_id",
+                "template_id",
+                "claim_ids",
+                "axes",
+                "risk_weight",
+                "hard_gate"
+              ],
+              "properties": {
+                "behavior_id": {
+                  "const": "restart_recovery_preserves_idempotency_and_audit"
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "claim_ids": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "axes": {
+                  "type": "array",
+                  "items": {
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "risk_weight": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "hard_gate": {
+                  "const": true
+                }
+              }
+            }
+          ],
+          "items": false,
+          "minItems": 8,
+          "maxItems": 8
+        }
+      }
+    },
+    "graderAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "admission_id",
+        "oracle_plan_sha256",
+        "task_pack_sha256",
+        "observation_catalog_sha256",
+        "eval_package_sha256",
+        "calibration",
+        "behavior_coverage",
+        "checks",
+        "status",
+        "diagnostics"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "admission_id": {
+          "$ref": "#/$defs/id"
+        },
+        "oracle_plan_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "task_pack_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observation_catalog_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "eval_package_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["seed", "vectors"],
+          "properties": {
+            "seed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "vectors": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "red",
+                "gold",
+                "mutant-shipped-cancel",
+                "mutant-overrefund",
+                "mutant-double-effects",
+                "mutant-coupon-always-restored",
+                "mutant-no-ownership-or-persistence",
+                "gold-repeat",
+                "gold-next-seed"
+              ],
+              "properties": {
+                "red": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "gold": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "mutant-shipped-cancel": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "mutant-overrefund": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "mutant-double-effects": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "mutant-coupon-always-restored": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "mutant-no-ownership-or-persistence": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "gold-repeat": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                },
+                "gold-next-seed": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ],
+                  "properties": {
+                    "unpaid_cancel_has_no_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "paid_unshipped_creates_paid_amount_refund": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "shipped_order_requires_after_sales": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "cancellation_and_refund_states_are_separate": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "inventory_release_is_exactly_once": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "coupon_restore_requires_current_eligibility": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "customer_ownership_is_enforced": {
+                      "enum": ["pass", "fail", "error"]
+                    },
+                    "restart_recovery_preserves_idempotency_and_audit": {
+                      "enum": ["pass", "fail", "error"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "behavior_coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unpaid_cancel_has_no_refund",
+            "paid_unshipped_creates_paid_amount_refund",
+            "shipped_order_requires_after_sales",
+            "cancellation_and_refund_states_are_separate",
+            "inventory_release_is_exactly_once",
+            "coupon_restore_requires_current_eligibility",
+            "customer_ownership_is_enforced",
+            "restart_recovery_preserves_idempotency_and_audit"
+          ],
+          "properties": {
+            "unpaid_cancel_has_no_refund": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "paid_unshipped_creates_paid_amount_refund": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "shipped_order_requires_after_sales": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "cancellation_and_refund_states_are_separate": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "inventory_release_is_exactly_once": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "coupon_restore_requires_current_eligibility": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "customer_ownership_is_enforced": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "restart_recovery_preserves_idempotency_and_audit": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "red",
+                  "gold",
+                  "mutant-shipped-cancel",
+                  "mutant-overrefund",
+                  "mutant-double-effects",
+                  "mutant-coupon-always-restored",
+                  "mutant-no-ownership-or-persistence",
+                  "gold-repeat",
+                  "gold-next-seed"
+                ]
+              },
+              "uniqueItems": true
+            }
+          }
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "red_detected",
+            "gold_passed",
+            "counterexamples_matched",
+            "repeatable",
+            "seed_stable",
+            "coverage_complete"
+          ],
+          "properties": {
+            "red_detected": {
+              "type": "boolean"
+            },
+            "gold_passed": {
+              "type": "boolean"
+            },
+            "counterexamples_matched": {
+              "type": "boolean"
+            },
+            "repeatable": {
+              "type": "boolean"
+            },
+            "seed_stable": {
+              "type": "boolean"
+            },
+            "coverage_complete": {
+              "type": "boolean"
+            }
+          }
+        },
+        "status": {
+          "enum": ["admitted", "rejected"]
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "campaign_id",
+        "created_at",
+        "domain",
+        "eval_pack_id",
+        "task_pack_digest",
+        "control_variant_digest",
+        "treatment_variant_digest",
+        "deployment",
+        "intervention",
+        "arm_order",
+        "timeout_ms_per_arm",
+        "claim_strength",
+        "effect_claim_eligible"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "campaign_id": {
+          "$ref": "#/$defs/id"
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "Z$"
+        },
+        "domain": {
+          "const": "open-coding-commerce-delivery"
+        },
+        "eval_pack_id": {
+          "const": "open-coding-commerce-delivery-v1"
+        },
+        "task_pack_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "control_variant_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "treatment_variant_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "deployment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["digest", "eval_package_sha256", "qualification", "grader_admission_sha256"],
+          "properties": {
+            "digest": {
+              "$ref": "#/$defs/sha256"
+            },
+            "eval_package_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "qualification": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "ready",
+                "deployment_digest",
+                "session_id",
+                "common_tool_schema_sha256"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": 1
+                },
+                "ready": {
+                  "const": true
+                },
+                "deployment_digest": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "session_id": {
+                  "$ref": "#/$defs/id"
+                },
+                "common_tool_schema_sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "qualification_projection": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source_deployment_digest",
+                "projected_deployment_digest",
+                "source_qualification_sha256"
+              ],
+              "properties": {
+                "source_deployment_digest": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "projected_deployment_digest": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "source_qualification_sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "grader_admission_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "intervention": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "allowed_config_paths"],
+          "properties": {
+            "id": {
+              "const": "dsh-goal-stack"
+            },
+            "allowed_config_paths": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "goal.disabled"
+                },
+                {
+                  "const": "goal-round-driver.disabled"
+                },
+                {
+                  "const": "command-goal.disabled"
+                },
+                {
+                  "const": "tool-goal.disabled"
+                }
+              ],
+              "items": false,
+              "minItems": 4,
+              "maxItems": 4
+            }
+          }
+        },
+        "arm_order": {
+          "enum": [["control", "treatment"], ["treatment", "control"]]
+        },
+        "timeout_ms_per_arm": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5400000
+        },
+        "claim_strength": {
+          "const": "diagnostic"
+        },
+        "effect_claim_eligible": {
+          "const": false
+        }
+      }
+    },
+    "pairedEvaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "campaign_id",
+        "oracle_seed",
+        "measurement_validity",
+        "arms"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "campaign_id": {
+          "$ref": "#/$defs/id"
+        },
+        "oracle_seed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ref", "sha256"],
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "measurement_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall", "dimensions", "reasons"],
+          "properties": {
+            "overall": {
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "dimensions": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["outcome", "mechanism", "cost"],
+              "properties": {
+                "outcome": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "mechanism": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "cost": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                }
+              }
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "severity", "message", "evidence_refs"],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  },
+                  "severity": {
+                    "enum": ["info", "warning", "error"]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "arms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["control", "treatment"],
+          "properties": {
+            "control": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["episode", "oracle", "candidate", "result"],
+              "properties": {
+                "episode": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["ref", "sha256"],
+                  "properties": {
+                    "ref": {
+                      "type": "string",
+                      "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "oracle": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["ref", "sha256"],
+                  "properties": {
+                    "ref": {
+                      "type": "string",
+                      "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                    },
+                    "sha256": {
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "candidate": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["tree", "archive"],
+                  "properties": {
+                    "tree": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{40}$"
+                    },
+                    "archive": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["ref", "sha256"],
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                        },
+                        "sha256": {
+                          "$ref": "#/$defs/sha256"
+                        }
+                      }
+                    }
+                  }
+                },
+                "result": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "schema_version",
+                    "template_id",
+                    "measurement_validity",
+                    "outcome",
+                    "mechanism",
+                    "cost",
+                    "hard_gates",
+                    "claim_strength",
+                    "effect_claim_eligible"
+                  ],
+                  "properties": {
+                    "schema_version": {
+                      "const": 2
+                    },
+                    "template_id": {
+                      "const": "commerce-order-cancellation-v1"
+                    },
+                    "measurement_validity": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["overall", "dimensions", "reasons"],
+                      "properties": {
+                        "overall": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        },
+                        "dimensions": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["outcome", "mechanism", "cost"],
+                          "properties": {
+                            "outcome": {
+                              "enum": ["valid", "invalid", "insufficient"]
+                            },
+                            "mechanism": {
+                              "enum": ["valid", "invalid", "insufficient"]
+                            },
+                            "cost": {
+                              "enum": ["valid", "invalid", "insufficient"]
+                            }
+                          }
+                        },
+                        "reasons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["code", "severity", "message", "evidence_refs"],
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "pattern": "^[A-Z][A-Z0-9_]*$"
+                              },
+                              "severity": {
+                                "enum": ["info", "warning", "error"]
+                              },
+                              "message": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "evidence_refs": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "outcome": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "externally_verified_completion",
+                        "behavior_vector",
+                        "completion_claim",
+                        "false_completion_claim"
+                      ],
+                      "properties": {
+                        "externally_verified_completion": {
+                          "type": ["boolean", "null"]
+                        },
+                        "behavior_vector": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "unpaid_cancel_has_no_refund",
+                            "paid_unshipped_creates_paid_amount_refund",
+                            "shipped_order_requires_after_sales",
+                            "cancellation_and_refund_states_are_separate",
+                            "inventory_release_is_exactly_once",
+                            "coupon_restore_requires_current_eligibility",
+                            "customer_ownership_is_enforced",
+                            "restart_recovery_preserves_idempotency_and_audit"
+                          ],
+                          "properties": {
+                            "unpaid_cancel_has_no_refund": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "paid_unshipped_creates_paid_amount_refund": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "shipped_order_requires_after_sales": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "cancellation_and_refund_states_are_separate": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "inventory_release_is_exactly_once": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "coupon_restore_requires_current_eligibility": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "customer_ownership_is_enforced": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "restart_recovery_preserves_idempotency_and_audit": {
+                              "enum": ["pass", "fail", "error"]
+                            }
+                          }
+                        },
+                        "completion_claim": {
+                          "enum": ["complete", "blocked", "absent"]
+                        },
+                        "false_completion_claim": {
+                          "type": ["boolean", "null"]
+                        }
+                      }
+                    },
+                    "mechanism": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "goal_created",
+                        "goal_rounds_started",
+                        "goal_terminal_phase",
+                        "tool_calls",
+                        "turns",
+                        "steps"
+                      ],
+                      "properties": {
+                        "goal_created": {
+                          "type": ["boolean", "null"]
+                        },
+                        "goal_rounds_started": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "goal_terminal_phase": {
+                          "type": ["string", "null"],
+                          "enum": ["complete", "blocked", "paused", "active", "none", null]
+                        },
+                        "tool_calls": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "integer",
+                            "minimum": 0
+                          }
+                        },
+                        "turns": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "steps": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    "cost": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "elapsed_ms",
+                        "input_tokens",
+                        "cached_input_tokens",
+                        "output_tokens",
+                        "failed_tool_calls"
+                      ],
+                      "properties": {
+                        "elapsed_ms": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "input_tokens": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "cached_input_tokens": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "output_tokens": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        },
+                        "failed_tool_calls": {
+                          "type": ["integer", "null"],
+                          "minimum": 0
+                        }
+                      }
+                    },
+                    "hard_gates": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "enum": ["pass", "fail", "unknown"]
+                      }
+                    },
+                    "claim_strength": {
+                      "const": "diagnostic"
+                    },
+                    "effect_claim_eligible": {
+                      "const": false
+                    }
+                  }
+                }
+              }
+            },
+            "treatment": {
+              "$ref": "#/$defs/pairedEvaluation/properties/arms/properties/control"
+            }
+          }
+        }
+      }
+    },
+    "pairedReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "campaign_id",
+        "experiment_digest",
+        "measurement_validity",
+        "arms",
+        "cost_delta",
+        "evidence",
+        "known_blind_spots",
+        "recommendation",
+        "claim_strength",
+        "effect_claim_eligible"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "campaign_id": {
+          "$ref": "#/$defs/id"
+        },
+        "experiment_digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "measurement_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["overall", "dimensions", "reasons"],
+          "properties": {
+            "overall": {
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "dimensions": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["outcome", "mechanism", "cost"],
+              "properties": {
+                "outcome": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "mechanism": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "cost": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                }
+              }
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["code", "severity", "message", "evidence_refs"],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  },
+                  "severity": {
+                    "enum": ["info", "warning", "error"]
+                  },
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "arms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["control", "treatment"],
+          "properties": {
+            "control": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "template_id",
+                "measurement_validity",
+                "outcome",
+                "mechanism",
+                "cost",
+                "hard_gates",
+                "claim_strength",
+                "effect_claim_eligible"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": 2
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "measurement_validity": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["overall", "dimensions", "reasons"],
+                  "properties": {
+                    "overall": {
+                      "enum": ["valid", "invalid", "insufficient"]
+                    },
+                    "dimensions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["outcome", "mechanism", "cost"],
+                      "properties": {
+                        "outcome": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        },
+                        "mechanism": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        },
+                        "cost": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        }
+                      }
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["code", "severity", "message", "evidence_refs"],
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "pattern": "^[A-Z][A-Z0-9_]*$"
+                          },
+                          "severity": {
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "evidence_refs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "outcome": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "externally_verified_completion",
+                    "behavior_vector",
+                    "completion_claim",
+                    "false_completion_claim"
+                  ],
+                  "properties": {
+                    "externally_verified_completion": {
+                      "type": ["boolean", "null"]
+                    },
+                    "behavior_vector": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "unpaid_cancel_has_no_refund",
+                        "paid_unshipped_creates_paid_amount_refund",
+                        "shipped_order_requires_after_sales",
+                        "cancellation_and_refund_states_are_separate",
+                        "inventory_release_is_exactly_once",
+                        "coupon_restore_requires_current_eligibility",
+                        "customer_ownership_is_enforced",
+                        "restart_recovery_preserves_idempotency_and_audit"
+                      ],
+                      "properties": {
+                        "unpaid_cancel_has_no_refund": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "paid_unshipped_creates_paid_amount_refund": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "shipped_order_requires_after_sales": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "cancellation_and_refund_states_are_separate": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "inventory_release_is_exactly_once": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "coupon_restore_requires_current_eligibility": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "customer_ownership_is_enforced": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "restart_recovery_preserves_idempotency_and_audit": {
+                          "enum": ["pass", "fail", "error"]
+                        }
+                      }
+                    },
+                    "completion_claim": {
+                      "enum": ["complete", "blocked", "absent"]
+                    },
+                    "false_completion_claim": {
+                      "type": ["boolean", "null"]
+                    }
+                  }
+                },
+                "mechanism": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "goal_created",
+                    "goal_rounds_started",
+                    "goal_terminal_phase",
+                    "tool_calls",
+                    "turns",
+                    "steps"
+                  ],
+                  "properties": {
+                    "goal_created": {
+                      "type": ["boolean", "null"]
+                    },
+                    "goal_rounds_started": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "goal_terminal_phase": {
+                      "type": ["string", "null"],
+                      "enum": ["complete", "blocked", "paused", "active", "none", null]
+                    },
+                    "tool_calls": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "turns": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "steps": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    }
+                  }
+                },
+                "cost": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "elapsed_ms",
+                    "input_tokens",
+                    "cached_input_tokens",
+                    "output_tokens",
+                    "failed_tool_calls"
+                  ],
+                  "properties": {
+                    "elapsed_ms": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "input_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "cached_input_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "output_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "failed_tool_calls": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    }
+                  }
+                },
+                "hard_gates": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "enum": ["pass", "fail", "unknown"]
+                  }
+                },
+                "claim_strength": {
+                  "const": "diagnostic"
+                },
+                "effect_claim_eligible": {
+                  "const": false
+                }
+              }
+            },
+            "treatment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema_version",
+                "template_id",
+                "measurement_validity",
+                "outcome",
+                "mechanism",
+                "cost",
+                "hard_gates",
+                "claim_strength",
+                "effect_claim_eligible"
+              ],
+              "properties": {
+                "schema_version": {
+                  "const": 2
+                },
+                "template_id": {
+                  "const": "commerce-order-cancellation-v1"
+                },
+                "measurement_validity": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["overall", "dimensions", "reasons"],
+                  "properties": {
+                    "overall": {
+                      "enum": ["valid", "invalid", "insufficient"]
+                    },
+                    "dimensions": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["outcome", "mechanism", "cost"],
+                      "properties": {
+                        "outcome": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        },
+                        "mechanism": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        },
+                        "cost": {
+                          "enum": ["valid", "invalid", "insufficient"]
+                        }
+                      }
+                    },
+                    "reasons": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["code", "severity", "message", "evidence_refs"],
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "pattern": "^[A-Z][A-Z0-9_]*$"
+                          },
+                          "severity": {
+                            "enum": ["info", "warning", "error"]
+                          },
+                          "message": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "evidence_refs": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "outcome": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "externally_verified_completion",
+                    "behavior_vector",
+                    "completion_claim",
+                    "false_completion_claim"
+                  ],
+                  "properties": {
+                    "externally_verified_completion": {
+                      "type": ["boolean", "null"]
+                    },
+                    "behavior_vector": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "unpaid_cancel_has_no_refund",
+                        "paid_unshipped_creates_paid_amount_refund",
+                        "shipped_order_requires_after_sales",
+                        "cancellation_and_refund_states_are_separate",
+                        "inventory_release_is_exactly_once",
+                        "coupon_restore_requires_current_eligibility",
+                        "customer_ownership_is_enforced",
+                        "restart_recovery_preserves_idempotency_and_audit"
+                      ],
+                      "properties": {
+                        "unpaid_cancel_has_no_refund": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "paid_unshipped_creates_paid_amount_refund": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "shipped_order_requires_after_sales": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "cancellation_and_refund_states_are_separate": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "inventory_release_is_exactly_once": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "coupon_restore_requires_current_eligibility": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "customer_ownership_is_enforced": {
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "restart_recovery_preserves_idempotency_and_audit": {
+                          "enum": ["pass", "fail", "error"]
+                        }
+                      }
+                    },
+                    "completion_claim": {
+                      "enum": ["complete", "blocked", "absent"]
+                    },
+                    "false_completion_claim": {
+                      "type": ["boolean", "null"]
+                    }
+                  }
+                },
+                "mechanism": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "goal_created",
+                    "goal_rounds_started",
+                    "goal_terminal_phase",
+                    "tool_calls",
+                    "turns",
+                    "steps"
+                  ],
+                  "properties": {
+                    "goal_created": {
+                      "type": ["boolean", "null"]
+                    },
+                    "goal_rounds_started": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "goal_terminal_phase": {
+                      "type": ["string", "null"],
+                      "enum": ["complete", "blocked", "paused", "active", "none", null]
+                    },
+                    "tool_calls": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer",
+                        "minimum": 0
+                      }
+                    },
+                    "turns": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "steps": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    }
+                  }
+                },
+                "cost": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "elapsed_ms",
+                    "input_tokens",
+                    "cached_input_tokens",
+                    "output_tokens",
+                    "failed_tool_calls"
+                  ],
+                  "properties": {
+                    "elapsed_ms": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "input_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "cached_input_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "output_tokens": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    },
+                    "failed_tool_calls": {
+                      "type": ["integer", "null"],
+                      "minimum": 0
+                    }
+                  }
+                },
+                "hard_gates": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "enum": ["pass", "fail", "unknown"]
+                  }
+                },
+                "claim_strength": {
+                  "const": "diagnostic"
+                },
+                "effect_claim_eligible": {
+                  "const": false
+                }
+              }
+            }
+          }
+        },
+        "cost_delta": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "elapsed_ms",
+            "input_tokens",
+            "cached_input_tokens",
+            "output_tokens",
+            "failed_tool_calls"
+          ],
+          "properties": {
+            "elapsed_ms": {
+              "type": ["integer", "null"]
+            },
+            "input_tokens": {
+              "type": ["integer", "null"]
+            },
+            "cached_input_tokens": {
+              "type": ["integer", "null"]
+            },
+            "output_tokens": {
+              "type": ["integer", "null"]
+            },
+            "failed_tool_calls": {
+              "type": ["integer", "null"]
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["experiment", "control_episode", "treatment_episode", "evaluation"],
+          "properties": {
+            "experiment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "control_episode": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "treatment_episode": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "evaluation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          }
+        },
+        "known_blind_spots": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "severity", "message", "evidence_refs"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "severity": {
+                "enum": ["info", "warning", "error"]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "recommendation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["action", "rationale_codes"],
+          "properties": {
+            "action": {
+              "enum": ["keep", "keep_baseline", "iterate", "revert", "run_more"]
+            },
+            "rationale_codes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          }
+        },
+        "claim_strength": {
+          "const": "diagnostic"
+        },
+        "effect_claim_eligible": {
+          "const": false
+        }
+      }
+    },
+    "deliveryReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "template_id",
+        "evaluation_id",
+        "source",
+        "verdict",
+        "axes",
+        "traceability"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 2
+        },
+        "template_id": {
+          "const": "commerce-order-cancellation-v1"
+        },
+        "evaluation_id": {
+          "$ref": "#/$defs/id"
+        },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "domain_manifest_sha256",
+            "requirement_sha256",
+            "claim_ir_sha256",
+            "oracle_plan_sha256",
+            "grader_admission_sha256",
+            "campaign_id",
+            "paired_evaluation",
+            "paired_report"
+          ],
+          "properties": {
+            "domain_manifest_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "requirement_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "claim_ir_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "oracle_plan_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "grader_admission_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "campaign_id": {
+              "$ref": "#/$defs/id"
+            },
+            "paired_evaluation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "paired_report": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ref", "sha256"],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          }
+        },
+        "verdict": {
+          "enum": ["accept", "reject", "inconclusive"]
+        },
+        "axes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requirement_delta",
+            "domain_preservation",
+            "semantic_residual",
+            "measurement_validity",
+            "harness_impact"
+          ],
+          "properties": {
+            "requirement_delta": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "claims"],
+              "properties": {
+                "status": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "claims": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["claim_id", "status", "behaviors"],
+                    "properties": {
+                      "claim_id": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "status": {
+                        "enum": ["pass", "fail", "error"]
+                      },
+                      "behaviors": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["behavior_id", "status", "evidence_ref"],
+                          "properties": {
+                            "behavior_id": {
+                              "enum": [
+                                "unpaid_cancel_has_no_refund",
+                                "paid_unshipped_creates_paid_amount_refund",
+                                "shipped_order_requires_after_sales",
+                                "cancellation_and_refund_states_are_separate",
+                                "inventory_release_is_exactly_once",
+                                "coupon_restore_requires_current_eligibility",
+                                "customer_ownership_is_enforced",
+                                "restart_recovery_preserves_idempotency_and_audit"
+                              ]
+                            },
+                            "status": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "evidence_ref": {
+                              "type": "string",
+                              "pattern": "^artifact://campaign/"
+                            }
+                          }
+                        },
+                        "minItems": 1
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "domain_preservation": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "claims"],
+              "properties": {
+                "status": {
+                  "enum": ["pass", "fail", "error"]
+                },
+                "claims": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["claim_id", "status", "behaviors"],
+                    "properties": {
+                      "claim_id": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "status": {
+                        "enum": ["pass", "fail", "error"]
+                      },
+                      "behaviors": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["behavior_id", "status", "evidence_ref"],
+                          "properties": {
+                            "behavior_id": {
+                              "enum": [
+                                "unpaid_cancel_has_no_refund",
+                                "paid_unshipped_creates_paid_amount_refund",
+                                "shipped_order_requires_after_sales",
+                                "cancellation_and_refund_states_are_separate",
+                                "inventory_release_is_exactly_once",
+                                "coupon_restore_requires_current_eligibility",
+                                "customer_ownership_is_enforced",
+                                "restart_recovery_preserves_idempotency_and_audit"
+                              ]
+                            },
+                            "status": {
+                              "enum": ["pass", "fail", "error"]
+                            },
+                            "evidence_ref": {
+                              "type": "string",
+                              "pattern": "^artifact://campaign/"
+                            }
+                          }
+                        },
+                        "minItems": 1
+                      }
+                    }
+                  },
+                  "minItems": 1
+                }
+              }
+            },
+            "semantic_residual": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "claims"],
+              "properties": {
+                "status": {
+                  "enum": ["not_required", "not_evaluated"]
+                },
+                "claims": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["claim_id", "axis", "reason_code"],
+                    "properties": {
+                      "claim_id": {
+                        "$ref": "#/$defs/id"
+                      },
+                      "axis": {
+                        "enum": ["requirement_delta", "domain_preservation"]
+                      },
+                      "reason_code": {
+                        "enum": [
+                          "OBSERVATION_BINDING_MISSING",
+                          "OBSERVATION_TEMPLATE_UNSUPPORTED",
+                          "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "measurement_validity": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "reason_codes"],
+              "properties": {
+                "status": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "reason_codes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "uniqueItems": true
+                }
+              }
+            },
+            "harness_impact": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "changed_behaviors", "cost_delta"],
+              "properties": {
+                "status": {
+                  "enum": ["valid", "invalid", "insufficient"]
+                },
+                "changed_behaviors": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "unpaid_cancel_has_no_refund",
+                      "paid_unshipped_creates_paid_amount_refund",
+                      "shipped_order_requires_after_sales",
+                      "cancellation_and_refund_states_are_separate",
+                      "inventory_release_is_exactly_once",
+                      "coupon_restore_requires_current_eligibility",
+                      "customer_ownership_is_enforced",
+                      "restart_recovery_preserves_idempotency_and_audit"
+                    ]
+                  },
+                  "uniqueItems": true
+                },
+                "cost_delta": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "elapsed_ms",
+                    "input_tokens",
+                    "cached_input_tokens",
+                    "output_tokens",
+                    "failed_tool_calls"
+                  ],
+                  "properties": {
+                    "elapsed_ms": {
+                      "type": ["integer", "null"]
+                    },
+                    "input_tokens": {
+                      "type": ["integer", "null"]
+                    },
+                    "cached_input_tokens": {
+                      "type": ["integer", "null"]
+                    },
+                    "output_tokens": {
+                      "type": ["integer", "null"]
+                    },
+                    "failed_tool_calls": {
+                      "type": ["integer", "null"]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "traceability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claim_to_behaviors", "behavior_to_claims"],
+          "properties": {
+            "claim_to_behaviors": {
+              "type": "object",
+              "propertyNames": {
+                "$ref": "#/$defs/id"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "unpaid_cancel_has_no_refund",
+                    "paid_unshipped_creates_paid_amount_refund",
+                    "shipped_order_requires_after_sales",
+                    "cancellation_and_refund_states_are_separate",
+                    "inventory_release_is_exactly_once",
+                    "coupon_restore_requires_current_eligibility",
+                    "customer_ownership_is_enforced",
+                    "restart_recovery_preserves_idempotency_and_audit"
+                  ]
+                },
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "behavior_to_claims": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unshipped_creates_paid_amount_refund",
+                "shipped_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "inventory_release_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "restart_recovery_preserves_idempotency_and_audit"
+              ],
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "paid_unshipped_creates_paid_amount_refund": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "shipped_order_requires_after_sales": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "inventory_release_is_exactly_once": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "restart_recovery_preserves_idempotency_and_audit": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

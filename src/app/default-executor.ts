@@ -581,7 +581,10 @@ async function runProductDoctor() {
     {
       id: "task-pack",
       run: async () =>
-        void (await loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-ledger-v1`)),
+        void (await Promise.all([
+          loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-ledger-v1`),
+          loadTaskPack(`${packageRoot()}/task-packs/open-coding-ts-commerce-order-v1`),
+        ])),
     },
     {
       id: "phase2-binding",
@@ -633,7 +636,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id> | delivery run <pack> <manifest> <requirement-id> | delivery report <campaign-id>\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id> | delivery run <pack> <manifest> <requirement-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1] | delivery report <campaign-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1]\n",
           );
           return EXIT_CODE.OK;
         case "version":
@@ -730,6 +733,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
             manifestRef: invocation.manifestPath,
             requirementId: invocation.requirementId,
             timeoutMs: invocation.timeoutMs,
+            templateId: invocation.templateId,
             confirm: confirmCampaign,
           });
           this.#stdout(
@@ -738,8 +742,11 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
           return EXIT_CODE.OK;
         }
         case "delivery-report": {
-          const replayed = await replayRealDeliveryEvaluation(invocation.campaignId);
-          this.#stdout(renderDeliveryEvaluationMarkdown(replayed.report));
+          const replayed = await replayRealDeliveryEvaluation(
+            invocation.campaignId,
+            invocation.templateId,
+          );
+          this.#stdout(renderDeliveryEvaluationMarkdown(replayed.report, invocation.templateId));
           return EXIT_CODE.OK;
         }
         case "run": {

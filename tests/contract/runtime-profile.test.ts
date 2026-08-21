@@ -17,9 +17,9 @@ import { sha256Hex } from "../../src/contracts/canonical-json.js";
 import { fingerprintPackageContent } from "../../src/fingerprint/deployment.js";
 import { PHASE3A_AUTHOR } from "../../src/instance.js";
 import {
-  ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
-  ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
-  ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE,
+  ACCEPTED_PHASE3B_EVAL_CONTENT_SHA256,
+  ACCEPTED_PHASE3B_EVAL_TARBALL_SHA256,
+  ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE,
   assertAuthorProfileRoles,
   assertProfileRoles,
   authorProfileFiles,
@@ -34,16 +34,16 @@ import {
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
-test("the Phase 3B successor allowlist pins the reviewed 2c5c554 package bytes", () => {
+test("the Phase 3B.1 successor allowlist pins the accepted f274e7f package bytes", () => {
   assert.equal(
-    ACCEPTED_PHASE3A_EVAL_TARBALL_SHA256,
-    "1119b2db18f6b02365fd1ab496611d23346877248cb82a20e9c935378bd2691a",
+    ACCEPTED_PHASE3B_EVAL_TARBALL_SHA256,
+    "7a240adde5c14596184c2a9a425e40636c51809771b46dbc320860b28b5e8bcd",
   );
   assert.equal(
-    ACCEPTED_PHASE3A_EVAL_CONTENT_SHA256,
-    "69c4caefc1e570da2c81dc631b66f3863f3cb7be603036dbc32c3833c9afc738",
+    ACCEPTED_PHASE3B_EVAL_CONTENT_SHA256,
+    "cb3f1e27688e5795e2aece8e239390e5be4c2b6c4e6276064d6976a194d156c4",
   );
-  assert.equal(ACCEPTED_PHASE3A_EVAL_TARBALL_SIZE, 281_097);
+  assert.equal(ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE, 362_247);
 });
 
 function syntheticProfileLockfile(packageSpec: string): string {
@@ -546,7 +546,7 @@ test("Phase 3 profile preflight binds current package bytes to management", asyn
   }
 });
 
-test("Phase 3 init upgrades the exact accepted Phase 3A predecessor set", async () => {
+test("Phase 3 init upgrades the exact accepted Phase 3 predecessor set", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-`);
@@ -699,7 +699,7 @@ test("Phase 3 successor preflight rejects an accepted and current hybrid set", a
   }
 });
 
-test("Phase 3 successor preflight rejects tampered accepted Phase 3A package bytes", async () => {
+test("Phase 3 successor preflight rejects tampered accepted Phase 3 package bytes", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
   await mkdir(scratchParent, { recursive: true, mode: 0o700 });
   const root = await mkdtemp(`${scratchParent}/profile-phase3-successor-tamper-`);

@@ -222,6 +222,7 @@ async function writeFrozenQualification(path: string, value: unknown): Promise<v
 export async function qualifyCarrier(input: {
   readonly launch: ReturnType<typeof dshLaunch>;
   readonly packageRoot: string;
+  readonly baseRoot?: string;
   readonly commonPatch: string;
   readonly controlPatch: string;
   readonly deploymentDigest: string;
@@ -241,7 +242,7 @@ export async function qualifyCarrier(input: {
 
   const workspace = `${PHASE2_INSTANCE.instanceRoot}/workspaces/qualification-${randomUUID()}`;
   await initializeGitWorkspace(
-    `${input.packageRoot}/task-packs/open-coding-ts-ledger-v1/base`,
+    input.baseRoot ?? `${input.packageRoot}/task-packs/open-coding-ts-ledger-v1/base`,
     workspace,
   );
   const sessionsRoot = PHASE2_INSTANCE.sessionsRoot;
@@ -336,8 +337,11 @@ export interface PreparedRealDeployment {
   readonly evalPackageDigest: string;
 }
 
-export async function prepareRealDeployment(packageRoot: string): Promise<PreparedRealDeployment> {
-  const packRoot = `${packageRoot}/task-packs/open-coding-ts-ledger-v1`;
+export async function prepareRealDeployment(
+  packageRoot: string,
+  packRelativePath = "task-packs/open-coding-ts-ledger-v1",
+): Promise<PreparedRealDeployment> {
+  const packRoot = `${packageRoot}/${packRelativePath}`;
   const pack = await loadTaskPack(packRoot);
   const commonPatch = `${packageRoot}/variants/common.patch.yml`;
   const controlPatch = `${packageRoot}/variants/goal-off.patch.yml`;

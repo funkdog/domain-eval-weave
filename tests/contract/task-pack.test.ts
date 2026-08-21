@@ -9,10 +9,14 @@ import {
   digestTaskPack,
   loadObservationCatalog,
   loadTaskPack,
+  loadTaskPackIdentity,
 } from "../../src/task-pack/loader.js";
 
 const packRoot = fileURLToPath(
   new URL("../../task-packs/open-coding-ts-ledger-v1", import.meta.url),
+);
+const commercePackRoot = fileURLToPath(
+  new URL("../../task-packs/open-coding-ts-commerce-order-v1", import.meta.url),
 );
 
 test("Task Pack manifest binds the base tree and calibration corpus digests", async () => {
@@ -26,6 +30,23 @@ test("Task Pack manifest binds the base tree and calibration corpus digests", as
     ),
     true,
   );
+});
+
+test("the commerce Task Pack binds its exact v2 template, corpus, and catalog", async () => {
+  const [pack, identity, catalog] = await Promise.all([
+    loadTaskPack(commercePackRoot),
+    loadTaskPackIdentity(commercePackRoot),
+    loadObservationCatalog(commercePackRoot),
+  ]);
+  assert.equal(pack.schema_version, 2);
+  assert.equal(pack.task_id, "open-coding-ts-commerce-order-v1");
+  assert.equal(pack.base_tree_sha256, await digestDirectory(`${commercePackRoot}/base`));
+  assert.equal(pack.calibration_digest, await digestDirectory(`${commercePackRoot}/calibration`));
+  assert.equal(identity.schema_version, 2);
+  assert.equal(identity.pack.task_id, pack.task_id);
+  assert.equal(catalog.template_id, "commerce-order-cancellation-v1");
+  assert.equal(catalog.behaviors.length, 8);
+  assert.match(await readFile(`${commercePackRoot}/public-task.md`, "utf8"), /TASK_COMPLETE/);
 });
 
 test("Task Pack digest binds the public task, hidden Oracle, and observation catalog bytes", async () => {

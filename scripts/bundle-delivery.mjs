@@ -45,3 +45,29 @@ for (const moduleName of ["admission", "artifacts", "compiler", "report"]) {
   }
 }
 await rm(resolve(deliveryRoot, "production.js.map"), { force: true });
+
+const commerceRoot = resolve(repositoryRoot, "dist/commerce");
+if (
+  dirname(commerceRoot) !== resolve(repositoryRoot, "dist") ||
+  basename(commerceRoot) !== "commerce"
+) {
+  throw new Error("refusing to prune outside the exact dist/commerce target");
+}
+for (const moduleName of [
+  "admission",
+  "campaign",
+  "campaign-contracts",
+  "campaign-report",
+  "compiler",
+  "delivery-artifacts",
+  "delivery-contracts",
+  "delivery-report",
+  "production",
+  "real-campaign",
+  "replay",
+  "validity",
+]) {
+  for (const extension of ["js", "js.map", "d.ts"]) {
+    await rm(resolve(commerceRoot, `${moduleName}.${extension}`), { force: true });
+  }
+}

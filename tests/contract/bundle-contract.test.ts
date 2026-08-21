@@ -173,6 +173,21 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as Record<string, unknown>;
     assert.equal("bin" in packedManifest, false);
+    const packedCommercePack = JSON.parse(
+      await readFile(
+        join(packageRoot, "task-packs/open-coding-ts-commerce-order-v1/pack.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    assert.equal(packedCommercePack.schema_version, 2);
+    assert.equal(packedCommercePack.template_id, "commerce-order-cancellation-v1");
+    assert.match(
+      await readFile(
+        join(packageRoot, "contracts/commerce/delivery-evaluation-report.schema.json"),
+        "utf8",
+      ),
+      /common\.schema\.json/,
+    );
     assert.equal(
       fingerprintPackageTarContent(await readFile(join(scratch, archive))).contentSha256,
       await fingerprintPackageContent(packageRoot),
@@ -247,6 +262,26 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
         (error: unknown) =>
           error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND",
         `packed delivery sibling ${internalModule}.js must be physically absent`,
+      );
+    }
+    const commerceCatalogUrl = pathToFileURL(join(packageRoot, "dist/commerce/catalog.js"));
+    const commerceCatalog = await import(commerceCatalogUrl.href);
+    assert.equal(typeof commerceCatalog.parseCommerceObservationCatalog, "function");
+    for (const internalModule of [
+      "compiler",
+      "admission",
+      "campaign",
+      "replay",
+      "delivery-artifacts",
+      "delivery-report",
+      "production",
+      "real-campaign",
+    ] as const) {
+      await assert.rejects(
+        import(new URL(`./${internalModule}.js`, commerceCatalogUrl).href),
+        (error: unknown) =>
+          error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND",
+        `packed Commerce sibling ${internalModule}.js must be physically absent`,
       );
     }
     assert.equal(typeof domainSkill.default, "function");
