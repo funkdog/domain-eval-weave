@@ -12,8 +12,9 @@ description: "DSH Eval Lab Phase 3 产品方案：把可信测量内核升级为
 > 本文取代旧路线中“Phase 3 = Calibrated Open-Task Judge”的过窄定义。Phase 3 的正式目标是
 > **Requirements Delivery Evaluation**；Semantic Judge 只属于最后的残差层，不能成为需求交付判定的起点。
 >
-> 当前获准实施的范围只有 Phase 3A。Phase 3B/3C 在本文中冻结产品方向，但各自必须另有 implementation spec
-> 才能开始编码。
+> 当前获准实施的范围是 Phase 3A，以及
+> `2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md` 冻结的 bounded Phase 3B vertical。
+> Phase 3C 仍只有产品方向，必须另有 implementation spec 才能开始编码。
 >
 > **Phase 3A scope contraction（2026-08-19）**：本阶段只保留建立可信真相闭环所需的显式 `confirm`。通用
 > `reject/withdraw`、rejection receipt 历史审计和对象撤销治理后移，不作为 Phase 3A 公开 surface 或验收门槛；候选未获确认时
@@ -342,3 +343,4 @@ Phase 3A 不建设：
 - [Phase 2 product plan](./2026-08-18-dsh-eval-lab-phase-2-product-plan.md)
 - [Phase 2 implementation spec](./2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
 - [Phase 3A implementation spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
+- [Phase 3B implementation spec](./2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)

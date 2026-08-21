@@ -89,10 +89,16 @@ export class OwnerConfirmationLedger {
     await assertPhysicalDirectory(this.#root);
     const path = this.#path(pointer.confirmation_id);
     const entry = await lstat(path);
-    if (entry.isSymbolicLink() || !entry.isFile() || (entry.mode & 0o777) !== 0o600) {
+    if (
+      entry.isSymbolicLink() ||
+      !entry.isFile() ||
+      entry.nlink !== 1 ||
+      (entry.mode & 0o777) !== 0o600 ||
+      (await realpath(path)) !== path
+    ) {
       throw new ConfirmationLedgerError(
         "CONFIRMATION_LEDGER_ENTRY_INVALID",
-        "confirmation ledger entry must be a physical 0600 regular file",
+        "confirmation ledger entry must be a single-link physical 0600 regular file",
       );
     }
     const source = await readFile(path, "utf8");

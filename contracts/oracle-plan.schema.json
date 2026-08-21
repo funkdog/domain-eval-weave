@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/oracle-plan.schema.json",
+  "title": "DSH Eval Lab Oracle Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plan_id",
+    "claim_ir_sha256",
+    "task_pack_sha256",
+    "observation_catalog_sha256",
+    "oracle_version",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "plan_id": { "$ref": "#/$defs/id" },
+    "claim_ir_sha256": { "$ref": "#/$defs/sha256" },
+    "task_pack_sha256": { "$ref": "#/$defs/sha256" },
+    "observation_catalog_sha256": { "$ref": "#/$defs/sha256" },
+    "oracle_version": { "const": "ledger-oracle-v3" },
+    "checks": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "prefixItems": [
+        { "$ref": "#/$defs/basicReservation" },
+        { "$ref": "#/$defs/idempotentReplay" },
+        { "$ref": "#/$defs/conflictingReplay" },
+        { "$ref": "#/$defs/noOversubscription" },
+        { "$ref": "#/$defs/terminalTransition" },
+        { "$ref": "#/$defs/restartRecovery" },
+        { "$ref": "#/$defs/corruptState" },
+        { "$ref": "#/$defs/deterministicSnapshot" }
+      ]
+    }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "axis": { "enum": ["requirement_delta", "domain_preservation"] },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["behavior_id", "template_id", "claim_ids", "axes", "risk_weight", "hard_gate"],
+      "properties": {
+        "behavior_id": { "type": "string" },
+        "template_id": { "const": "reservation-ledger-v1" },
+        "claim_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "axes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/axis" }
+        },
+        "risk_weight": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "hard_gate": { "const": true }
+      }
+    },
+    "basicReservation": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        { "type": "object", "properties": { "behavior_id": { "const": "basic_reservation" } } }
+      ]
+    },
+    "idempotentReplay": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        { "type": "object", "properties": { "behavior_id": { "const": "idempotent_replay" } } }
+      ]
+    },
+    "conflictingReplay": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        {
+          "type": "object",
+          "properties": { "behavior_id": { "const": "conflicting_replay_rejected" } }
+        }
+      ]
+    },
+    "noOversubscription": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        {
+          "type": "object",
+          "properties": { "behavior_id": { "const": "no_oversubscription_concurrent" } }
+        }
+      ]
+    },
+    "terminalTransition": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        {
+          "type": "object",
+          "properties": { "behavior_id": { "const": "terminal_transition_idempotency" } }
+        }
+      ]
+    },
+    "restartRecovery": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        { "type": "object", "properties": { "behavior_id": { "const": "restart_recovery" } } }
+      ]
+    },
+    "corruptState": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        {
+          "type": "object",
+          "properties": { "behavior_id": { "const": "corrupt_state_fail_closed" } }
+        }
+      ]
+    },
+    "deterministicSnapshot": {
+      "allOf": [
+        { "$ref": "#/$defs/check" },
+        { "type": "object", "properties": { "behavior_id": { "const": "deterministic_snapshot" } } }
+      ]
+    }
+  }
+}

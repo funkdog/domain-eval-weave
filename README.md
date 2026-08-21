@@ -8,10 +8,13 @@ Registry. It runs trigger, non-trigger, and holdout paired Campaigns and emits
 replayable multi-task diagnostic evidence without a general uplift claim.
 
 Phase 3 upgrades that trusted measurement kernel into requirements-delivery
-evaluation. The active Phase 3A slice adds a separate domain-authoring plane:
-adaptive domain interviews, provenance-bound product truth, requirement deltas,
-deterministic source/artifact handoff, and deterministic impact closure. It does
-not yet generate graders or run a Semantic Judge.
+evaluation. Phase 3A adds a separate domain-authoring plane: adaptive domain
+interviews, provenance-bound product truth, requirement deltas, deterministic
+source/artifact handoff, and deterministic impact closure. The bounded Phase 3B
+slice compiles confirmed Claims into one frozen deterministic ledger Grader,
+calibrates it against Gold and risk-weighted mutants, runs the existing paired
+Agent Campaign, and emits a replayable five-axis delivery report. It does not run
+a Semantic Judge.
 
 ## Canonical plans
 
@@ -21,6 +24,7 @@ not yet generate graders or run a Semantic Judge.
 - [Phase 2 implementation spec](docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md)
 - [Phase 3 product plan](docs/plans/2026-08-19-dsh-eval-lab-phase-3-product-plan.md)
 - [Phase 3A implementation spec](docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
+- [Phase 3B implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 
 ## Workspace boundary
 
@@ -108,6 +112,16 @@ DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder domain validate domain-eval \
     manifests/<snapshot-id>.json
+
+# Compile the confirmed Requirement, admit the frozen deterministic Grader,
+# run the real two-arm Agent Campaign, and persist the five-axis report.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder delivery run domain-eval \
+    manifests/<snapshot-id>.json <requirement-id>
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder delivery report <campaign-id>
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -116,8 +130,12 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A is the active implementation
-contract. The local `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
+Phase 1 and Phase 2 Milestones 0–4 are complete. Phase 3A remains in release acceptance, while
+the bounded Phase 3B implementation contract is active on an isolated successor branch. The
+Phase 3B vertical adds explicit Claim observation bindings, deterministic Claim IR and Oracle Plan
+compilation, actual Gold/red/mutant calibration admission, a single production `delivery run` entry,
+and a replayable report across Requirement Delta, Domain Preservation, Semantic Residual,
+Measurement Validity, and Harness Impact. The Phase 3A `0.3.0-alpha.1` candidate adds strict domain artifacts, immutable snapshot replay,
 an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
 evidence, and a management-only confirmation ledger; it is not yet release-accepted.
 The Phase 2 rc.4 release implements the

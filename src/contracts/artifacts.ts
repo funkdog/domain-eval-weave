@@ -90,10 +90,10 @@ async function assertReadableRegularArtifact(
   const realRoot = await assertCampaignRoot(campaignRoot);
   const artifactPath = resolveArtifactRef(campaignRoot, ref);
   const artifactStat = await lstat(artifactPath);
-  if (artifactStat.isSymbolicLink() || !artifactStat.isFile()) {
+  if (artifactStat.isSymbolicLink() || !artifactStat.isFile() || artifactStat.nlink !== 1) {
     throw new ArtifactIntegrityError(
       "ARTIFACT_ENTRY_INVALID",
-      "artifact must be a regular file, not a symlink",
+      "artifact must be a single-link regular file",
     );
   }
 

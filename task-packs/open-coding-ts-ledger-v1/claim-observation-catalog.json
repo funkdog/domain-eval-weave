@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "catalog_id": "reservation-ledger-v1",
+  "catalog_version": 1,
+  "task_id": "open-coding-ts-ledger-v1",
+  "oracle_version": "ledger-oracle-v3",
+  "template_id": "reservation-ledger-v1",
+  "behaviors": [
+    {
+      "behavior_id": "basic_reservation",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe basic reservation.",
+      "risk_weight": 3
+    },
+    {
+      "behavior_id": "idempotent_replay",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe idempotent replay.",
+      "risk_weight": 3
+    },
+    {
+      "behavior_id": "conflicting_replay_rejected",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe conflicting replay rejected.",
+      "risk_weight": 3
+    },
+    {
+      "behavior_id": "no_oversubscription_concurrent",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe no oversubscription concurrent.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "terminal_transition_idempotency",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe terminal transition idempotency.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "restart_recovery",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe restart recovery.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "corrupt_state_fail_closed",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe corrupt state fail closed.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "deterministic_snapshot",
+      "template_id": "reservation-ledger-v1",
+      "statement": "Deterministically observe deterministic snapshot.",
+      "risk_weight": 3
+    }
+  ],
+  "counterexamples": [
+    {
+      "candidate_id": "red",
+      "expected_failures": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ]
+    },
+    {
+      "candidate_id": "mutant-no-lock",
+      "expected_failures": ["no_oversubscription_concurrent"]
+    },
+    {
+      "candidate_id": "mutant-no-persistence",
+      "expected_failures": ["restart_recovery"]
+    },
+    {
+      "candidate_id": "mutant-corrupt-resets",
+      "expected_failures": ["corrupt_state_fail_closed"]
+    },
+    {
+      "candidate_id": "mutant-broken-release",
+      "expected_failures": ["terminal_transition_idempotency", "restart_recovery"]
+    },
+    {
+      "candidate_id": "mutant-release-not-persisted",
+      "expected_failures": ["restart_recovery"]
+    }
+  ]
+}

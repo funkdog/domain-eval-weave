@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/claim-ir.schema.json",
+  "title": "DSH Eval Lab Claim IR",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "compiler",
+    "source",
+    "requirement",
+    "claims",
+    "semantic_residual",
+    "traceability"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["compiler_id", "compiler_version"],
+      "properties": {
+        "compiler_id": { "const": "phase3b-deterministic-compiler" },
+        "compiler_version": { "const": 1 }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain_manifest",
+        "contract",
+        "requirement",
+        "task_pack_sha256",
+        "observation_catalog_sha256"
+      ],
+      "properties": {
+        "domain_manifest": { "$ref": "#/$defs/portablePointer" },
+        "contract": { "$ref": "#/$defs/portablePointer" },
+        "requirement": { "$ref": "#/$defs/portablePointer" },
+        "task_pack_sha256": { "$ref": "#/$defs/sha256" },
+        "observation_catalog_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_id", "requirement_version", "product_id"],
+      "properties": {
+        "requirement_id": { "$ref": "#/$defs/id" },
+        "requirement_version": { "type": "integer", "minimum": 1 },
+        "product_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "semantic_residual": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/residual" }
+    },
+    "traceability": { "$ref": "#/$defs/traceability" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "portableRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//).+$"
+    },
+    "portablePointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/portableRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "behaviorId": {
+      "enum": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ]
+    },
+    "axis": { "enum": ["requirement_delta", "domain_preservation"] },
+    "risk": { "enum": ["low", "medium", "high", "critical"] },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["behavior_id", "entry_sha256"],
+      "properties": {
+        "behavior_id": { "$ref": "#/$defs/behaviorId" },
+        "entry_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_id",
+        "contract_version",
+        "domain_id",
+        "effect",
+        "axis",
+        "statement_sha256",
+        "false_accept_risk",
+        "false_reject_risk",
+        "dependencies",
+        "observation_bindings"
+      ],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "contract_version": { "type": "integer", "minimum": 1 },
+        "domain_id": { "$ref": "#/$defs/id" },
+        "effect": { "enum": ["uses", "preserves"] },
+        "axis": { "$ref": "#/$defs/axis" },
+        "statement_sha256": { "$ref": "#/$defs/sha256" },
+        "false_accept_risk": { "$ref": "#/$defs/risk" },
+        "false_reject_risk": { "$ref": "#/$defs/risk" },
+        "dependencies": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "observation_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/binding" }
+        }
+      }
+    },
+    "residual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "axis", "reason_code"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "axis": { "$ref": "#/$defs/axis" },
+        "reason_code": {
+          "enum": [
+            "OBSERVATION_BINDING_MISSING",
+            "OBSERVATION_TEMPLATE_UNSUPPORTED",
+            "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+          ]
+        }
+      }
+    },
+    "behaviorList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/behaviorId" }
+    },
+    "claimList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "behaviorToClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ],
+      "properties": {
+        "basic_reservation": { "$ref": "#/$defs/claimList" },
+        "idempotent_replay": { "$ref": "#/$defs/claimList" },
+        "conflicting_replay_rejected": { "$ref": "#/$defs/claimList" },
+        "no_oversubscription_concurrent": { "$ref": "#/$defs/claimList" },
+        "terminal_transition_idempotency": { "$ref": "#/$defs/claimList" },
+        "restart_recovery": { "$ref": "#/$defs/claimList" },
+        "corrupt_state_fail_closed": { "$ref": "#/$defs/claimList" },
+        "deterministic_snapshot": { "$ref": "#/$defs/claimList" }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_to_behaviors", "behavior_to_claims"],
+      "properties": {
+        "claim_to_behaviors": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/behaviorList" }
+        },
+        "behavior_to_claims": { "$ref": "#/$defs/behaviorToClaims" }
+      }
+    }
+  }
+}

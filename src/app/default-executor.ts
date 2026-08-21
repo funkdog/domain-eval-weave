@@ -30,11 +30,18 @@ import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/cano
 import { parseCurrentCalibrationEvidence, parsePairedImpactReport } from "../contracts/parsers.js";
 import { replayPairedImpactReport } from "../contracts/replay.js";
 import { readSuiteArtifactBytes } from "../contracts/suite-artifacts.js";
+import { renderDeliveryEvaluationMarkdown } from "../delivery/artifacts.js";
+import { DeterministicCompilerError } from "../delivery/compiler.js";
+import {
+  DeliveryProductionError,
+  replayRealDeliveryEvaluation,
+  runRealDeliveryEvaluation,
+} from "../delivery/production.js";
 import { runDoctor } from "../doctor/index.js";
 import type { OwnerConfirmationLedger } from "../domain/confirmation-ledger.js";
 import { impactedByClaim } from "../domain/graph.js";
 import { recordOperatorAuthority } from "../domain/operator-authority.js";
-import { validateDomainPack } from "../domain/pack.js";
+import { DomainPackError, validateDomainPack } from "../domain/pack.js";
 import {
   findPackageRoot,
   fingerprintPackageClosure,
@@ -627,7 +634,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id>\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id> | delivery run <pack> <manifest> <requirement-id> | delivery report <campaign-id>\n",
           );
           return EXIT_CODE.OK;
         case "version":
@@ -711,6 +718,30 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
           });
           this.#stdout(`${canonicalJson(result)}\n`);
           return result.status === "complete" ? EXIT_CODE.OK : EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
+        }
+        case "delivery-run": {
+          const doctor = await runProductDoctor();
+          if (!doctor.ready) {
+            this.#stderr("Runtime doctor is not ready; run `doctor` for the check matrix.\n");
+            return EXIT_CODE.RUNTIME_NOT_READY;
+          }
+          const result = await runRealDeliveryEvaluation({
+            projectRoot: this.#cwd,
+            packRef: invocation.packPath,
+            manifestRef: invocation.manifestPath,
+            requirementId: invocation.requirementId,
+            timeoutMs: invocation.timeoutMs,
+            confirm: confirmCampaign,
+          });
+          this.#stdout(
+            `Delivery Campaign ${result.campaignId} completed with verdict ${result.verdict}. Run delivery report ${result.campaignId}.\n`,
+          );
+          return EXIT_CODE.OK;
+        }
+        case "delivery-report": {
+          const replayed = await replayRealDeliveryEvaluation(invocation.campaignId);
+          this.#stdout(renderDeliveryEvaluationMarkdown(replayed.report));
+          return EXIT_CODE.OK;
         }
         case "run": {
           const doctor = await runProductDoctor();
@@ -802,7 +833,8 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       if (
         error instanceof ArtifactIntegrityError ||
         invocation.kind === "report" ||
-        invocation.kind === "suite-report"
+        invocation.kind === "suite-report" ||
+        invocation.kind === "delivery-report"
       ) {
         exitCode = EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE;
         code = "ARTIFACT_INTEGRITY_FAILURE";
@@ -812,10 +844,16 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       } else if (error instanceof VariantCompositionError) {
         exitCode = EXIT_CODE.VARIANT_COMPOSITION_INVALID;
         code = "VARIANT_COMPOSITION_INVALID";
-      } else if (invocation.kind === "calibrate") {
+      } else if (
+        invocation.kind === "calibrate" ||
+        (error instanceof DeliveryProductionError &&
+          ["DELIVERY_GRADER_NOT_ADMITTED", "DELIVERY_CALIBRATION_DRIFT"].includes(error.code))
+      ) {
         exitCode = EXIT_CODE.CALIBRATION_NOT_READY;
         code = "CALIBRATION_NOT_READY";
       } else if (
+        error instanceof DomainPackError ||
+        error instanceof DeterministicCompilerError ||
         invocation.kind === "domain-validate" ||
         invocation.kind === "domain-impact" ||
         invocation.kind === "domain-authority"

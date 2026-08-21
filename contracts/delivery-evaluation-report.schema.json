@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/delivery-evaluation-report.schema.json",
+  "title": "DSH Eval Lab Delivery Evaluation Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evaluation_id", "source", "verdict", "axes", "traceability"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "evaluation_id": { "$ref": "#/$defs/id" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domain_manifest_sha256",
+        "requirement_sha256",
+        "claim_ir_sha256",
+        "oracle_plan_sha256",
+        "grader_admission_sha256",
+        "campaign_id",
+        "paired_evaluation",
+        "paired_report"
+      ],
+      "properties": {
+        "domain_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "requirement_sha256": { "$ref": "#/$defs/sha256" },
+        "claim_ir_sha256": { "$ref": "#/$defs/sha256" },
+        "oracle_plan_sha256": { "$ref": "#/$defs/sha256" },
+        "grader_admission_sha256": { "$ref": "#/$defs/sha256" },
+        "campaign_id": { "$ref": "#/$defs/id" },
+        "paired_evaluation": { "$ref": "#/$defs/campaignPointer" },
+        "paired_report": { "$ref": "#/$defs/campaignPointer" }
+      }
+    },
+    "verdict": { "enum": ["accept", "reject", "inconclusive"] },
+    "axes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_delta",
+        "domain_preservation",
+        "semantic_residual",
+        "measurement_validity",
+        "harness_impact"
+      ],
+      "properties": {
+        "requirement_delta": { "$ref": "#/$defs/deterministicAxis" },
+        "domain_preservation": { "$ref": "#/$defs/deterministicAxis" },
+        "semantic_residual": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "claims"],
+          "properties": {
+            "status": { "enum": ["not_required", "not_evaluated"] },
+            "claims": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/residual" }
+            }
+          }
+        },
+        "measurement_validity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "reason_codes"],
+          "properties": {
+            "status": { "enum": ["valid", "invalid", "insufficient"] },
+            "reason_codes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
+            }
+          }
+        },
+        "harness_impact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "changed_behaviors", "cost_delta"],
+          "properties": {
+            "status": { "enum": ["valid", "invalid", "insufficient"] },
+            "changed_behaviors": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/behaviorId" }
+            },
+            "cost_delta": { "$ref": "#/$defs/costDelta" }
+          }
+        }
+      }
+    },
+    "traceability": { "$ref": "#/$defs/traceability" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "artifactRef": {
+      "type": "string",
+      "pattern": "^artifact://campaign/(?!\\.{1,2}(?:/|$))(?!.*\\/\\.{1,2}(?:/|$))(?!.*//)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$"
+    },
+    "campaignPointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "sha256"],
+      "properties": {
+        "ref": { "$ref": "#/$defs/artifactRef" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "behaviorId": {
+      "enum": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ]
+    },
+    "axis": { "enum": ["requirement_delta", "domain_preservation"] },
+    "status": { "enum": ["pass", "fail", "error"] },
+    "behaviorResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["behavior_id", "status", "evidence_ref"],
+      "properties": {
+        "behavior_id": { "$ref": "#/$defs/behaviorId" },
+        "status": { "$ref": "#/$defs/status" },
+        "evidence_ref": { "$ref": "#/$defs/artifactRef" }
+      }
+    },
+    "claimResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "status", "behaviors"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "status": { "$ref": "#/$defs/status" },
+        "behaviors": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/behaviorResult" }
+        }
+      }
+    },
+    "deterministicAxis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "claims"],
+      "properties": {
+        "status": { "$ref": "#/$defs/status" },
+        "claims": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/claimResult" }
+        }
+      }
+    },
+    "residual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_id", "axis", "reason_code"],
+      "properties": {
+        "claim_id": { "$ref": "#/$defs/id" },
+        "axis": { "$ref": "#/$defs/axis" },
+        "reason_code": {
+          "enum": [
+            "OBSERVATION_BINDING_MISSING",
+            "OBSERVATION_TEMPLATE_UNSUPPORTED",
+            "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+          ]
+        }
+      }
+    },
+    "nullableInteger": { "type": ["integer", "null"] },
+    "costDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "elapsed_ms",
+        "input_tokens",
+        "cached_input_tokens",
+        "output_tokens",
+        "failed_tool_calls"
+      ],
+      "properties": {
+        "elapsed_ms": { "$ref": "#/$defs/nullableInteger" },
+        "input_tokens": { "$ref": "#/$defs/nullableInteger" },
+        "cached_input_tokens": { "$ref": "#/$defs/nullableInteger" },
+        "output_tokens": { "$ref": "#/$defs/nullableInteger" },
+        "failed_tool_calls": { "$ref": "#/$defs/nullableInteger" }
+      }
+    },
+    "behaviorList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/behaviorId" }
+    },
+    "claimList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/id" }
+    },
+    "behaviorToClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ],
+      "properties": {
+        "basic_reservation": { "$ref": "#/$defs/claimList" },
+        "idempotent_replay": { "$ref": "#/$defs/claimList" },
+        "conflicting_replay_rejected": { "$ref": "#/$defs/claimList" },
+        "no_oversubscription_concurrent": { "$ref": "#/$defs/claimList" },
+        "terminal_transition_idempotency": { "$ref": "#/$defs/claimList" },
+        "restart_recovery": { "$ref": "#/$defs/claimList" },
+        "corrupt_state_fail_closed": { "$ref": "#/$defs/claimList" },
+        "deterministic_snapshot": { "$ref": "#/$defs/claimList" }
+      }
+    },
+    "traceability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_to_behaviors", "behavior_to_claims"],
+      "properties": {
+        "claim_to_behaviors": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/behaviorList" }
+        },
+        "behavior_to_claims": { "$ref": "#/$defs/behaviorToClaims" }
+      }
+    }
+  }
+}

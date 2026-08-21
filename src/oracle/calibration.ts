@@ -1,15 +1,37 @@
 import { cp, mkdir } from "node:fs/promises";
 
-import type { BehaviorVector, LedgerBehavior, LedgerOracle } from "./ledger.js";
+import {
+  type BehaviorVector,
+  LEDGER_BEHAVIORS,
+  type LedgerBehavior,
+  type LedgerOracle,
+} from "./ledger.js";
+
+export const DETAILED_CALIBRATION_CANDIDATES = [
+  "red",
+  "gold",
+  "mutant-no-lock",
+  "mutant-no-persistence",
+  "mutant-corrupt-resets",
+  "mutant-broken-release",
+  "mutant-release-not-persisted",
+  "gold-repeat",
+  "gold-next-seed",
+] as const;
+
+export type DetailedCalibrationCandidate = (typeof DETAILED_CALIBRATION_CANDIDATES)[number];
+
+export interface DetailedCalibrationEvidence {
+  readonly schema_version: 1;
+  readonly vectors: Readonly<Record<DetailedCalibrationCandidate, BehaviorVector>>;
+}
 
 function statuses(vector: BehaviorVector): readonly string[] {
-  return Object.values(vector);
+  return LEDGER_BEHAVIORS.map((behavior) => vector[behavior]);
 }
 
 function failures(vector: BehaviorVector): readonly LedgerBehavior[] {
-  return Object.entries(vector)
-    .filter(([, status]) => status !== "pass")
-    .map(([behavior]) => behavior as LedgerBehavior);
+  return LEDGER_BEHAVIORS.filter((behavior) => vector[behavior] !== "pass");
 }
 
 export interface CalibrationResult {
@@ -28,12 +50,12 @@ export interface CalibrationResult {
   readonly seed_stable: boolean;
 }
 
-export async function calibrateLedgerPack(input: {
+async function evaluateCalibrationVectors(input: {
   readonly oracle: LedgerOracle;
   readonly packRoot: string;
   readonly scratchRoot: string;
   readonly seed: number;
-}): Promise<CalibrationResult> {
+}): Promise<DetailedCalibrationEvidence["vectors"]> {
   const evaluate = async (relativePath: string, suffix: string, seed = input.seed) => {
     const candidateRoot = `${input.scratchRoot}/candidates/${suffix}`;
     await mkdir(`${input.scratchRoot}/candidates`, { recursive: true, mode: 0o700 });
@@ -48,35 +70,84 @@ export async function calibrateLedgerPack(input: {
       `${input.scratchRoot}/checks/${suffix}`,
     );
   };
-  const [
+  const red = await evaluate("base", "red");
+  const gold = await evaluate("calibration/gold-equivalent", "gold");
+  const noLock = await evaluate("calibration/mutant-no-lock", "mutant-no-lock");
+  const noPersistence = await evaluate(
+    "calibration/mutant-no-persistence",
+    "mutant-no-persistence",
+  );
+  const corruptResets = await evaluate(
+    "calibration/mutant-corrupt-resets",
+    "mutant-corrupt-resets",
+  );
+  const brokenRelease = await evaluate(
+    "calibration/mutant-broken-release",
+    "mutant-broken-release",
+  );
+  const releaseNotPersisted = await evaluate(
+    "calibration/mutant-release-not-persisted",
+    "mutant-release-not-persisted",
+  );
+  const repeatedGold = await evaluate("calibration/gold-equivalent", "gold-repeat");
+  const nextSeedGold = await evaluate(
+    "calibration/gold-equivalent",
+    "gold-next-seed",
+    input.seed + 1,
+  );
+  return {
     red,
     gold,
-    noLock,
-    noPersistence,
-    corruptResets,
-    brokenRelease,
-    releaseNotPersisted,
-    repeatedGold,
-    nextSeedGold,
-  ] = await Promise.all([
-    evaluate("base", "red"),
-    evaluate("calibration/gold-equivalent", "gold"),
-    evaluate("calibration/mutant-no-lock", "no-lock"),
-    evaluate("calibration/mutant-no-persistence", "no-persistence"),
-    evaluate("calibration/mutant-corrupt-resets", "corrupt-resets"),
-    evaluate("calibration/mutant-broken-release", "broken-release"),
-    evaluate("calibration/mutant-release-not-persisted", "release-not-persisted"),
-    evaluate("calibration/gold-equivalent", "gold-repeat"),
-    evaluate("calibration/gold-equivalent", "gold-next-seed", input.seed + 1),
-  ]);
+    "mutant-no-lock": noLock,
+    "mutant-no-persistence": noPersistence,
+    "mutant-corrupt-resets": corruptResets,
+    "mutant-broken-release": brokenRelease,
+    "mutant-release-not-persisted": releaseNotPersisted,
+    "gold-repeat": repeatedGold,
+    "gold-next-seed": nextSeedGold,
+  };
+}
+
+export async function calibrateLedgerPackDetailed(input: {
+  readonly oracle: LedgerOracle;
+  readonly packRoot: string;
+  readonly scratchRoot: string;
+  readonly seed: number;
+}): Promise<DetailedCalibrationEvidence> {
+  const vectors = await evaluateCalibrationVectors(input);
+  return {
+    schema_version: 1,
+    vectors,
+  };
+}
+
+export async function calibrateLedgerPack(input: {
+  readonly oracle: LedgerOracle;
+  readonly packRoot: string;
+  readonly scratchRoot: string;
+  readonly seed: number;
+}): Promise<CalibrationResult> {
+  const detailed = await calibrateLedgerPackDetailed(input);
+  return projectCalibrationResult(detailed);
+}
+
+export function projectCalibrationResult(detailed: DetailedCalibrationEvidence): CalibrationResult {
+  const red = detailed.vectors.red;
+  const gold = detailed.vectors.gold;
+  const noLock = detailed.vectors["mutant-no-lock"];
+  const noPersistence = detailed.vectors["mutant-no-persistence"];
+  const corruptResets = detailed.vectors["mutant-corrupt-resets"];
+  const brokenRelease = detailed.vectors["mutant-broken-release"];
+  const releaseNotPersisted = detailed.vectors["mutant-release-not-persisted"];
   const noLockFailures = failures(noLock);
   const noPersistenceFailures = failures(noPersistence);
   const corruptResetsFailures = failures(corruptResets);
   const brokenReleaseFailures = failures(brokenRelease);
   const releaseNotPersistedFailures = failures(releaseNotPersisted);
   const repeatable =
-    input.oracle.canonicalVector(gold) === input.oracle.canonicalVector(repeatedGold);
-  const seedStable = JSON.stringify(statuses(gold)) === JSON.stringify(statuses(nextSeedGold));
+    JSON.stringify(statuses(gold)) === JSON.stringify(statuses(detailed.vectors["gold-repeat"]));
+  const seedStable =
+    JSON.stringify(statuses(gold)) === JSON.stringify(statuses(detailed.vectors["gold-next-seed"]));
   const ready =
     failures(red).length > 0 &&
     failures(gold).length === 0 &&

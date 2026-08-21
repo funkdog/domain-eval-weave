@@ -55,6 +55,44 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
   );
   assert.deepEqual(
     parseAppArguments([
+      "delivery",
+      "run",
+      "domain-eval",
+      "manifests/reservation-v1.json",
+      "implement-reservation-ledger",
+    ]),
+    {
+      kind: "delivery-run",
+      packPath: "domain-eval",
+      manifestPath: "manifests/reservation-v1.json",
+      requirementId: "implement-reservation-ledger",
+      timeoutMs: 2_700_000,
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
+      "run",
+      "domain-eval",
+      "manifests/reservation-v1.json",
+      "implement-reservation-ledger",
+      "--timeout-ms",
+      "5400000",
+    ]),
+    {
+      kind: "delivery-run",
+      packPath: "domain-eval",
+      manifestPath: "manifests/reservation-v1.json",
+      requirementId: "implement-reservation-ledger",
+      timeoutMs: 5_400_000,
+    },
+  );
+  assert.deepEqual(parseAppArguments(["delivery", "report", "campaign-phase3b"]), {
+    kind: "delivery-report",
+    campaignId: "campaign-phase3b",
+  });
+  assert.deepEqual(
+    parseAppArguments([
       "domain",
       "impact",
       "domain-eval",
@@ -94,6 +132,13 @@ test("artifact-only report failures use the frozen integrity exit family", async
     await executor.execute({ kind: "report", campaignId: "campaign-that-does-not-exist" }),
     EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
   );
+  assert.equal(
+    await executor.execute({
+      kind: "delivery-report",
+      campaignId: "campaign-that-does-not-exist",
+    }),
+    EXIT_CODE.ARTIFACT_INTEGRITY_FAILURE,
+  );
   assert.match(stderr, /ARTIFACT_INTEGRITY_FAILURE/);
 });
 
@@ -124,6 +169,19 @@ test("usage failures use the stable exit code and reject runtime-root overrides"
     ["domain", "reject", "domain-eval", "evidence_card", "candidates/a.json", "owner"],
     ["domain", "withdraw", "domain-eval", "requirement_change_set", "candidates/a.json", "owner"],
     ["domain", "confirm", "domain-eval", "claim_transition", "candidates/a.json", "owner"],
+    ["delivery"],
+    ["delivery", "run"],
+    ["delivery", "run", "domain-eval", "manifests/a.json", "../requirement"],
+    [
+      "delivery",
+      "run",
+      "domain-eval",
+      "manifests/a.json",
+      "requirement",
+      "--timeout-ms",
+      "5400001",
+    ],
+    ["delivery", "report", "../campaign"],
     ["run", "--runtime-root", "/tmp/elsewhere"],
     ["run", "--timeout-ms", "0"],
     ["run", "--timeout-ms", "5400001"],

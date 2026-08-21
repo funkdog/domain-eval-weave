@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -595,6 +595,29 @@ test("artifact writes reject symlink parents and reads reject non-canonical JSON
       ),
       (error: unknown) =>
         error instanceof ArtifactIntegrityError && error.code === "ARTIFACT_JSON_NON_CANONICAL",
+    );
+  } finally {
+    await rm(testRoot, { recursive: true, force: true });
+  }
+});
+
+test("artifact replay rejects files with an external hardlink", async () => {
+  const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;
+  await mkdir(scratchParent, { recursive: true, mode: 0o700 });
+  const testRoot = await mkdtemp(`${scratchParent}/artifact-hardlink-`);
+  const campaignRoot = `${testRoot}/campaign`;
+  await mkdir(campaignRoot, { mode: 0o700 });
+  try {
+    const pointer = await writeArtifactBytes(
+      campaignRoot,
+      "artifact://campaign/evidence.txt",
+      "synthetic evidence",
+    );
+    await link(resolveArtifactRef(campaignRoot, pointer.ref), `${testRoot}/external-evidence.txt`);
+    await assert.rejects(
+      readArtifactBytes(campaignRoot, pointer),
+      (error: unknown) =>
+        error instanceof ArtifactIntegrityError && error.code === "ARTIFACT_ENTRY_INVALID",
     );
   } finally {
     await rm(testRoot, { recursive: true, force: true });

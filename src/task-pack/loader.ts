@@ -1,9 +1,10 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 
 import { z } from "zod";
 
 import { canonicalJson, sha256Hex } from "../contracts/canonical-json.js";
+import { type ObservationCatalog, parseObservationCatalog } from "../delivery/contracts.js";
 
 const sha256Schema = z.string().regex(/^[0-9a-f]{64}$/);
 const frozenTaskPackSchema = z.strictObject({
@@ -34,12 +35,44 @@ const taskPackIdentitySchema = z.strictObject({
   pack: frozenTaskPackSchema,
   public_task_sha256: sha256Schema,
   oracle_runner_sha256: sha256Schema,
+  observation_catalog_sha256: sha256Schema.optional(),
 });
 
 export type TaskPackIdentity = z.infer<typeof taskPackIdentitySchema>;
 
+function contained(root: string, target: string): boolean {
+  const relation = relative(root, target);
+  return relation !== "" && !relation.startsWith("..") && !isAbsolute(relation);
+}
+
+async function assertPhysicalDirectory(path: string): Promise<void> {
+  const entry = await lstat(path);
+  if (entry.isSymbolicLink() || !entry.isDirectory() || (await realpath(path)) !== path) {
+    throw new Error("Task Pack root must be a physical directory");
+  }
+}
+
+async function readPhysicalPackFile(packRoot: string, relativePath: string): Promise<Buffer> {
+  const root = resolve(packRoot);
+  await assertPhysicalDirectory(root);
+  const target = resolve(root, relativePath);
+  if (!contained(root, target)) throw new Error("Task Pack ref escapes root");
+  let current = root;
+  for (const segment of relative(root, target).split("/")) {
+    current = resolve(current, segment);
+    const entry = await lstat(current);
+    if (entry.isSymbolicLink()) throw new Error("Task Pack ref crosses a symlink");
+  }
+  const entry = await lstat(target);
+  if (!entry.isFile() || entry.nlink !== 1 || (await realpath(target)) !== target) {
+    throw new Error("Task Pack ref must be a single-link physical file");
+  }
+  return readFile(target);
+}
+
 export async function digestDirectory(root: string): Promise<string> {
   const absoluteRoot = resolve(root);
+  await assertPhysicalDirectory(absoluteRoot);
   const entries: { path: string; sha256: string }[] = [];
   const visit = async (directory: string): Promise<void> => {
     const names = (await readdir(directory)).sort();
@@ -51,10 +84,10 @@ export async function digestDirectory(root: string): Promise<string> {
         throw new Error(`directory digest rejects symlink: ${relativePath}`);
       if (stat.isDirectory()) {
         await visit(path);
-      } else if (stat.isFile()) {
+      } else if (stat.isFile() && stat.nlink === 1 && (await realpath(path)) === path) {
         entries.push({ path: relativePath, sha256: sha256Hex(await readFile(path)) });
       } else {
-        throw new Error(`directory digest rejects special entry: ${relativePath}`);
+        throw new Error(`directory digest rejects non-physical entry: ${relativePath}`);
       }
     }
   };
@@ -69,7 +102,7 @@ export async function digestTaskPack(packRoot: string): Promise<string> {
 
 export async function loadTaskPack(packRoot: string): Promise<TaskPack> {
   if (!isAbsolute(packRoot)) throw new Error("Task Pack root must be absolute");
-  const decoded = JSON.parse(await readFile(resolve(packRoot, "pack.json"), "utf8"));
+  const decoded = JSON.parse((await readPhysicalPackFile(packRoot, "pack.json")).toString("utf8"));
   const pack = currentTaskPackSchema.parse(decoded);
   const [baseDigest, calibrationDigest] = await Promise.all([
     digestDirectory(resolve(packRoot, "base")),
@@ -82,22 +115,37 @@ export async function loadTaskPack(packRoot: string): Promise<TaskPack> {
   const relation = relative(resolve(packRoot), publicTaskPath);
   if (relation.startsWith("..") || isAbsolute(relation))
     throw new Error("Task Pack ref escapes root");
-  await readFile(publicTaskPath);
+  await readPhysicalPackFile(packRoot, pack.public_task_ref);
   return pack;
 }
 
 export async function loadTaskPackIdentity(packRoot: string): Promise<TaskPackIdentity> {
   const pack = await loadTaskPack(packRoot);
-  const [publicTask, oracleRunner] = await Promise.all([
-    readFile(resolve(packRoot, pack.public_task_ref)),
-    readFile(resolve(packRoot, "oracle/runner.mjs")),
+  const [publicTask, oracleRunner, observationCatalog] = await Promise.all([
+    readPhysicalPackFile(packRoot, pack.public_task_ref),
+    readPhysicalPackFile(packRoot, "oracle/runner.mjs"),
+    loadObservationCatalog(packRoot),
   ]);
   return taskPackIdentitySchema.parse({
     schema_version: 1,
     pack,
     public_task_sha256: sha256Hex(publicTask),
     oracle_runner_sha256: sha256Hex(oracleRunner),
+    observation_catalog_sha256: sha256Hex(canonicalJson(observationCatalog)),
   });
+}
+
+export async function loadObservationCatalog(packRoot: string): Promise<ObservationCatalog> {
+  if (!isAbsolute(packRoot)) throw new Error("Task Pack root must be absolute");
+  const source = (await readPhysicalPackFile(packRoot, "claim-observation-catalog.json")).toString(
+    "utf8",
+  );
+  const catalog = parseObservationCatalog(JSON.parse(source));
+  const pack = await loadTaskPack(packRoot);
+  if (catalog.task_id !== pack.task_id || catalog.oracle_version !== pack.oracle_version) {
+    throw new Error("observation catalog identity does not match the frozen Task Pack");
+  }
+  return catalog;
 }
 
 export function parseTaskPackIdentity(input: unknown): TaskPackIdentity {

@@ -29,6 +29,14 @@ export type AppInvocation =
   | { readonly kind: "binding-show" }
   | { readonly kind: "suite-run"; readonly timeoutMs: number }
   | { readonly kind: "suite-report"; readonly suiteId: string }
+  | {
+      readonly kind: "delivery-run";
+      readonly packPath: string;
+      readonly manifestPath: string;
+      readonly requirementId: string;
+      readonly timeoutMs: number;
+    }
+  | { readonly kind: "delivery-report"; readonly campaignId: string }
   | { readonly kind: "domain-validate"; readonly packPath: string; readonly manifestPath: string }
   | {
       readonly kind: "domain-impact";
@@ -127,6 +135,34 @@ function parseSuiteRunArguments(args: readonly string[]): AppInvocation {
   return { kind: "suite-run", timeoutMs };
 }
 
+function parseDeliveryRunArguments(args: readonly string[]): AppInvocation {
+  const [packPathValue, manifestPathValue, requirementId, ...options] = args;
+  if (requirementId === undefined || !CAMPAIGN_ID_PATTERN.test(requirementId)) {
+    throw new AppUsageError("delivery run requires one valid Requirement id");
+  }
+  let timeoutMs = DEFAULT_TIMEOUT_MS;
+  if (options.length > 0) {
+    if (options.length !== 2 || options[0] !== "--timeout-ms") {
+      throw new AppUsageError("delivery run accepts only --timeout-ms <positive integer>");
+    }
+    const value = options[1];
+    if (value === undefined || !/^[1-9]\d*$/.test(value)) {
+      throw new AppUsageError("--timeout-ms requires a positive integer");
+    }
+    timeoutMs = Number(value);
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs > MAX_TIMEOUT_MS) {
+      throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
+    }
+  }
+  return {
+    kind: "delivery-run",
+    packPath: parsePackPath(packPathValue),
+    manifestPath: parsePackPath(manifestPathValue),
+    requirementId,
+    timeoutMs,
+  };
+}
+
 export function parseAppArguments(args: readonly string[]): AppInvocation {
   const [command, ...rest] = args;
   if (command === undefined || command === "--help" || command === "-h" || command === "help") {
@@ -215,6 +251,21 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
       }
       throw new AppUsageError(
         "domain requires validate/impact with an exact manifest or confirm with a supported target",
+      );
+    }
+    case "delivery": {
+      const [subcommand, ...deliveryRest] = rest;
+      if (subcommand === "run") return parseDeliveryRunArguments(deliveryRest);
+      if (
+        subcommand === "report" &&
+        deliveryRest.length === 1 &&
+        deliveryRest[0] !== undefined &&
+        CAMPAIGN_ID_PATTERN.test(deliveryRest[0])
+      ) {
+        return { kind: "delivery-report", campaignId: deliveryRest[0] };
+      }
+      throw new AppUsageError(
+        "delivery requires run <pack> <manifest> <requirement-id> or report <campaign-id>",
       );
     }
     case "report": {

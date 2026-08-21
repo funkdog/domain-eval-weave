@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dsh-eval-lab.local/contracts/grader-admission.schema.json",
+  "title": "DSH Eval Lab Grader Admission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "admission_id",
+    "oracle_plan_sha256",
+    "task_pack_sha256",
+    "observation_catalog_sha256",
+    "eval_package_sha256",
+    "calibration",
+    "behavior_coverage",
+    "checks",
+    "status",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "admission_id": { "$ref": "#/$defs/id" },
+    "oracle_plan_sha256": { "$ref": "#/$defs/sha256" },
+    "task_pack_sha256": { "$ref": "#/$defs/sha256" },
+    "observation_catalog_sha256": { "$ref": "#/$defs/sha256" },
+    "eval_package_sha256": { "$ref": "#/$defs/sha256" },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["seed", "vectors"],
+      "properties": {
+        "seed": { "type": "integer", "minimum": 0 },
+        "vectors": { "$ref": "#/$defs/calibrationVectors" }
+      }
+    },
+    "behavior_coverage": { "$ref": "#/$defs/coverage" },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red_detected",
+        "gold_passed",
+        "counterexamples_matched",
+        "repeatable",
+        "seed_stable",
+        "coverage_complete"
+      ],
+      "properties": {
+        "red_detected": { "type": "boolean" },
+        "gold_passed": { "type": "boolean" },
+        "counterexamples_matched": { "type": "boolean" },
+        "repeatable": { "type": "boolean" },
+        "seed_stable": { "type": "boolean" },
+        "coverage_complete": { "type": "boolean" }
+      }
+    },
+    "status": { "enum": ["admitted", "rejected"] },
+    "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "behaviorId": {
+      "enum": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ]
+    },
+    "behaviorList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/behaviorId" }
+    },
+    "behaviorVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ],
+      "properties": {
+        "basic_reservation": { "enum": ["pass", "fail", "error"] },
+        "idempotent_replay": { "enum": ["pass", "fail", "error"] },
+        "conflicting_replay_rejected": { "enum": ["pass", "fail", "error"] },
+        "no_oversubscription_concurrent": { "enum": ["pass", "fail", "error"] },
+        "terminal_transition_idempotency": { "enum": ["pass", "fail", "error"] },
+        "restart_recovery": { "enum": ["pass", "fail", "error"] },
+        "corrupt_state_fail_closed": { "enum": ["pass", "fail", "error"] },
+        "deterministic_snapshot": { "enum": ["pass", "fail", "error"] }
+      }
+    },
+    "calibrationVectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red",
+        "gold",
+        "mutant-no-lock",
+        "mutant-no-persistence",
+        "mutant-corrupt-resets",
+        "mutant-broken-release",
+        "mutant-release-not-persisted",
+        "gold-repeat",
+        "gold-next-seed"
+      ],
+      "properties": {
+        "red": { "$ref": "#/$defs/behaviorVector" },
+        "gold": { "$ref": "#/$defs/behaviorVector" },
+        "mutant-no-lock": { "$ref": "#/$defs/behaviorVector" },
+        "mutant-no-persistence": { "$ref": "#/$defs/behaviorVector" },
+        "mutant-corrupt-resets": { "$ref": "#/$defs/behaviorVector" },
+        "mutant-broken-release": { "$ref": "#/$defs/behaviorVector" },
+        "mutant-release-not-persisted": { "$ref": "#/$defs/behaviorVector" },
+        "gold-repeat": { "$ref": "#/$defs/behaviorVector" },
+        "gold-next-seed": { "$ref": "#/$defs/behaviorVector" }
+      }
+    },
+    "counterexampleId": {
+      "enum": [
+        "red",
+        "mutant-no-lock",
+        "mutant-no-persistence",
+        "mutant-corrupt-resets",
+        "mutant-broken-release",
+        "mutant-release-not-persisted"
+      ]
+    },
+    "coverageList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/counterexampleId" }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basic_reservation",
+        "idempotent_replay",
+        "conflicting_replay_rejected",
+        "no_oversubscription_concurrent",
+        "terminal_transition_idempotency",
+        "restart_recovery",
+        "corrupt_state_fail_closed",
+        "deterministic_snapshot"
+      ],
+      "properties": {
+        "basic_reservation": { "$ref": "#/$defs/coverageList" },
+        "idempotent_replay": { "$ref": "#/$defs/coverageList" },
+        "conflicting_replay_rejected": { "$ref": "#/$defs/coverageList" },
+        "no_oversubscription_concurrent": { "$ref": "#/$defs/coverageList" },
+        "terminal_transition_idempotency": { "$ref": "#/$defs/coverageList" },
+        "restart_recovery": { "$ref": "#/$defs/coverageList" },
+        "corrupt_state_fail_closed": { "$ref": "#/$defs/coverageList" },
+        "deterministic_snapshot": { "$ref": "#/$defs/coverageList" }
+      }
+    },
+    "actualCounterexample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "actual_failures"],
+      "properties": {
+        "candidate_id": {
+          "enum": [
+            "mutant-no-lock",
+            "mutant-no-persistence",
+            "mutant-corrupt-resets",
+            "mutant-broken-release",
+            "mutant-release-not-persisted"
+          ]
+        },
+        "actual_failures": { "$ref": "#/$defs/behaviorList" }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

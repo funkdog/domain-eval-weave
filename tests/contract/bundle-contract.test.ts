@@ -57,6 +57,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
     "./author-evidence": "./dist/author-evidence/index.js",
     "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
+    "./delivery": "./dist/delivery/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
   });
   assert.deepEqual(manifest.dsh, { bundle: { patch: "./cordis.patch.yml" } });
@@ -187,6 +188,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       authorEvidence,
       authorForwardCarrier,
       bridge,
+      delivery,
       domainSkill,
       skillBody,
     ] = await Promise.all([
@@ -195,6 +197,7 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       import(pathToFileURL(join(packageRoot, "dist/author-evidence/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/carrier/author-forward.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/bridge/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/delivery/index.js")).href),
       import(pathToFileURL(join(packageRoot, "dist/domain/skill-provider.js")).href),
       readFile(join(packageRoot, "skills/design-domain-grader/SKILL.md"), "utf8"),
     ]);
@@ -225,6 +228,11 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
       /input contains an unknown field/,
     );
     assert.equal(typeof bridge.default, "function");
+    assert.equal(typeof delivery.runRealDeliveryEvaluation, "function");
+    assert.equal(typeof delivery.replayRealDeliveryEvaluation, "function");
+    assert.equal("compileValidatedDeterministicGrader" in delivery, false);
+    assert.equal("buildGraderAdmission" in delivery, false);
+    assert.equal("persistDeliveryEvaluation" in delivery, false);
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);
     assert.deepEqual(

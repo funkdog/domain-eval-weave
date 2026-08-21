@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, mkdtemp, readFile, rm, symlink, unlink, writeFile } from "node:fs/promises";
 import test from "node:test";
 
 import { canonicalJson, canonicalJsonDigest } from "../../src/contracts/canonical-json.js";
@@ -285,6 +285,26 @@ test("domain pack path rejects traversal, absolute paths, and symlink roots", as
         DomainPackError,
       );
     }
+  } finally {
+    await rm(project, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("domain pack rejects artifacts hard-linked to an external inode before reading them", async () => {
+  const project = await scratchProject("domain-pack-hardlink");
+  const outside = await scratchProject("domain-pack-hardlink-outside");
+  try {
+    const { packRoot, manifestRef, confirmationLedger } = await writeSyntheticDomainPack(project);
+    const manifestPath = `${packRoot}/${manifestRef}`;
+    const externalPath = `${outside}/external-manifest.json`;
+    await writeFile(externalPath, await readFile(manifestPath), { mode: 0o600 });
+    await unlink(manifestPath);
+    await link(externalPath, manifestPath);
+    await assert.rejects(
+      validateDomainPack(project, "domain-eval", manifestRef, { confirmationLedger }),
+      DomainPackError,
+    );
   } finally {
     await rm(project, { recursive: true, force: true });
     await rm(outside, { recursive: true, force: true });

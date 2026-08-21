@@ -48,6 +48,7 @@ interface Artifact<T> {
 
 export interface ValidatedDomainPack {
   readonly root: string;
+  readonly manifestRef: string;
   readonly manifest: DomainPackManifest;
   readonly interviews: readonly Artifact<DomainInterviewSession>[];
   readonly evidenceCards: readonly Artifact<DomainEvidenceCard>[];
@@ -118,10 +119,10 @@ async function resolvePhysicalFile(packRoot: string, ref: string): Promise<strin
     }
   }
   const entry = await lstat(target);
-  if (!entry.isFile()) {
+  if (!entry.isFile() || entry.nlink !== 1 || (await realpath(target)) !== target) {
     throw new DomainPackError(
       "DOMAIN_PACK_REF_INVALID",
-      `domain pack ref is not a regular file: ${ref}`,
+      `domain pack ref is not a single-link physical file: ${ref}`,
     );
   }
   return target;
@@ -834,6 +835,7 @@ async function validateDomainPackInner(
   }
   return {
     root: packRoot,
+    manifestRef,
     manifest,
     interviews,
     evidenceCards,
