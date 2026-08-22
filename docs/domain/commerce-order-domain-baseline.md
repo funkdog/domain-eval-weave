@@ -227,3 +227,123 @@ IETF Idempotency-Key revision 07 已于 2026-04-18 过期，仍是 Internet-Draf
 | [AWS Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html) | 双写恢复、重复消息 | 实现模式，不是产品政策 |
 
 检索日期为 2026-08-22。所有厂商来源均带自身产品立场；只有被交叉印证或明确降级为 vendor-specific/policy/pattern 的内容进入本文。
+
+## 13. 核心关系闭包
+
+以下关系用于消除术语歧义，不预设数据库表或 ORM：
+
+| Subject | Relationship | Object | 当前范围约束 |
+| --- | --- | --- | --- |
+| Order | contains | one or more Line Items | 保存下单时商品、数量和金额快照；不定义部分取消/发货转换 |
+| Order | references | zero or more Payment attempts | 只有权威 Payment 事实能证明授权或扣款 |
+| Captured Payment | funds | zero or more Refunds | Refund 总额不得超过该支付的剩余可退余额 |
+| Order | references | zero or more Fulfilment work records | 当前验收只选择全单履约路径，但保留服务方和工作身份 |
+| Order / Line Item | causes | Inventory Effects | 预占、消耗、释放、补偿和回库必须有独立效果身份 |
+| Order | retains | zero or more Promotion Applications | 保留历史折扣分摊；复用资格由 Promotion 重新判断 |
+| Command | produces | one Command Decision | 相同 scope + 幂等身份绑定规范化输入和首次权威结果 |
+| Domain Fact | may produce | Integration Events | 事件携带因果/关联身份，但目标领域仍独立决定结果 |
+
+任何跨领域引用只表达身份和已知事实，不允许 Order 通过对象嵌套取得另一个领域的写权限。
+
+## 14. Representative Domain Stories
+
+这些故事是 baseline sufficiency 的固定问题集。`candidate assertion` 可由当前候选 Claims 回答；`owner_policy` 必须由领域负责人裁决，不能由 Author 补全。
+
+| ID | Given / When | 必须得到的领域结论 | 当前分类 |
+| --- | --- | --- | --- |
+| S-01 | 新订单完成有效支付，随后进入履约 | Order、Payment、Fulfilment 保存各自事实；用户状态是派生投影 | candidate assertion |
+| S-02 | 支付授权或扣款失败/超时 | 不得记录为已扣款；是否允许继续履约由产品政策决定 | candidate assertion + owner_policy |
+| S-03 | 未发生扣款的订单请求取消 | 若取消资格成立，不产生 Refund；其他库存/促销效果独立判断 | candidate assertion + owner_policy |
+| S-04 | 已扣款订单在履约前请求取消 | 若取消被接受，退款绑定实付与剩余可退余额；取消不等于退款到账 | candidate assertion + owner_policy |
+| S-05 | 履约服务已受理或进行中时请求取消 | 必须区分订单取消请求、履约撤回请求及各自结果；能否自助撤回待 owner 决定 | owner_policy |
+| S-06 | 已完成承运商交接后请求取消 | 普通取消还是售后/退货属于 owner policy；任何路径都不能伪造退款或回库完成 | owner_policy |
+| S-07 | 非订单授权 actor 发起查询或取消 | 对象级授权拒绝；不产生资金、库存、促销或生命周期副作用 | candidate assertion |
+| S-08 | 完全相同的请求和幂等身份被重放 | 返回/恢复同一权威决定，不重复业务效果 | candidate assertion |
+| S-09 | 同一幂等身份携带不同规范化输入 | 冲突拒绝并产生可追踪证据 | candidate assertion |
+| S-10 | Refund 事件重复或乱序到达 | 消费方去重并根据 Payment 权威事实收敛；不得回退已确认事实 | candidate assertion |
+| S-11 | Inventory 效果在超时、崩溃或重启边界重试 | 保持 pending/unknown 直到权威结果明确；重试不重复效果 | candidate assertion |
+| S-12 | 取消时优惠券资格已变化 | 历史折扣快照不变；是否复用及判断时点由 Promotion owner 决定 | owner_policy |
+
+故事不是最终测试用例。Owner 确认规则后，Domain Author 才能把故事拆成 Rule、Examples、Questions 和可观察行为。
+
+## 15. Command / Rule Decision Tables
+
+| Command | Authority owner | 稳定前置条件 | 成功/受理事实 | 稳定拒绝条件 | 跨域交接与证据 |
+| --- | --- | --- | --- | --- | --- |
+| `CreateOrder` | Order | actor 与输入通过授权/校验；幂等身份无冲突 | `OrderCreated` 与金额/商品快照 durable | 无权限、输入非法、幂等冲突 | 后续支付/库存动作使用独立 request/event identity |
+| `RecordPaymentFact` | Payment | provider 引用和消息通过真实性、schema、重复检查 | 记录授权/扣款/失败的权威事实 | 来源无效、状态倒退、金额/币种不一致 | Integration Event 引用 Payment 与 Order，不直接改写 Order 为“完成” |
+| `SubmitFulfilment` | Fulfilment | Order 提供可履约意图；实际资格由 owner policy | 记录 requested/accepted/pending 等独立事实 | 重复冲突、对象/数量无效、政策拒绝 | 返回 fulfilment work identity 与相关事件 |
+| `RequestOrderCancellation` | Order | 对象级授权、幂等、并发条件；取消资格由 owner policy | 只记录 Order 的 accepted/rejected decision | 非 owner、终态冲突、policy 不允许、幂等冲突 | 退款、履约撤回、库存和促销均为独立后续请求 |
+| `RequestFulfilmentCancellation` | Fulfilment | 已存在可识别 fulfilment work；撤回能力由服务方/policy 决定 | requested/accepted/pending/completed/failed 分离 | 服务方不支持、工作已不可撤回、请求冲突 | 结果事件不得被 Order 提前推断 |
+| `RequestRefund` | Payment | 支付存在、币种一致、金额不超过剩余可退、幂等无冲突 | Refund requested/pending；只有 provider 结果能证明 succeeded | 无有效支付、超额、币种/输入冲突 | 保存 payment/refund/provider/request 关联 |
+| `ApplyInventoryEffect` | Inventory | 效果身份唯一；库存对象、数量和业务原因有效 | applied/pending/failed 的权威效果事实 | 重复冲突、无效库存或路径不允许 | Order 只消费结果；release/restock policy 另行确认 |
+| `EvaluatePromotionReuse` | Promotion | 历史 Application 与当前规则/使用记录可用 | eligible/ineligible decision 及规则依据 | 资料不足、规则版本未知、输入冲突 | 不修改历史折扣快照；恢复效果另有幂等身份 |
+| `CloseOrder` | Order | 关闭所需商业、履约和财务条件由 owner policy 定义且可证明 | `OrderClosed` | 任一必要事实 pending/failed/unknown | 关闭是派生商业终态，不改写其他领域事实 |
+
+表中未确认的 policy 不能成为默认值。Owner 的回答应形成单独 Claim 或 Policy Card，再进入 Contract。
+
+## 16. Claim Evidence Matrix
+
+本文件本身是后续 source snapshot。Domain Pack materialization 时记录本文件的 SHA-256；每条 Claim 使用下列 section locator 和外部一手来源，不维护另一份版本化基线。
+
+| Claim | Baseline locator | External evidence | Applicability | Proposed owner | False-accept risk | 当前可观察面 |
+| --- | --- | --- | --- | --- | --- | --- |
+| C-01 正交状态事实 | `heading:C-01` | Shopify Order；Adobe Order Workflow | 被调研平台的订单/财务/履约模型 | Order + Payment + Fulfilment | high | persisted state faces 与 cross-reference replay |
+| C-02 取消不证明退款结算 | `heading:C-02` | Shopify orderCancel；Adobe Credit Memo；Stripe Refund | 全单取消与退款 | Order + Payment | critical | `cancellation_and_refund_states_are_separate` |
+| C-03 退款绑定支付余额 | `heading:C-03` | Stripe Refund | 当前 full-order/payment scope | Payment | critical | `paid_unshipped_creates_paid_amount_refund` |
+| C-04 金额带币种/表示法 | `heading:C-04` | Stripe Currencies | provider 集成与内部金额契约 | Payment | high | schema/contract guard；当前 Oracle 不完整覆盖 |
+| C-05 对象级授权 | `heading:C-05` | OWASP API1:2023 | 所有 order-id 读写 | Authorization + Order | critical | `customer_ownership_is_enforced` |
+| C-06 重放不重复效果 | `heading:C-06` | Stripe Idempotency/Webhooks | 命令与 integration consumers | 各效果 owner | critical | `inventory_release_is_exactly_once`、restart/idempotency behavior |
+| C-07 请求/受理/完成分离 | `heading:C-07` | Shopify Fulfilment Solutions | 跨 Order/Payment/Fulfilment/Inventory/Promotion 交接 | 发送方 + 接收方 | critical | refund-state separation；其余受影响 Claim 可能 residual |
+| C-08 durable recovery evidence | `heading:C-08` | AWS Outbox/Saga | 分布式状态和消息交接 | 各权威 context + platform | critical | `restart_recovery_preserves_idempotency_and_audit` |
+
+`External evidence` 是 provenance，不直接拥有本产品真相；最终 Claim 仍需 owner 确认其 applicability、风险与 wording。
+
+## 17. Baseline Sufficiency Gate
+
+```yaml
+metric_birth_certificate:
+  utility_claim: >
+    所有适用维度 ready，表示 Domain Author 和后续 Requirement 可以在不猜测
+    领域规则的情况下抽取 Claims、暴露政策问题并计算影响。
+  estimator: >
+    对固定的 scope、关系、12 个 Domain Stories、Command/Rule 表、Claim Evidence Matrix
+    和 owner-policy slots 逐维判定 ready / partial / missing / owner_policy / out_of_scope；
+    不排除未回答项，不计算综合分。
+  validity_bounds: >
+    仅适用于本文声明的全单订单范围；引入部分订单、退货、税费、跨境、欺诈、
+    分账或会计总账后必须扩展问题集并重新审阅。
+  consumer: >
+    co-creator 用它决定是否允许 Domain Author 抽取候选 Cards，以及是否允许
+    management profile 签发 Product Domain Contract。
+  calibration_plan: >
+    用缺 owner、缺拒绝路径、来源不可定位、请求与完成混同、实现模式冒充业务真相、
+    静默默认 policy 的 mutant 文档验证 Gate 必须拒绝。
+  repeatability_contract: >
+    同一 baseline bytes、source snapshot 和固定问题集必须得到相同维度结果；
+    Author 叙述、章节顺序或措辞热情不得改变 Gate。
+```
+
+### 当前维度结果
+
+| Dimension | Result | Evidence / remaining condition |
+| --- | --- | --- |
+| scope | ready | in-scope 与 exclusions 明确 |
+| ubiquitous_language | ready | 核心概念和事实所有者已定义 |
+| authority_closure | ready | 六个业务 authority + 横切能力边界明确 |
+| static_relationships | ready | §13 关系、cardinality 与当前范围约束 |
+| behavioral_scenarios | ready_for_owner_review | §14 覆盖正常、拒绝、重复、乱序、失败和恢复 |
+| command_rule_closure | ready_for_owner_review | §15 稳定规则与 policy 空位分离 |
+| failure_recovery | ready_for_owner_review | §8、S-08..S-11 与 Command 表形成闭包 |
+| handoff_closure | ready | request/accepted/pending/completed/failed 分离 |
+| provenance | ready_for_snapshot | §16 locator 与来源齐全；物化时绑定本文件 digest |
+| observation_coverage | partial | C-04、C-07 等超出当前冻结 Commerce Oracle 的部分必须 residual |
+| owner_policy | owner_policy | §9 十项需要 operator 回答，不允许静默默认 |
+| owner_confirmation | missing | 尚未写入 authority ledger，这是当前预期状态 |
+
+### 两个不同终态
+
+- `author_discovery_ready`：成立。不存在隐含默认值；未决项均显式标为 `owner_policy` 或 `partial`，可以让 Author 抽取候选 Claims/Questions。
+- `product_domain_contract_ready`：不成立。必须先完成 owner-policy 回答、source snapshot digest materialization、Evidence Card 审阅与 management confirmation。
+
+任何在范围内的问题必须落入 `answered_with_evidence / owner_policy / out_of_scope` 三者之一；出现 `implicit / unknown_without_question / unverifiable_source` 时，Gate 直接失败。
