@@ -18,6 +18,9 @@ const packRoot = fileURLToPath(
 const commercePackRoot = fileURLToPath(
   new URL("../../task-packs/open-coding-ts-commerce-order-v1", import.meta.url),
 );
+const commerceWithdrawalPackRoot = fileURLToPath(
+  new URL("../../task-packs/open-coding-ts-commerce-order-v2", import.meta.url),
+);
 
 test("Task Pack manifest binds the base tree and calibration corpus digests", async () => {
   const pack = await loadTaskPack(packRoot);
@@ -47,6 +50,30 @@ test("the commerce Task Pack binds its exact v2 template, corpus, and catalog", 
   assert.equal(catalog.template_id, "commerce-order-cancellation-v1");
   assert.equal(catalog.behaviors.length, 8);
   assert.match(await readFile(`${commercePackRoot}/public-task.md`, "utf8"), /TASK_COMPLETE/);
+});
+
+test("the commerce withdrawal successor binds its own task, Oracle, and sixteen behaviors", async () => {
+  const [pack, identity, catalog] = await Promise.all([
+    loadTaskPack(commerceWithdrawalPackRoot),
+    loadTaskPackIdentity(commerceWithdrawalPackRoot),
+    loadObservationCatalog(commerceWithdrawalPackRoot),
+  ]);
+  assert.equal(pack.schema_version, 2);
+  assert.equal(pack.template_id, "commerce-order-cancellation-v2");
+  assert.equal(pack.task_id, "open-coding-ts-commerce-order-v2");
+  assert.equal(pack.base_tree_sha256, await digestDirectory(`${commerceWithdrawalPackRoot}/base`));
+  assert.equal(
+    pack.calibration_digest,
+    await digestDirectory(`${commerceWithdrawalPackRoot}/calibration`),
+  );
+  assert.equal(identity.schema_version, 2);
+  assert.equal(identity.template_id, "commerce-order-cancellation-v2");
+  assert.equal(catalog.template_id, "commerce-order-cancellation-v2");
+  assert.equal(catalog.behaviors.length, 16);
+  assert.match(
+    await readFile(`${commerceWithdrawalPackRoot}/public-task.md`, "utf8"),
+    /TASK_COMPLETE/,
+  );
 });
 
 test("Task Pack digest binds the public task, hidden Oracle, and observation catalog bytes", async () => {

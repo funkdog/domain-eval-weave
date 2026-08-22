@@ -88,19 +88,18 @@ test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay 
   assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
 });
 
-test("the Commerce experience guide contains concrete operator judgments", async () => {
+test("the current Commerce experience guide exposes the withdrawal successor journey", async () => {
   const guide = await readFile(
-    new URL(
-      "../../docs/guides/2026-08-21-phase3b1-commerce-experience-acceptance.md",
-      import.meta.url,
-    ),
+    new URL("../../docs/guides/commerce-experience-acceptance.md", import.meta.url),
     "utf8",
   );
   assert.match(guide, /实付 80/);
   assert.match(guide, /订单已取消.*退款已成功/);
   assert.match(guide, /库存.*优惠券/);
   assert.match(guide, /已发货.*他人订单/);
-  assert.match(guide, /--template commerce-order-cancellation-v1/);
+  assert.match(guide, /履约撤回/);
+  assert.match(guide, /16 个固定 behavior/);
+  assert.match(guide, /--template commerce-order-cancellation-v2/);
 });
 
 test("bundle defaults to management app only and keeps Candidate/authoring surfaces disabled", async () => {
@@ -196,12 +195,28 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     ) as Record<string, unknown>;
     assert.equal(packedCommercePack.schema_version, 2);
     assert.equal(packedCommercePack.template_id, "commerce-order-cancellation-v1");
+    const packedCommerceWithdrawalPack = JSON.parse(
+      await readFile(
+        join(packageRoot, "task-packs/open-coding-ts-commerce-order-v2/pack.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    assert.equal(packedCommerceWithdrawalPack.schema_version, 2);
+    assert.equal(packedCommerceWithdrawalPack.template_id, "commerce-order-cancellation-v2");
     assert.match(
       await readFile(
         join(packageRoot, "contracts/commerce/delivery-evaluation-report.schema.json"),
         "utf8",
       ),
       /common\.schema\.json/,
+    );
+    assert.doesNotMatch(
+      await readFile(
+        join(packageRoot, "contracts/commerce-withdrawal/delivery-evaluation-report.schema.json"),
+        "utf8",
+      ),
+      /common\.schema\.json/,
+      "the v2 generated contract must be self-contained in the packed artifact",
     );
     assert.equal(
       fingerprintPackageTarContent(await readFile(join(scratch, archive))).contentSha256,
@@ -299,6 +314,45 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
         `packed Commerce sibling ${internalModule}.js must be physically absent`,
       );
     }
+    const commerceWithdrawalCatalogUrl = pathToFileURL(
+      join(packageRoot, "dist/commerce-withdrawal/catalog.js"),
+    );
+    const commerceWithdrawalCatalog = await import(commerceWithdrawalCatalogUrl.href);
+    assert.equal(typeof commerceWithdrawalCatalog.parseCommerceObservationCatalog, "function");
+    for (const internalModule of [
+      "compiler",
+      "admission",
+      "campaign",
+      "replay",
+      "delivery-artifacts",
+      "delivery-report",
+      "production",
+      "real-campaign",
+    ] as const) {
+      await assert.rejects(
+        import(new URL(`./${internalModule}.js`, commerceWithdrawalCatalogUrl).href),
+        (error: unknown) =>
+          error instanceof Error && "code" in error && error.code === "ERR_MODULE_NOT_FOUND",
+        `packed Commerce withdrawal sibling ${internalModule}.js must be physically absent`,
+      );
+    }
+    await assert.rejects(
+      delivery.runRealDeliveryEvaluation({
+        projectRoot: "/does-not-exist",
+        packRef: "domain-eval",
+        manifestRef: "manifests/missing.json",
+        requirementId: "missing-requirement",
+        timeoutMs: 0,
+        templateId: "commerce-order-cancellation-v2",
+        confirm: async () => true,
+      }),
+      (error: unknown) =>
+        error instanceof Error &&
+        error.name === "DeliveryProductionError" &&
+        "code" in error &&
+        error.code === "COMMERCE_TIMEOUT_INVALID",
+      "the packed facade must dispatch v2 before touching project I/O",
+    );
     assert.equal(typeof domainSkill.default, "function");
     assert.match(skillBody, /name: design-domain-grader/);
     assert.deepEqual(

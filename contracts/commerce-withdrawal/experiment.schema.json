@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 2
+    },
+    "template_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "campaign_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    },
+    "domain": {
+      "type": "string",
+      "const": "open-coding-commerce-delivery"
+    },
+    "eval_pack_id": {
+      "type": "string",
+      "const": "open-coding-commerce-delivery-v1"
+    },
+    "task_pack_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "control_variant_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "treatment_variant_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "deployment": {
+      "type": "object",
+      "properties": {
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "eval_package_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "qualification": {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "type": "number",
+              "const": 1
+            },
+            "ready": {
+              "type": "boolean",
+              "const": true
+            },
+            "deployment_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "session_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            },
+            "common_tool_schema_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "schema_version",
+            "ready",
+            "deployment_digest",
+            "session_id",
+            "common_tool_schema_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "qualification_projection": {
+          "type": "object",
+          "properties": {
+            "source_deployment_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "projected_deployment_digest": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "source_qualification_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "source_deployment_digest",
+            "projected_deployment_digest",
+            "source_qualification_sha256"
+          ],
+          "additionalProperties": false
+        },
+        "grader_admission_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["digest", "eval_package_sha256", "qualification", "grader_admission_sha256"],
+      "additionalProperties": false
+    },
+    "intervention": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "const": "dsh-goal-stack"
+        },
+        "allowed_config_paths": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "goal.disabled"
+            },
+            {
+              "type": "string",
+              "const": "goal-round-driver.disabled"
+            },
+            {
+              "type": "string",
+              "const": "command-goal.disabled"
+            },
+            {
+              "type": "string",
+              "const": "tool-goal.disabled"
+            }
+          ],
+          "minItems": 4,
+          "maxItems": 4,
+          "items": false
+        }
+      },
+      "required": ["id", "allowed_config_paths"],
+      "additionalProperties": false
+    },
+    "arm_order": {
+      "anyOf": [
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "control"
+            },
+            {
+              "type": "string",
+              "const": "treatment"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "treatment"
+            },
+            {
+              "type": "string",
+              "const": "control"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        }
+      ]
+    },
+    "timeout_ms_per_arm": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5400000
+    },
+    "claim_strength": {
+      "type": "string",
+      "const": "diagnostic"
+    },
+    "effect_claim_eligible": {
+      "type": "boolean",
+      "const": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "template_id",
+    "campaign_id",
+    "created_at",
+    "domain",
+    "eval_pack_id",
+    "task_pack_digest",
+    "control_variant_digest",
+    "treatment_variant_digest",
+    "deployment",
+    "intervention",
+    "arm_order",
+    "timeout_ms_per_arm",
+    "claim_strength",
+    "effect_claim_eligible"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/commerce-withdrawal/experiment.schema.json"
+}

@@ -12,7 +12,10 @@ export const EXIT_CODE = {
 
 export type ExitCode = (typeof EXIT_CODE)[keyof typeof EXIT_CODE];
 
-export type DeliveryTemplateId = "reservation-ledger-v1" | "commerce-order-cancellation-v1";
+export type DeliveryTemplateId =
+  | "reservation-ledger-v1"
+  | "commerce-order-cancellation-v1"
+  | "commerce-order-cancellation-v2";
 
 export type AppInvocation =
   | { readonly kind: "help" }
@@ -166,7 +169,11 @@ function parseDeliveryRunArguments(args: readonly string[]): AppInvocation {
         throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
       }
     } else if (option === "--template") {
-      if (value !== "reservation-ledger-v1" && value !== "commerce-order-cancellation-v1") {
+      if (
+        value !== "reservation-ledger-v1" &&
+        value !== "commerce-order-cancellation-v1" &&
+        value !== "commerce-order-cancellation-v2"
+      ) {
         throw new AppUsageError("delivery --template is not a frozen template id");
       }
       templateId = value;
@@ -288,7 +295,9 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
           const value = deliveryRest[2];
           if (
             deliveryRest[1] !== "--template" ||
-            (value !== "reservation-ledger-v1" && value !== "commerce-order-cancellation-v1")
+            (value !== "reservation-ledger-v1" &&
+              value !== "commerce-order-cancellation-v1" &&
+              value !== "commerce-order-cancellation-v2")
           ) {
             throw new AppUsageError("delivery report --template is invalid");
           }

@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 2
+    },
+    "template_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "variant_id": {
+      "type": "string",
+      "enum": ["goal-off", "goal-on"]
+    },
+    "common_patch_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "arm_patch_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_goal_rows": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "boolean"
+        },
+        "goal_round_driver": {
+          "type": "boolean"
+        },
+        "command_goal": {
+          "type": "boolean"
+        },
+        "tool_goal": {
+          "type": "boolean"
+        }
+      },
+      "required": ["goal", "goal_round_driver", "command_goal", "tool_goal"],
+      "additionalProperties": false
+    },
+    "dsh_package_tree_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "codex_connect_package_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "eval_package_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "model_route": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "const": "openai-codex"
+        },
+        "model": {
+          "type": "string",
+          "const": "gpt-5.6-sol"
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "const": "xhigh"
+        }
+      },
+      "required": ["provider", "model", "reasoning_effort"],
+      "additionalProperties": false
+    },
+    "resolved_config_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tool_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tools_mode": {
+      "type": "string",
+      "const": "native"
+    },
+    "permission_mode": {
+      "type": "string",
+      "const": "workspace-write"
+    }
+  },
+  "required": [
+    "schema_version",
+    "template_id",
+    "variant_id",
+    "common_patch_sha256",
+    "arm_patch_sha256",
+    "expected_goal_rows",
+    "dsh_package_tree_sha256",
+    "codex_connect_package_sha256",
+    "eval_package_sha256",
+    "model_route",
+    "resolved_config_sha256",
+    "tool_schema_sha256",
+    "tools_mode",
+    "permission_mode"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/commerce-withdrawal/variant.schema.json"
+}

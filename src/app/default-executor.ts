@@ -698,7 +698,7 @@ export class DefaultAppExecutor implements DshEvalCommandExecutor {
       switch (invocation.kind) {
         case "help":
           this.#stdout(
-            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id> | delivery run <pack> <manifest> <requirement-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1] | delivery report <campaign-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1]\n",
+            "DSH Eval Lab: init | auth status | auth login | doctor | calibrate | binding show | run | report <campaign-id> | suite run | suite report <suite-id> | domain confirm <pack> <kind> <candidate> <actor> | domain validate <pack> <manifest> | domain impact <pack> <manifest> <claim-id> | delivery run <pack> <manifest> <requirement-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1|commerce-order-cancellation-v2] | delivery report <campaign-id> [--template reservation-ledger-v1|commerce-order-cancellation-v1|commerce-order-cancellation-v2]\n",
           );
           return EXIT_CODE.OK;
         case "version":

@@ -1,0 +1,758 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 2
+    },
+    "catalog_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "catalog_version": {
+      "type": "number",
+      "const": 1
+    },
+    "task_id": {
+      "type": "string",
+      "const": "open-coding-ts-commerce-order-v2"
+    },
+    "oracle_version": {
+      "type": "string",
+      "const": "commerce-order-oracle-v2"
+    },
+    "template_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "behaviors": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "unpaid_cancel_has_no_refund"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "paid_unstarted_creates_paid_amount_refund"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "handed_off_order_requires_after_sales"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "cancellation_and_refund_states_are_separate"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "active_fulfillment_enters_pending_withdrawal"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "withdrawal_completion_precedes_cancellation"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "withdrawal_rejection_preserves_order_and_effects"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "withdrawal_failure_is_recoverable_without_effects"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "inventory_compensation_is_exactly_once"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "coupon_restore_requires_current_eligibility"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "customer_ownership_is_enforced"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "request_replay_and_conflict_are_idempotent"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "restart_recovery_preserves_handoffs_and_audit"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "refund_preserves_paid_amount_currency_and_units"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "expired_replay_reconciles_or_fails_closed"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "behavior_id": {
+              "const": "audit_and_retention_policy_are_complete"
+            },
+            "template_id": {
+              "const": "commerce-order-cancellation-v2"
+            },
+            "statement": {
+              "type": "string",
+              "minLength": 1
+            },
+            "risk_weight": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            }
+          },
+          "required": ["behavior_id", "template_id", "statement", "risk_weight"],
+          "additionalProperties": false
+        }
+      ],
+      "minItems": 16,
+      "maxItems": 16,
+      "items": false
+    },
+    "counterexamples": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "red"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "unpaid_cancel_has_no_refund"
+                },
+                {
+                  "const": "paid_unstarted_creates_paid_amount_refund"
+                },
+                {
+                  "const": "handed_off_order_requires_after_sales"
+                },
+                {
+                  "const": "cancellation_and_refund_states_are_separate"
+                },
+                {
+                  "const": "active_fulfillment_enters_pending_withdrawal"
+                },
+                {
+                  "const": "withdrawal_completion_precedes_cancellation"
+                },
+                {
+                  "const": "withdrawal_rejection_preserves_order_and_effects"
+                },
+                {
+                  "const": "withdrawal_failure_is_recoverable_without_effects"
+                },
+                {
+                  "const": "inventory_compensation_is_exactly_once"
+                },
+                {
+                  "const": "coupon_restore_requires_current_eligibility"
+                },
+                {
+                  "const": "customer_ownership_is_enforced"
+                },
+                {
+                  "const": "request_replay_and_conflict_are_idempotent"
+                },
+                {
+                  "const": "restart_recovery_preserves_handoffs_and_audit"
+                },
+                {
+                  "const": "refund_preserves_paid_amount_currency_and_units"
+                },
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                },
+                {
+                  "const": "audit_and_retention_policy_are_complete"
+                }
+              ],
+              "minItems": 16,
+              "maxItems": 16,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-handed-off-cancel"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "handed_off_order_requires_after_sales"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-overrefund-or-currency"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "paid_unstarted_creates_paid_amount_refund"
+                },
+                {
+                  "const": "withdrawal_completion_precedes_cancellation"
+                },
+                {
+                  "const": "restart_recovery_preserves_handoffs_and_audit"
+                },
+                {
+                  "const": "refund_preserves_paid_amount_currency_and_units"
+                },
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                }
+              ],
+              "minItems": 5,
+              "maxItems": 5,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-premature-cancel"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "active_fulfillment_enters_pending_withdrawal"
+                },
+                {
+                  "const": "withdrawal_completion_precedes_cancellation"
+                },
+                {
+                  "const": "withdrawal_rejection_preserves_order_and_effects"
+                },
+                {
+                  "const": "withdrawal_failure_is_recoverable_without_effects"
+                },
+                {
+                  "const": "inventory_compensation_is_exactly_once"
+                },
+                {
+                  "const": "restart_recovery_preserves_handoffs_and_audit"
+                },
+                {
+                  "const": "audit_and_retention_policy_are_complete"
+                }
+              ],
+              "minItems": 7,
+              "maxItems": 7,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-withdrawal-rejection-effects"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "withdrawal_rejection_preserves_order_and_effects"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-withdrawal-failure-effects"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "withdrawal_failure_is_recoverable_without_effects"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-double-effects"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "inventory_compensation_is_exactly_once"
+                },
+                {
+                  "const": "request_replay_and_conflict_are_idempotent"
+                },
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-coupon-always-restored"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "coupon_restore_requires_current_eligibility"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-no-ownership"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "customer_ownership_is_enforced"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-no-persistence"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "withdrawal_failure_is_recoverable_without_effects"
+                },
+                {
+                  "const": "restart_recovery_preserves_handoffs_and_audit"
+                },
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-expired-replay-fresh"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 1,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "candidate_id": {
+              "const": "mutant-sparse-audit"
+            },
+            "expected_failures": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "const": "withdrawal_failure_is_recoverable_without_effects"
+                },
+                {
+                  "const": "restart_recovery_preserves_handoffs_and_audit"
+                },
+                {
+                  "const": "expired_replay_reconciles_or_fails_closed"
+                },
+                {
+                  "const": "audit_and_retention_policy_are_complete"
+                }
+              ],
+              "minItems": 4,
+              "maxItems": 4,
+              "items": false
+            }
+          },
+          "required": ["candidate_id", "expected_failures"],
+          "additionalProperties": false
+        }
+      ],
+      "minItems": 12,
+      "maxItems": 12,
+      "items": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "catalog_id",
+    "catalog_version",
+    "task_id",
+    "oracle_version",
+    "template_id",
+    "behaviors",
+    "counterexamples"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/commerce-withdrawal/claim-observation-catalog.schema.json"
+}

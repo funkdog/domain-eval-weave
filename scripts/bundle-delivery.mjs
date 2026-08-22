@@ -71,3 +71,29 @@ for (const moduleName of [
     await rm(resolve(commerceRoot, `${moduleName}.${extension}`), { force: true });
   }
 }
+
+const commerceWithdrawalRoot = resolve(repositoryRoot, "dist/commerce-withdrawal");
+if (
+  dirname(commerceWithdrawalRoot) !== resolve(repositoryRoot, "dist") ||
+  basename(commerceWithdrawalRoot) !== "commerce-withdrawal"
+) {
+  throw new Error("refusing to prune outside the exact dist/commerce-withdrawal target");
+}
+for (const moduleName of [
+  "admission",
+  "campaign",
+  "campaign-contracts",
+  "campaign-report",
+  "compiler",
+  "delivery-artifacts",
+  "delivery-contracts",
+  "delivery-report",
+  "production",
+  "real-campaign",
+  "replay",
+  "validity",
+]) {
+  for (const extension of ["js", "js.map", "d.ts"]) {
+    await rm(resolve(commerceWithdrawalRoot, `${moduleName}.${extension}`), { force: true });
+  }
+}

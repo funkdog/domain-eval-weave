@@ -1,0 +1,200 @@
+{
+  "schema_version": 2,
+  "catalog_id": "commerce-order-cancellation-v2",
+  "catalog_version": 1,
+  "task_id": "open-coding-ts-commerce-order-v2",
+  "oracle_version": "commerce-order-oracle-v2",
+  "template_id": "commerce-order-cancellation-v2",
+  "behaviors": [
+    {
+      "behavior_id": "unpaid_cancel_has_no_refund",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "An unpaid cancellation creates no refund.",
+      "risk_weight": 4
+    },
+    {
+      "behavior_id": "paid_unstarted_creates_paid_amount_refund",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "A paid order with unstarted fulfillment requests exactly the paid amount.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "handed_off_order_requires_after_sales",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "A carrier-handed-off order cannot use self-service cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "cancellation_and_refund_states_are_separate",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Order cancellation and refund completion remain separate states.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "active_fulfillment_enters_pending_withdrawal",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Active fulfillment enters pending withdrawal instead of immediate cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "withdrawal_completion_precedes_cancellation",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "An active order becomes cancelled only after withdrawal completes.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "withdrawal_rejection_preserves_order_and_effects",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Withdrawal rejection leaves the order uncancelled and creates no downstream effects.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "withdrawal_failure_is_recoverable_without_effects",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Withdrawal failure is durable and recoverable without cancellation effects.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "inventory_compensation_is_exactly_once",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Inventory release or compensation occurs exactly once on final cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "coupon_restore_requires_current_eligibility",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Coupon restoration requires current eligibility.",
+      "risk_weight": 4
+    },
+    {
+      "behavior_id": "customer_ownership_is_enforced",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Only the order owner can request cancellation.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "request_replay_and_conflict_are_idempotent",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Request replay restores one decision and conflicting input fails closed.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "restart_recovery_preserves_handoffs_and_audit",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Restart recovery preserves pending handoffs, effects, and audit evidence.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "refund_preserves_paid_amount_currency_and_units",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Refunds preserve paid minor-unit amount and order currency.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "expired_replay_reconciles_or_fails_closed",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "A delayed replay after the retention window reconciles or fails closed without duplicate effects.",
+      "risk_weight": 5
+    },
+    {
+      "behavior_id": "audit_and_retention_policy_are_complete",
+      "template_id": "commerce-order-cancellation-v2",
+      "statement": "Audit evidence and declared retention policy contain every required field and duration.",
+      "risk_weight": 4
+    }
+  ],
+  "counterexamples": [
+    {
+      "candidate_id": "red",
+      "expected_failures": [
+        "unpaid_cancel_has_no_refund",
+        "paid_unstarted_creates_paid_amount_refund",
+        "handed_off_order_requires_after_sales",
+        "cancellation_and_refund_states_are_separate",
+        "active_fulfillment_enters_pending_withdrawal",
+        "withdrawal_completion_precedes_cancellation",
+        "withdrawal_rejection_preserves_order_and_effects",
+        "withdrawal_failure_is_recoverable_without_effects",
+        "inventory_compensation_is_exactly_once",
+        "coupon_restore_requires_current_eligibility",
+        "customer_ownership_is_enforced",
+        "request_replay_and_conflict_are_idempotent",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "refund_preserves_paid_amount_currency_and_units",
+        "expired_replay_reconciles_or_fails_closed",
+        "audit_and_retention_policy_are_complete"
+      ]
+    },
+    {
+      "candidate_id": "mutant-handed-off-cancel",
+      "expected_failures": ["handed_off_order_requires_after_sales"]
+    },
+    {
+      "candidate_id": "mutant-overrefund-or-currency",
+      "expected_failures": [
+        "paid_unstarted_creates_paid_amount_refund",
+        "withdrawal_completion_precedes_cancellation",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "refund_preserves_paid_amount_currency_and_units",
+        "expired_replay_reconciles_or_fails_closed"
+      ]
+    },
+    {
+      "candidate_id": "mutant-premature-cancel",
+      "expected_failures": [
+        "active_fulfillment_enters_pending_withdrawal",
+        "withdrawal_completion_precedes_cancellation",
+        "withdrawal_rejection_preserves_order_and_effects",
+        "withdrawal_failure_is_recoverable_without_effects",
+        "inventory_compensation_is_exactly_once",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "audit_and_retention_policy_are_complete"
+      ]
+    },
+    {
+      "candidate_id": "mutant-withdrawal-rejection-effects",
+      "expected_failures": ["withdrawal_rejection_preserves_order_and_effects"]
+    },
+    {
+      "candidate_id": "mutant-withdrawal-failure-effects",
+      "expected_failures": ["withdrawal_failure_is_recoverable_without_effects"]
+    },
+    {
+      "candidate_id": "mutant-double-effects",
+      "expected_failures": [
+        "inventory_compensation_is_exactly_once",
+        "request_replay_and_conflict_are_idempotent",
+        "expired_replay_reconciles_or_fails_closed"
+      ]
+    },
+    {
+      "candidate_id": "mutant-coupon-always-restored",
+      "expected_failures": ["coupon_restore_requires_current_eligibility"]
+    },
+    {
+      "candidate_id": "mutant-no-ownership",
+      "expected_failures": ["customer_ownership_is_enforced"]
+    },
+    {
+      "candidate_id": "mutant-no-persistence",
+      "expected_failures": [
+        "withdrawal_failure_is_recoverable_without_effects",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "expired_replay_reconciles_or_fails_closed"
+      ]
+    },
+    {
+      "candidate_id": "mutant-expired-replay-fresh",
+      "expected_failures": ["expired_replay_reconciles_or_fails_closed"]
+    },
+    {
+      "candidate_id": "mutant-sparse-audit",
+      "expected_failures": [
+        "withdrawal_failure_is_recoverable_without_effects",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "expired_replay_reconciles_or_fails_closed",
+        "audit_and_retention_policy_are_complete"
+      ]
+    }
+  ]
+}

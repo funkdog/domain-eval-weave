@@ -59,6 +59,27 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
       "delivery",
       "run",
       "domain-eval",
+      "manifests/commerce-v2.json",
+      "self-service-order-cancellation",
+      "--template",
+      "commerce-order-cancellation-v2",
+      "--timeout-ms",
+      "900000",
+    ]),
+    {
+      kind: "delivery-run",
+      packPath: "domain-eval",
+      manifestPath: "manifests/commerce-v2.json",
+      requirementId: "self-service-order-cancellation",
+      timeoutMs: 900_000,
+      templateId: "commerce-order-cancellation-v2",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
+      "run",
+      "domain-eval",
       "manifests/reservation-v1.json",
       "implement-reservation-ledger",
     ]),
@@ -69,6 +90,20 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
       requirementId: "implement-reservation-ledger",
       timeoutMs: 2_700_000,
       templateId: "reservation-ledger-v1",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
+      "report",
+      "commerce-withdrawal-campaign-v2",
+      "--template",
+      "commerce-order-cancellation-v2",
+    ]),
+    {
+      kind: "delivery-report",
+      campaignId: "commerce-withdrawal-campaign-v2",
+      templateId: "commerce-order-cancellation-v2",
     },
   );
   assert.deepEqual(

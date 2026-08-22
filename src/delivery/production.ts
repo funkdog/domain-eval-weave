@@ -10,6 +10,12 @@ import {
   replayRealCommerceDelivery,
   runRealCommerceDelivery,
 } from "../commerce/production.js";
+import {
+  CommerceProductionError as CommerceWithdrawalProductionError,
+  renderRealCommerceDelivery as renderRealCommerceWithdrawalDelivery,
+  replayRealCommerceDelivery as replayRealCommerceWithdrawalDelivery,
+  runRealCommerceDelivery as runRealCommerceWithdrawalDelivery,
+} from "../commerce-withdrawal/production.js";
 import { readArtifactBytesByRef } from "../contracts/artifacts.js";
 import { canonicalJson } from "../contracts/canonical-json.js";
 import { parseCurrentCalibrationEvidence } from "../contracts/parsers.js";
@@ -36,7 +42,10 @@ import type { DeliveryEvaluationReport } from "./contracts.js";
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const TASK_PACK_ROOT = `${PACKAGE_ROOT}/task-packs/open-coding-ts-ledger-v1`;
 const DELIVERY_REPORT_REF = "artifact://campaign/delivery/report.json";
-type DeliveryTemplateId = "reservation-ledger-v1" | "commerce-order-cancellation-v1";
+type DeliveryTemplateId =
+  | "reservation-ledger-v1"
+  | "commerce-order-cancellation-v1"
+  | "commerce-order-cancellation-v2";
 
 export class DeliveryProductionError extends Error {
   readonly code: string;
@@ -50,7 +59,9 @@ export class DeliveryProductionError extends Error {
 
 function parseDeliveryTemplateId(input: unknown): DeliveryTemplateId {
   if (input === undefined || input === "reservation-ledger-v1") return "reservation-ledger-v1";
-  if (input === "commerce-order-cancellation-v1") return input;
+  if (input === "commerce-order-cancellation-v1" || input === "commerce-order-cancellation-v2") {
+    return input;
+  }
   throw new DeliveryProductionError(
     "DELIVERY_TEMPLATE_INVALID",
     "Delivery template must be one frozen production template id",
@@ -113,6 +124,16 @@ export async function runRealDeliveryEvaluation(input: {
       return await runRealCommerceDelivery(input);
     } catch (error) {
       if (error instanceof CommerceProductionError) {
+        throw new DeliveryProductionError(error.code, error.message);
+      }
+      throw error;
+    }
+  }
+  if (templateId === "commerce-order-cancellation-v2") {
+    try {
+      return await runRealCommerceWithdrawalDelivery(input);
+    } catch (error) {
+      if (error instanceof CommerceWithdrawalProductionError) {
         throw new DeliveryProductionError(error.code, error.message);
       }
       throw error;
@@ -220,7 +241,9 @@ export function renderDeliveryEvaluationMarkdown(
 ): string {
   return parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v1"
     ? renderRealCommerceDelivery(report)
-    : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
+    : parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v2"
+      ? renderRealCommerceWithdrawalDelivery(report)
+      : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
 }
 
 export async function replayRealDeliveryEvaluation(
@@ -232,6 +255,9 @@ export async function replayRealDeliveryEvaluation(
 }> {
   if (parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v1") {
     return replayRealCommerceDelivery(campaignId);
+  }
+  if (parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v2") {
+    return replayRealCommerceWithdrawalDelivery(campaignId);
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(campaignId)) {
     throw new DeliveryProductionError(

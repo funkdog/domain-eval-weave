@@ -1,0 +1,1867 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 2
+    },
+    "template_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "admission_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "oracle_plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "task_pack_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "observation_catalog_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "eval_package_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "calibration": {
+      "type": "object",
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "vectors": {
+          "type": "object",
+          "properties": {
+            "red": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "gold": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-handed-off-cancel": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-overrefund-or-currency": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-premature-cancel": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-withdrawal-rejection-effects": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-withdrawal-failure-effects": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-double-effects": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-coupon-always-restored": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-no-ownership": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-no-persistence": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-expired-replay-fresh": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "mutant-sparse-audit": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "gold-repeat": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            },
+            "gold-next-seed": {
+              "type": "object",
+              "properties": {
+                "unpaid_cancel_has_no_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "paid_unstarted_creates_paid_amount_refund": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "handed_off_order_requires_after_sales": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "cancellation_and_refund_states_are_separate": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "active_fulfillment_enters_pending_withdrawal": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_completion_precedes_cancellation": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_rejection_preserves_order_and_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "withdrawal_failure_is_recoverable_without_effects": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "inventory_compensation_is_exactly_once": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "coupon_restore_requires_current_eligibility": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "customer_ownership_is_enforced": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "request_replay_and_conflict_are_idempotent": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "restart_recovery_preserves_handoffs_and_audit": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "refund_preserves_paid_amount_currency_and_units": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "expired_replay_reconciles_or_fails_closed": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                },
+                "audit_and_retention_policy_are_complete": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "error"]
+                }
+              },
+              "required": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "red",
+            "gold",
+            "mutant-handed-off-cancel",
+            "mutant-overrefund-or-currency",
+            "mutant-premature-cancel",
+            "mutant-withdrawal-rejection-effects",
+            "mutant-withdrawal-failure-effects",
+            "mutant-double-effects",
+            "mutant-coupon-always-restored",
+            "mutant-no-ownership",
+            "mutant-no-persistence",
+            "mutant-expired-replay-fresh",
+            "mutant-sparse-audit",
+            "gold-repeat",
+            "gold-next-seed"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["seed", "vectors"],
+      "additionalProperties": false
+    },
+    "behavior_coverage": {
+      "type": "object",
+      "properties": {
+        "unpaid_cancel_has_no_refund": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "paid_unstarted_creates_paid_amount_refund": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "handed_off_order_requires_after_sales": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "cancellation_and_refund_states_are_separate": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "active_fulfillment_enters_pending_withdrawal": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "withdrawal_completion_precedes_cancellation": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "withdrawal_rejection_preserves_order_and_effects": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "withdrawal_failure_is_recoverable_without_effects": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "inventory_compensation_is_exactly_once": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "coupon_restore_requires_current_eligibility": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "customer_ownership_is_enforced": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "request_replay_and_conflict_are_idempotent": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "restart_recovery_preserves_handoffs_and_audit": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "refund_preserves_paid_amount_currency_and_units": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "expired_replay_reconciles_or_fails_closed": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        },
+        "audit_and_retention_policy_are_complete": {
+          "minItems": 0,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "red",
+              "gold",
+              "mutant-handed-off-cancel",
+              "mutant-overrefund-or-currency",
+              "mutant-premature-cancel",
+              "mutant-withdrawal-rejection-effects",
+              "mutant-withdrawal-failure-effects",
+              "mutant-double-effects",
+              "mutant-coupon-always-restored",
+              "mutant-no-ownership",
+              "mutant-no-persistence",
+              "mutant-expired-replay-fresh",
+              "mutant-sparse-audit",
+              "gold-repeat",
+              "gold-next-seed"
+            ]
+          }
+        }
+      },
+      "required": [
+        "unpaid_cancel_has_no_refund",
+        "paid_unstarted_creates_paid_amount_refund",
+        "handed_off_order_requires_after_sales",
+        "cancellation_and_refund_states_are_separate",
+        "active_fulfillment_enters_pending_withdrawal",
+        "withdrawal_completion_precedes_cancellation",
+        "withdrawal_rejection_preserves_order_and_effects",
+        "withdrawal_failure_is_recoverable_without_effects",
+        "inventory_compensation_is_exactly_once",
+        "coupon_restore_requires_current_eligibility",
+        "customer_ownership_is_enforced",
+        "request_replay_and_conflict_are_idempotent",
+        "restart_recovery_preserves_handoffs_and_audit",
+        "refund_preserves_paid_amount_currency_and_units",
+        "expired_replay_reconciles_or_fails_closed",
+        "audit_and_retention_policy_are_complete"
+      ],
+      "additionalProperties": false
+    },
+    "checks": {
+      "type": "object",
+      "properties": {
+        "red_detected": {
+          "type": "boolean"
+        },
+        "gold_passed": {
+          "type": "boolean"
+        },
+        "counterexamples_matched": {
+          "type": "boolean"
+        },
+        "repeatable": {
+          "type": "boolean"
+        },
+        "seed_stable": {
+          "type": "boolean"
+        },
+        "coverage_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "red_detected",
+        "gold_passed",
+        "counterexamples_matched",
+        "repeatable",
+        "seed_stable",
+        "coverage_complete"
+      ],
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "string",
+      "enum": ["admitted", "rejected"]
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "template_id",
+    "admission_id",
+    "oracle_plan_sha256",
+    "task_pack_sha256",
+    "observation_catalog_sha256",
+    "eval_package_sha256",
+    "calibration",
+    "behavior_coverage",
+    "checks",
+    "status",
+    "diagnostics"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/commerce-withdrawal/grader-admission.schema.json"
+}

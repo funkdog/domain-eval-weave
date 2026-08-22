@@ -14,9 +14,10 @@ source/artifact handoff, and deterministic impact closure. The bounded Phase 3B
 slice compiles confirmed Claims into one frozen deterministic ledger Grader,
 calibrates it against Gold and risk-weighted mutants, runs the existing paired
 Agent Campaign, and emits a replayable five-axis delivery report. Phase 3B.1 adds
-one equally bounded commerce template for self-service order cancellation, with
-payment/refund, fulfilment, inventory, coupon, ownership, idempotency, and audit
-truths. It does not run a Semantic Judge or open a runtime template registry.
+one equally bounded commerce template for self-service order cancellation. Phase 3B.2 adds the
+orthogonal fulfillment-withdrawal successor required for active-fulfillment cancellation, while
+keeping payment/refund, inventory, coupon, ownership, idempotency, restart, audit, and retention
+truths independently observable. It does not run a Semantic Judge or open a runtime template registry.
 
 ## Canonical plans
 
@@ -28,7 +29,8 @@ truths. It does not run a Semantic Judge or open a runtime template registry.
 - [Phase 3A implementation spec](docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [Phase 3B implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 - [Phase 3B.1 commerce implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
-- [Commerce experience acceptance guide](docs/guides/2026-08-21-phase3b1-commerce-experience-acceptance.md)
+- [Phase 3B.2 commerce withdrawal implementation spec](docs/plans/2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md)
+- [Commerce experience acceptance guide](docs/guides/commerce-experience-acceptance.md)
 
 ## Workspace boundary
 
@@ -133,11 +135,11 @@ DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder delivery run domain-eval \
     manifests/<commerce-snapshot-id>.json self-service-order-cancellation \
-    --template commerce-order-cancellation-v1
+    --template commerce-order-cancellation-v2
 DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder delivery report <campaign-id> \
-    --template commerce-order-cancellation-v1
+    --template commerce-order-cancellation-v2
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -149,7 +151,7 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 3A Author forward slice and the
 Reservation Phase 3B production vertical have completed isolated acceptance and independent replay;
 neither result is presented as full Phase 3 completion. Phase 3B.1 is the bounded second-template
-successor. Both Delivery templates add explicit Claim observation bindings, deterministic Claim IR
+successor, and Phase 3B.2 is its orthogonal fulfillment-withdrawal template. All Delivery templates add explicit Claim observation bindings, deterministic Claim IR
 and Oracle Plan compilation, actual Gold/red/mutant calibration admission, one production
 `delivery run` entry, and a replayable report across Requirement Delta, Domain Preservation,
 Semantic Residual, Measurement Validity, and Harness Impact. The release build physically omits trusted builder siblings;

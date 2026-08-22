@@ -70,3 +70,20 @@ test("every public Delivery facade rejects an unknown template before fallback",
       error.code === "DELIVERY_TEMPLATE_INVALID",
   );
 });
+
+test("the public Delivery runner recognizes the withdrawal successor without fallback", async () => {
+  await assert.rejects(
+    delivery.runRealDeliveryEvaluation({
+      projectRoot: "/does-not-exist",
+      packRef: "domain-eval",
+      manifestRef: "manifests/missing.json",
+      requirementId: "missing-requirement",
+      timeoutMs: 0,
+      templateId: "commerce-order-cancellation-v2",
+      confirm: async () => true,
+    }),
+    (error: unknown) =>
+      error instanceof delivery.DeliveryProductionError &&
+      error.code === "COMMERCE_TIMEOUT_INVALID",
+  );
+});

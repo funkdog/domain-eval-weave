@@ -1,0 +1,13 @@
+{
+  "schema_version": 2,
+  "template_id": "commerce-order-cancellation-v2",
+  "task_id": "open-coding-ts-commerce-order-v2",
+  "eval_pack_id": "open-coding-commerce-delivery-v1",
+  "base_tree_sha256": "e89282aeb91c2c9c70888510140a9ceea10960fb28116d47c5f4b25019a8b6d0",
+  "public_task_ref": "public-task.md",
+  "allowed_candidate_globs": ["src/**"],
+  "forbidden_entry_types": ["symlink", "submodule"],
+  "public_test_command": ["node", "--test", "test/public/*.test.ts"],
+  "oracle_version": "commerce-order-oracle-v2",
+  "calibration_digest": "e488610bd324e5a330bd9175ab067d72febfdca72353ebca4baad748d5d5eae3"
+}

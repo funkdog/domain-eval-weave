@@ -1,0 +1,612 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 2
+    },
+    "template_id": {
+      "type": "string",
+      "const": "commerce-order-cancellation-v2"
+    },
+    "evaluation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "domain_manifest_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "requirement_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "claim_ir_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "oracle_plan_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "grader_admission_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "campaign_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "paired_evaluation": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": ["ref", "sha256"],
+          "additionalProperties": false
+        },
+        "paired_report": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": ["ref", "sha256"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "domain_manifest_sha256",
+        "requirement_sha256",
+        "claim_ir_sha256",
+        "oracle_plan_sha256",
+        "grader_admission_sha256",
+        "campaign_id",
+        "paired_evaluation",
+        "paired_report"
+      ],
+      "additionalProperties": false
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["accept", "reject", "inconclusive"]
+    },
+    "axes": {
+      "type": "object",
+      "properties": {
+        "requirement_delta": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "error"]
+            },
+            "claims": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "claim_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pass", "fail", "error"]
+                  },
+                  "behaviors": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "behavior_id": {
+                          "type": "string",
+                          "enum": [
+                            "unpaid_cancel_has_no_refund",
+                            "paid_unstarted_creates_paid_amount_refund",
+                            "handed_off_order_requires_after_sales",
+                            "cancellation_and_refund_states_are_separate",
+                            "active_fulfillment_enters_pending_withdrawal",
+                            "withdrawal_completion_precedes_cancellation",
+                            "withdrawal_rejection_preserves_order_and_effects",
+                            "withdrawal_failure_is_recoverable_without_effects",
+                            "inventory_compensation_is_exactly_once",
+                            "coupon_restore_requires_current_eligibility",
+                            "customer_ownership_is_enforced",
+                            "request_replay_and_conflict_are_idempotent",
+                            "restart_recovery_preserves_handoffs_and_audit",
+                            "refund_preserves_paid_amount_currency_and_units",
+                            "expired_replay_reconciles_or_fails_closed",
+                            "audit_and_retention_policy_are_complete"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "evidence_ref": {
+                          "type": "string",
+                          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                        }
+                      },
+                      "required": ["behavior_id", "status", "evidence_ref"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["claim_id", "status", "behaviors"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["status", "claims"],
+          "additionalProperties": false
+        },
+        "domain_preservation": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "error"]
+            },
+            "claims": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "claim_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pass", "fail", "error"]
+                  },
+                  "behaviors": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "behavior_id": {
+                          "type": "string",
+                          "enum": [
+                            "unpaid_cancel_has_no_refund",
+                            "paid_unstarted_creates_paid_amount_refund",
+                            "handed_off_order_requires_after_sales",
+                            "cancellation_and_refund_states_are_separate",
+                            "active_fulfillment_enters_pending_withdrawal",
+                            "withdrawal_completion_precedes_cancellation",
+                            "withdrawal_rejection_preserves_order_and_effects",
+                            "withdrawal_failure_is_recoverable_without_effects",
+                            "inventory_compensation_is_exactly_once",
+                            "coupon_restore_requires_current_eligibility",
+                            "customer_ownership_is_enforced",
+                            "request_replay_and_conflict_are_idempotent",
+                            "restart_recovery_preserves_handoffs_and_audit",
+                            "refund_preserves_paid_amount_currency_and_units",
+                            "expired_replay_reconciles_or_fails_closed",
+                            "audit_and_retention_policy_are_complete"
+                          ]
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": ["pass", "fail", "error"]
+                        },
+                        "evidence_ref": {
+                          "type": "string",
+                          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                        }
+                      },
+                      "required": ["behavior_id", "status", "evidence_ref"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["claim_id", "status", "behaviors"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["status", "claims"],
+          "additionalProperties": false
+        },
+        "semantic_residual": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["not_required", "not_evaluated"]
+            },
+            "claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "claim_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  },
+                  "axis": {
+                    "type": "string",
+                    "enum": ["requirement_delta", "domain_preservation"]
+                  },
+                  "reason_code": {
+                    "type": "string",
+                    "enum": [
+                      "OBSERVATION_BINDING_MISSING",
+                      "OBSERVATION_TEMPLATE_UNSUPPORTED",
+                      "PROPOSED_CLAIM_RISK_UNSPECIFIED"
+                    ]
+                  }
+                },
+                "required": ["claim_id", "axis", "reason_code"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["status", "claims"],
+          "additionalProperties": false
+        },
+        "measurement_validity": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "reason_codes": {
+              "minItems": 0,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              }
+            }
+          },
+          "required": ["status", "reason_codes"],
+          "additionalProperties": false
+        },
+        "harness_impact": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["valid", "invalid", "insufficient"]
+            },
+            "changed_behaviors": {
+              "minItems": 0,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "unpaid_cancel_has_no_refund",
+                  "paid_unstarted_creates_paid_amount_refund",
+                  "handed_off_order_requires_after_sales",
+                  "cancellation_and_refund_states_are_separate",
+                  "active_fulfillment_enters_pending_withdrawal",
+                  "withdrawal_completion_precedes_cancellation",
+                  "withdrawal_rejection_preserves_order_and_effects",
+                  "withdrawal_failure_is_recoverable_without_effects",
+                  "inventory_compensation_is_exactly_once",
+                  "coupon_restore_requires_current_eligibility",
+                  "customer_ownership_is_enforced",
+                  "request_replay_and_conflict_are_idempotent",
+                  "restart_recovery_preserves_handoffs_and_audit",
+                  "refund_preserves_paid_amount_currency_and_units",
+                  "expired_replay_reconciles_or_fails_closed",
+                  "audit_and_retention_policy_are_complete"
+                ]
+              }
+            },
+            "cost_delta": {
+              "type": "object",
+              "properties": {
+                "elapsed_ms": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "input_tokens": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cached_input_tokens": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "output_tokens": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "failed_tool_calls": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "elapsed_ms",
+                "input_tokens",
+                "cached_input_tokens",
+                "output_tokens",
+                "failed_tool_calls"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": ["status", "changed_behaviors", "cost_delta"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "requirement_delta",
+        "domain_preservation",
+        "semantic_residual",
+        "measurement_validity",
+        "harness_impact"
+      ],
+      "additionalProperties": false
+    },
+    "traceability": {
+      "type": "object",
+      "properties": {
+        "claim_to_behaviors": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "additionalProperties": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "unpaid_cancel_has_no_refund",
+                "paid_unstarted_creates_paid_amount_refund",
+                "handed_off_order_requires_after_sales",
+                "cancellation_and_refund_states_are_separate",
+                "active_fulfillment_enters_pending_withdrawal",
+                "withdrawal_completion_precedes_cancellation",
+                "withdrawal_rejection_preserves_order_and_effects",
+                "withdrawal_failure_is_recoverable_without_effects",
+                "inventory_compensation_is_exactly_once",
+                "coupon_restore_requires_current_eligibility",
+                "customer_ownership_is_enforced",
+                "request_replay_and_conflict_are_idempotent",
+                "restart_recovery_preserves_handoffs_and_audit",
+                "refund_preserves_paid_amount_currency_and_units",
+                "expired_replay_reconciles_or_fails_closed",
+                "audit_and_retention_policy_are_complete"
+              ]
+            }
+          }
+        },
+        "behavior_to_claims": {
+          "type": "object",
+          "properties": {
+            "unpaid_cancel_has_no_refund": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "paid_unstarted_creates_paid_amount_refund": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "handed_off_order_requires_after_sales": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "cancellation_and_refund_states_are_separate": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "active_fulfillment_enters_pending_withdrawal": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "withdrawal_completion_precedes_cancellation": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "withdrawal_rejection_preserves_order_and_effects": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "withdrawal_failure_is_recoverable_without_effects": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "inventory_compensation_is_exactly_once": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "coupon_restore_requires_current_eligibility": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "customer_ownership_is_enforced": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "request_replay_and_conflict_are_idempotent": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "restart_recovery_preserves_handoffs_and_audit": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "refund_preserves_paid_amount_currency_and_units": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "expired_replay_reconciles_or_fails_closed": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            },
+            "audit_and_retention_policy_are_complete": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              }
+            }
+          },
+          "required": [
+            "unpaid_cancel_has_no_refund",
+            "paid_unstarted_creates_paid_amount_refund",
+            "handed_off_order_requires_after_sales",
+            "cancellation_and_refund_states_are_separate",
+            "active_fulfillment_enters_pending_withdrawal",
+            "withdrawal_completion_precedes_cancellation",
+            "withdrawal_rejection_preserves_order_and_effects",
+            "withdrawal_failure_is_recoverable_without_effects",
+            "inventory_compensation_is_exactly_once",
+            "coupon_restore_requires_current_eligibility",
+            "customer_ownership_is_enforced",
+            "request_replay_and_conflict_are_idempotent",
+            "restart_recovery_preserves_handoffs_and_audit",
+            "refund_preserves_paid_amount_currency_and_units",
+            "expired_replay_reconciles_or_fails_closed",
+            "audit_and_retention_policy_are_complete"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": ["claim_to_behaviors", "behavior_to_claims"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "template_id",
+    "evaluation_id",
+    "source",
+    "verdict",
+    "axes",
+    "traceability"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/commerce-withdrawal/delivery-evaluation-report.schema.json"
+}
