@@ -8,342 +8,193 @@ status: candidate
 
 # Commerce 订单领域基线
 
-> 当前唯一维护版本。状态为 `candidate`：它是 Domain Author 的输入，不是已确认的 Product Domain Contract。
-> 只有经过领域负责人确认并写入 authority ledger 的 Claims，才具有产品真相效力。
+本文件描述订单领域的当前候选规则，供领域负责人确认。
 
 ## 1. 范围
 
-本基线描述通用互联网电商中的订单生命周期：订单创建、支付、履约、发货、取消/退款、完成，以及相关的库存、促销、对象级权限、幂等、恢复和审计要求。
+领域范围包括订单创建、支付、履约、发货、取消、退款、完成，以及相关的库存、促销、对象级权限、幂等、恢复和审计要求。
 
-本轮明确排除：退货物流、部分发货、部分取消、税费、跨境、欺诈裁决、平台分账与会计总账。后续需求若引入这些能力，应扩展领域基线，而不是把规则偷偷塞进单个 PRD。
+本轮范围不包括退货物流、部分发货、部分取消、税费、跨境、欺诈裁决、平台分账与会计总账。
 
-后续需求文档只表达相对本基线的变化，不能同时为自己定义领域真相和验收标准。
-
-## 2. 证据等级
-
-文中的判断分为三层：
-
-1. **调研支持的候选领域事实**：多个被调研平台或标准共同支持，但仍需 owner 确认是否适用于本产品。
-2. **Owner Policy**：行业不存在统一答案，必须由领域负责人选择。
-3. **Implementation Pattern**：实现候选，不得晋升为产品真相。
-
-Shopify、Adobe、Stripe 等厂商文档只证明各自平台及被交叉印证的部分；本文不把任一厂商的数据模型声明为行业标准。
-
-## 3. 产品领域与权威边界
+## 2. 领域与权威
 
 ### Order
 
-拥有订单身份、客户关联、商品与金额快照、商业取消决定、命令身份，以及面向用户的聚合状态投影。Order 只能记录对其他领域发出的请求，不能自行声称支付退款或履约撤回已经完成。
+拥有订单身份、客户关联、商品与金额快照、商业取消决定、命令身份及客户可见状态投影。
 
 ### Payment
 
-拥有支付授权/扣款引用、实付金额与币种、剩余可退金额、退款请求和退款结算结果。
+拥有支付授权与扣款引用、实付金额、币种、剩余可退金额、退款请求和退款结算结果。
 
 ### Fulfilment
 
-拥有履约工作单、服务方受理、拣货/打包或等价进度、承运商交接、履约撤回能力及撤回结果。
+拥有履约工作单、服务方受理、履约进度、承运商交接、履约撤回能力与撤回结果。
 
 ### Inventory
 
-拥有库存预占、可售量、来源库存、消耗、释放、回库和补偿效果。
+拥有库存预占、可售量、来源库存、消耗、释放、补偿与回库效果。
 
 ### Promotion
 
-拥有订单使用的折扣快照、优惠券使用记录、当前资格、复用次数与是否恢复的决策。
+拥有折扣快照、优惠券使用记录、当前资格、复用次数与恢复决策。
 
 ### Authorization
 
-拥有认证 actor 与授权策略。任何订单读写都必须根据目标订单重新执行对象级授权，不能因调用方能访问接口便默认其能操作任意订单。[OWASP API1:2023](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
+拥有认证 actor 与授权策略。订单查询与变更均依据当前 actor、目标订单和操作类型执行对象级授权。
 
 ### 横切能力
 
-Audit、integration messaging、observability 是横切能力，不作为业务 bounded context。它们保存决策和跨域交接证据，但无权创造订单、退款、库存或促销政策。
+Audit、integration messaging 与 observability 保存决策和跨领域交接证据。
 
-## 4. 核心概念
+## 3. 核心概念
 
-- **Order**：订单内部身份、客户可见编号、所有者、商品快照、币种、金额快照、版本及各领域事实的引用。
-- **Line Item**：SKU/商品快照、数量、价格与折扣分摊；本轮不定义部分取消或部分发货转换。
-- **Payment/Charge**：支付方引用、授权/扣款事实、实付金额、币种。
+- **Order**：订单内部身份、客户可见编号、所有者、商品快照、币种、金额快照、版本及领域事实引用。
+- **Line Item**：SKU/商品快照、数量、价格与折扣分摊。
+- **Payment/Charge**：支付方引用、授权与扣款事实、实付金额、币种。
 - **Refund**：关联支付、申请金额、剩余可退余额、原因及结算事实。
 - **Fulfilment Order/Shipment**：履约方、地点、工作状态、撤回能力、承运商交接与追踪事实。
 - **Inventory Effect**：库存对象、数量、效果类型、业务原因与幂等身份。
-- **Promotion Application**：下单时采用的折扣/优惠券及分摊快照；后续复用资格是另一项事实。
-- **Command Decision**：actor、目标对象、请求/幂等身份、规范化输入指纹、预期版本、决策与结果。
-- **Domain/Integration Event**：事件身份、subject、事实类型、权威发生时间、因果/关联身份、schema version 与 payload digest。
+- **Promotion Application**：下单时采用的折扣或优惠券及其分摊快照。
+- **Command Decision**：actor、目标对象、请求身份、规范化输入指纹、预期版本、决定与结果。
+- **Domain Event**：领域中已经发生的事实。
+- **Integration Event**：跨领域传递的事实，包含事件身份、subject、权威发生时间、因果身份、关联身份与 schema version。
 
-具体 ID 格式与保留时长属于系统或 owner policy，不从厂商 API 直接复制。
+## 4. 领域规则
 
-## 5. 调研支持的候选 Claims
+### R-01：领域事实相互独立
 
-### C-01：订单、支付/退款、履约、库存与促销是正交事实
+Order、Payment、Refund、Fulfilment、Inventory 与 Promotion 分别维护自身权威事实。面向客户的订单状态由这些事实投影生成。
 
-面向用户的“订单状态”是这些事实的派生投影，不是唯一真相源。Shopify 同时暴露取消、财务、履约和关闭事实；Adobe 将订单、发票、发货、Credit Memo 与库存 reservations 分开。[Shopify Order](https://shopify.dev/docs/api/admin-graphql/latest/objects/Order) · [Adobe Order Workflow](https://experienceleague.adobe.com/en/docs/commerce-admin/stores-sales/order-management/orders/order-processing)
+### R-02：取消与退款结算分离
 
-本文不确认任何统一 enum；各领域只需要保存能判定自身规则的事实。
+订单取消、支付授权撤销、退款申请和退款结算分别记录。订单取消决定不改变 Payment 的结算事实。
 
-### C-02：取消决定不证明退款已经结算
+### R-03：退款绑定支付余额
 
-取消、支付授权撤销、退款申请和退款到账是不同事实。Shopify 支持取消但不退款，并以异步 Job 表达取消执行；Adobe 区分 Open Credit Memo（应退款但未完成）与 Refunded；Stripe 将 Refund 建模为关联 Charge/PaymentIntent 的独立对象。[Shopify orderCancel](https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCancel) · [Adobe Reservations](https://experienceleague.adobe.com/en/docs/commerce-admin/inventory/basics/order-status) · [Stripe Refund](https://docs.stripe.com/api/refunds/create)
+退款关联实际支付身份、币种和退款金额。退款金额不超过该支付的剩余可退余额。商品标价、折后金额、实付金额、已退金额与待退金额分别保存。
 
-### C-03：退款必须绑定真实支付和剩余可退余额
+### R-04：金额包含币种和表示法
 
-退款引用实际支付身份、币种和退款金额，不能默认按商品标价退款，也不能超过剩余可退金额。List amount、折后订单金额、实付金额、已退金额和待退金额必须保持区分。[Stripe Refund](https://docs.stripe.com/api/refunds/create)
+每个金额包含币种和明确的单位表示。支付提供商交互遵循对应提供商的金额协议。
 
-### C-04：金额必须带币种和明确表示法
+### R-05：订单操作执行对象级授权
 
-金额不能是缺少币种和单位的裸数。对接支付提供商时遵循其金额协议；例如 Stripe 使用 currency minor unit，并单独处理零小数币种和特殊币种。[Stripe Currencies](https://docs.stripe.com/currencies)
+订单查询、取消、退款及其他变更在执行前校验 actor 对目标订单及操作的权限。授权拒绝不产生资金、库存、促销或生命周期效果。
 
-Minor-unit 编码是当前集成约定，不是所有内部领域模型唯一合法的表示方式。
+### R-06：重放保持业务效果幂等
 
-### C-05：订单操作必须执行对象级授权
+相同请求或重复消息不重复产生扣款、退款、库存、促销或生命周期效果。相同幂等身份携带不同规范化输入时返回冲突。
 
-认证成功不等于拥有某个订单。调用方对订单发起查询、取消、退款或其他变更时，必须根据当前 actor、目标订单和操作类型重新判断权限。拒绝不得产生资金、库存、促销或生命周期副作用。[OWASP API1:2023](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
+### R-07：跨领域请求、受理和完成分离
 
-### C-06：请求和消息重放不能重复产生业务效果
+Order 发出的退款、履约撤回、库存效果和促销资格请求分别由目标领域受理并记录结果。每次交接独立表达 `requested`、`accepted`、`pending`、`completed` 或 `failed`。
 
-相同请求或重复消息不能重复扣款、退款、释放库存、恢复优惠券或改变生命周期；相同幂等身份配合不同规范化输入必须拒绝。Stripe 的幂等请求与 webhook 文档分别说明安全重试、重复事件和乱序事件处理。[Stripe Idempotency](https://docs.stripe.com/api/idempotent_requests) · [Stripe Webhooks](https://docs.stripe.com/webhooks)
+### R-08：权威决定具有持久证据
 
-幂等身份的 scope、保留时间和响应重放策略仍是 Owner/System Policy。
+本地业务决定在权威状态及对应证据提交后记为 `decision_committed`。跨领域效果沿自身生命周期继续推进。消息重复、乱序、进程崩溃与双写失败具有可追踪的恢复路径。
 
-### C-07：跨领域请求、受理和完成必须分离
-
-Order 可以请求退款、履约撤回、库存效果或促销复用判断；目标领域分别拥有受理、进行中、成功和失败事实。下游超时只能产生 pending/unknown 结果，不能伪造完成。
-
-Shopify fulfilment API 允许在部分履约状态下提交取消请求，结果由 fulfilment service 决定，说明“请求撤回”与“撤回完成”必须分开。[Shopify Fulfilment Solutions](https://shopify.dev/docs/apps/build/orders-fulfillment/order-management-apps/build-fulfillment-solutions)
-
-### C-08：权威状态变化与跨域证据必须具有恢复路径
-
-本地业务决定只有在权威状态和该决定的持久证据提交后，才能报告为 `decision_committed`。跨领域效果必须继续使用 `requested / accepted / pending / completed / failed` 等独立事实表达，不能将本地提交升级为下游完成。
-
-消息重复、乱序、进程崩溃与双写失败需要显式恢复设计。[AWS Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html) · [AWS Saga Orchestration](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html)
-
-## 6. 订单领域事实模型
+## 5. 领域事实模型
 
 ### 商业订单事实
 
-至少保存：订单是否仍开放、是否作出取消决定、是否满足关闭条件。具体枚举、显示文案和“取消是否可逆”由本产品确认；不得直接复制 Shopify 或 Adobe 的状态表。
+保存订单是否开放、是否作出取消决定、是否满足关闭条件。客户可见状态由商业、财务和履约事实共同生成。
 
 ### 支付与退款事实
 
-至少保存：是否授权、是否扣款、扣款金额与币种、剩余可退余额、退款是否已请求、提供商处理状态和最终结算结果。
+保存支付授权、扣款、扣款金额、币种、剩余可退余额、退款请求、提供商处理状态与结算结果。
 
 ### 履约事实
 
-至少保存：是否提交履约、服务方是否受理、当前工作进度、是否完成承运商交接、是否支持撤回、撤回请求和撤回结果。
-
-“尚未发货”不证明尚未开始物理工作；“履约已受理”也不构成跨平台统一的不可撤回边界。自助取消截止点必须由 owner 确认。
+保存履约提交、服务方受理、工作进度、承运商交接、撤回能力、撤回请求与撤回结果。
 
 ### 库存事实
 
-至少保存：库存是否预占、是否消耗、是否执行释放/补偿/回库，以及效果身份和业务原因。
-
-Adobe 通过 reservation compensation 管理取消和退款；Shopify 将 restock 作为显式取消输入并记录 location 例外。因此稳定事实是“库存效果必须显式、可归因且不可重复”，而非“所有取消都自动回库”。[Adobe Reservations](https://experienceleague.adobe.com/en/docs/commerce-admin/inventory/basics/order-status) · [Shopify orderCancel](https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCancel)
+保存库存预占、消耗、释放、补偿和回库效果，以及效果身份、数量与业务原因。
 
 ### 促销事实
 
-订单永久保留下单时采用的折扣分摊快照。优惠券在失败、取消或退款后是否可再次使用，要根据 Promotion 当前规则和历史使用记录重新判断，不能从订单取消自动推断。
+保存下单时采用的折扣分摊快照、优惠券使用记录、规则版本、当前资格与复用决定。
 
-本次调研未建立跨平台统一的优惠券恢复规则；Adobe 对失败订单后的单次券复用存在专门补丁，进一步说明该行为与产品版本和促销策略相关。[Adobe Coupon Codes](https://experienceleague.adobe.com/en/docs/commerce-admin/marketing/promotions/cart-rules/price-rules-cart-coupon) · [Adobe ACSD-54966](https://experienceleague.adobe.com/en/docs/commerce-operations/tools/quality-patches-tool/patches-available-in-qpt/v1-1-42/acsd-54966-fix-for-limited-use-coupon-code-after-failed-orders)
+## 6. 核心关系
 
-## 7. 命令、事件与时间权威
+| Subject | Relationship | Object | 约束 |
+| --- | --- | --- | --- |
+| Order | contains | one or more Line Items | 保存下单时商品、数量与金额快照 |
+| Order | references | zero or more Payment attempts | Payment 事实证明授权与扣款结果 |
+| Captured Payment | funds | zero or more Refunds | Refund 总额不超过剩余可退余额 |
+| Order | references | zero or more Fulfilment work records | 每个工作记录保存履约方和工作身份 |
+| Order / Line Item | causes | Inventory Effects | 每个效果拥有独立业务与幂等身份 |
+| Order | retains | zero or more Promotion Applications | 保留历史折扣分摊与规则版本 |
+| Command | produces | one Command Decision | scope 与幂等身份绑定规范化输入和权威结果 |
+| Domain Fact | produces | zero or more Integration Events | 事件关联来源事实与目标领域交接 |
 
-候选命令包括创建订单、记录支付授权/扣款、提交履约、记录履约进度、请求订单取消、请求履约撤回、请求退款、记录退款结果、应用库存效果、评估促销复用和关闭订单。
+## 7. 命令规则
 
-每个 mutating command 至少携带 actor、subject、请求/幂等身份、规范化输入和并发条件。调用方提供的时间只能作为 `requested_at` 或业务输入；权威 `decided_at / recorded_at` 由拥有该状态的 runtime 记录。
+| Command | Authority | 前置条件 | 成功或受理事实 | 拒绝条件 | 交接与证据 |
+| --- | --- | --- | --- | --- | --- |
+| `CreateOrder` | Order | actor、输入与幂等身份有效 | `OrderCreated` 与商品/金额快照提交 | 无权限、输入非法、幂等冲突 | 后续请求使用独立 request/event identity |
+| `RecordPaymentFact` | Payment | provider 引用、schema 与重复检查有效 | 授权、扣款或失败事实提交 | 来源无效、状态倒退、金额或币种不一致 | 事件关联 Payment 与 Order |
+| `SubmitFulfilment` | Fulfilment | Order 提供可履约意图 | 履约请求及服务方受理状态提交 | 请求冲突、对象或数量无效、政策拒绝 | 返回 fulfilment work identity |
+| `RequestOrderCancellation` | Order | 对象级授权、幂等与并发条件有效 | 取消 accepted/rejected decision 提交 | 权限、终态、政策或幂等冲突 | 退款、履约撤回、库存与促销分别请求 |
+| `RequestFulfilmentCancellation` | Fulfilment | fulfilment work 存在且可识别 | 撤回请求及处理状态提交 | 服务方拒绝、工作不可撤回、请求冲突 | Order 消费履约结果事件 |
+| `RequestRefund` | Payment | 支付存在、币种一致、金额在剩余可退范围内 | Refund requested/pending 提交 | 支付无效、超额、币种或输入冲突 | 保存 payment/refund/provider/request 关联 |
+| `ApplyInventoryEffect` | Inventory | 效果身份、库存对象、数量和原因有效 | applied/pending/failed 事实提交 | 重复冲突、库存无效、路径不允许 | Order 消费库存结果事件 |
+| `EvaluatePromotionReuse` | Promotion | Application、规则版本与使用记录可用 | eligible/ineligible decision 提交 | 资料不足、规则版本未知、输入冲突 | 历史折扣快照保持不变 |
+| `CloseOrder` | Order | 关闭所需商业、财务与履约事实完备 | `OrderClosed` 提交 | 必要事实 pending、failed 或 unknown | 保存关闭依据的事实引用 |
 
-事件名称表达已经发生的事实，例如 `RefundRequested` 与 `RefundSucceeded` 必须是不同事件。事件保存 runtime-owned 时间、因果/关联身份和 schema version。
+## 8. Representative Domain Stories
 
-## 8. Operational Invariants
+| ID | 场景 | 领域结论 | 规则状态 |
+| --- | --- | --- | --- |
+| S-01 | 新订单完成有效支付并进入履约 | Order、Payment 与 Fulfilment 分别保存权威事实 | R-01 |
+| S-02 | 支付授权或扣款失败/超时 | Payment 保存失败或未知结果，Order 不记录已扣款 | R-01、R-07 |
+| S-03 | 未发生扣款的订单请求取消 | 取消资格由 D-01 决定；取消成功后不存在 Refund | R-02、D-01 |
+| S-04 | 已扣款订单在履约前请求取消 | 取消资格由 D-01 决定；退款绑定实付余额并独立结算 | R-02、R-03、D-01 |
+| S-05 | 履约已受理或进行中时请求取消 | 订单取消与履约撤回分别记录，撤回语义由 D-02 决定 | R-07、D-02 |
+| S-06 | 承运商交接后请求取消 | 处理路径由 D-01 决定，资金和库存结果分别记录 | R-01、D-01 |
+| S-07 | 未授权 actor 发起查询或取消 | 对象级授权拒绝且无领域副作用 | R-05 |
+| S-08 | 相同请求与幂等身份重放 | 恢复同一权威决定，不重复业务效果 | R-06 |
+| S-09 | 相同幂等身份携带不同输入 | 返回幂等冲突并保存拒绝证据 | R-06 |
+| S-10 | Refund 事件重复或乱序到达 | 消费方去重并依据 Payment 权威事实收敛 | R-06、R-07 |
+| S-11 | Inventory 效果在超时、崩溃或重启边界重试 | 保持当前处理事实，重试不重复效果 | R-06、R-08 |
+| S-12 | 取消时优惠券资格变化 | 历史折扣快照保持不变，复用决定由 D-04 定义 | D-04 |
 
-这些约束描述产品必须得到的性质，但不预选具体技术：
+## 9. Operational Invariants
 
 1. 拒绝的命令不产生跨领域副作用。
-2. 重试、重复消息和重启不能重复产生业务效果。
-3. 冲突的幂等身份复用必须拒绝。
-4. 下游 pending/unknown 不得包装为 completed。
-5. 权威状态损坏必须 fail-closed，不能静默重置领域历史。
-6. 跨领域进度能够通过业务对象、因果身份和提供商引用追踪。
-7. 并发决策必须采用版本条件、业务锁或其他能保护领域不变量的机制。
+2. 重试、重复消息与重启不重复产生业务效果。
+3. 冲突的幂等身份复用返回拒绝。
+4. 下游 `pending` 或 `unknown` 保持原状态表达。
+5. 权威状态损坏进入 fail-closed 恢复流程。
+6. 跨领域进度通过业务对象、因果身份和提供商引用追踪。
+7. 并发决策采用版本条件、业务锁或等价的不变量保护机制。
 
-## 9. Owner Policy Slots
+## 10. 待确认领域决策
 
-以下问题没有统一行业答案，Domain Author 必须提问，不能推断：
+| ID | 决策 |
+| --- | --- |
+| D-01 | 自助取消的截止事实与各阶段处理路径 |
+| D-02 | 已受理或进行中的履约是否允许撤回，以及客户状态表达 |
+| D-03 | 各取消与退款路径对应的库存释放、补偿和回库规则 |
+| D-04 | 优惠券复用、资格重新评估、消耗与判断时点 |
+| D-05 | 客服、运营、商家与系统 actor 的操作权限和审计要求 |
+| D-06 | Guest order 的访问权证明方式 |
+| D-07 | 幂等身份的作用域与保留时间 |
+| D-08 | 跨领域原子一致与最终一致边界 |
+| D-09 | 业务审计内容、拒绝记录与保留时间 |
 
-1. 自助取消的准确截止事实是什么？
-2. 已受理/进行中的履约是否允许异步撤回，用户看到什么状态？
-3. 各取消、退款和退货路径如何决定库存释放、补偿或回库？
-4. 优惠券是否恢复、重新评估资格或永久消耗？资格在哪个时间点判断？
-5. 除订单所有者外，客服、运营、商家或系统 actor 分别能执行什么操作？
-6. Guest order 如何证明访问权？
-7. 幂等身份的作用域与保留时间是什么？
-8. 哪些跨领域步骤要求原子一致，哪些接受最终一致？
-9. 业务审计需要记录什么、保留多久？被拒请求是否进入业务审计？
-10. 若未来加入部分订单/发货/退款，数量和金额如何分摊？
+## 11. 参考资料
 
-## 10. Implementation Patterns（非领域真相）
-
-以下只作为工程候选，不能被 Domain Author 抽取成 Product Claims：
-
-- transactional outbox / CDC；
-- saga orchestration 或 choreography；
-- domain events / integration events；
-- semantic lock、optimistic concurrency；
-- message broker、队列和重试调度；
-- event sourcing 或普通状态存储；
-- 面向用户的聚合状态投影。
-
-是否采用这些模式取决于一致性、吞吐、运维和恢复要求。[Microsoft Domain Events](https://learn.microsoft.com/en-us/dotnet/architecture/microservices/microservice-ddd-cqrs-patterns/domain-events-design-implementation) · [Azure Data Considerations](https://learn.microsoft.com/en-us/azure/architecture/microservices/design/data-considerations)
-
-IETF Idempotency-Key revision 07 已于 2026-04-18 过期，仍是 Internet-Draft；本文只将其作为术语和方向旁证，不作为正式标准依据。[IETF Draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/07/)
-
-## 11. Requirement Delta 规则
-
-后续 PRD 必须逐项声明它对已确认 Claims 的影响：
-
-- `uses`
-- `preserves`
-- `modifies`
-- `deprecates`
-- `conflicts_with`
-- `leaves_unobserved`
-
-未提及的 Claims 保持不变；任何修改都形成新的 Contract version 和显式 transition，不能静默覆写。
-
-若确定性 Grader 无法观察一个受影响 Claim，该 Claim 必须进入 semantic residual，不能靠相邻行为或综合分补偿。
-
-## 12. 来源与适用性
-
-| 来源 | 用途 | 适用性与限制 |
-| --- | --- | --- |
-| [Shopify Order](https://shopify.dev/docs/api/admin-graphql/latest/objects/Order) | 财务、履约、取消、关闭事实分离 | Shopify 2026-07 Admin GraphQL 模型 |
-| [Shopify orderCancel](https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCancel) | 异步取消、退款/restock 选项、资格条件 | Shopify 全单取消，不代表统一政策 |
-| [Shopify Fulfilment Solutions](https://shopify.dev/docs/apps/build/orders-fulfillment/order-management-apps/build-fulfillment-solutions) | 履约撤回请求与结果分离 | Shopify fulfilment-service 集成 |
-| [Adobe Order Workflow](https://experienceleague.adobe.com/en/docs/commerce-admin/stores-sales/order-management/orders/order-processing) | 订单、支付/开票、发货、Credit Memo 分离 | Adobe Commerce 管理流程 |
-| [Adobe Reservations](https://experienceleague.adobe.com/en/docs/commerce-admin/inventory/basics/order-status) | reservation compensation、Credit Memo 状态 | Adobe Inventory Management |
-| [Stripe Refund](https://docs.stripe.com/api/refunds/create) | 支付绑定、剩余可退金额 | Stripe API，不覆盖税费和平台分账 |
-| [Stripe Idempotency](https://docs.stripe.com/api/idempotent_requests) | 安全重试与冲突参数 | Stripe 的 retention/响应语义是 vendor-specific |
-| [Stripe Webhooks](https://docs.stripe.com/webhooks) | 重复、乱序事件 | Stripe webhook 交付模型 |
-| [OWASP API1:2023](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/) | 对象级授权 | 安全要求，不定义订单状态 |
-| [AWS Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html) | 双写恢复、重复消息 | 实现模式，不是产品政策 |
-
-检索日期为 2026-08-22。所有厂商来源均带自身产品立场；只有被交叉印证或明确降级为 vendor-specific/policy/pattern 的内容进入本文。
-
-## 13. 核心关系闭包
-
-以下关系用于消除术语歧义，不预设数据库表或 ORM：
-
-| Subject | Relationship | Object | 当前范围约束 |
-| --- | --- | --- | --- |
-| Order | contains | one or more Line Items | 保存下单时商品、数量和金额快照；不定义部分取消/发货转换 |
-| Order | references | zero or more Payment attempts | 只有权威 Payment 事实能证明授权或扣款 |
-| Captured Payment | funds | zero or more Refunds | Refund 总额不得超过该支付的剩余可退余额 |
-| Order | references | zero or more Fulfilment work records | 当前验收只选择全单履约路径，但保留服务方和工作身份 |
-| Order / Line Item | causes | Inventory Effects | 预占、消耗、释放、补偿和回库必须有独立效果身份 |
-| Order | retains | zero or more Promotion Applications | 保留历史折扣分摊；复用资格由 Promotion 重新判断 |
-| Command | produces | one Command Decision | 相同 scope + 幂等身份绑定规范化输入和首次权威结果 |
-| Domain Fact | may produce | Integration Events | 事件携带因果/关联身份，但目标领域仍独立决定结果 |
-
-任何跨领域引用只表达身份和已知事实，不允许 Order 通过对象嵌套取得另一个领域的写权限。
-
-## 14. Representative Domain Stories
-
-这些故事是 baseline sufficiency 的固定问题集。`candidate assertion` 可由当前候选 Claims 回答；`owner_policy` 必须由领域负责人裁决，不能由 Author 补全。
-
-| ID | Given / When | 必须得到的领域结论 | 当前分类 |
-| --- | --- | --- | --- |
-| S-01 | 新订单完成有效支付，随后进入履约 | Order、Payment、Fulfilment 保存各自事实；用户状态是派生投影 | candidate assertion |
-| S-02 | 支付授权或扣款失败/超时 | 不得记录为已扣款；是否允许继续履约由产品政策决定 | candidate assertion + owner_policy |
-| S-03 | 未发生扣款的订单请求取消 | 若取消资格成立，不产生 Refund；其他库存/促销效果独立判断 | candidate assertion + owner_policy |
-| S-04 | 已扣款订单在履约前请求取消 | 若取消被接受，退款绑定实付与剩余可退余额；取消不等于退款到账 | candidate assertion + owner_policy |
-| S-05 | 履约服务已受理或进行中时请求取消 | 必须区分订单取消请求、履约撤回请求及各自结果；能否自助撤回待 owner 决定 | owner_policy |
-| S-06 | 已完成承运商交接后请求取消 | 普通取消还是售后/退货属于 owner policy；任何路径都不能伪造退款或回库完成 | owner_policy |
-| S-07 | 非订单授权 actor 发起查询或取消 | 对象级授权拒绝；不产生资金、库存、促销或生命周期副作用 | candidate assertion |
-| S-08 | 完全相同的请求和幂等身份被重放 | 返回/恢复同一权威决定，不重复业务效果 | candidate assertion |
-| S-09 | 同一幂等身份携带不同规范化输入 | 冲突拒绝并产生可追踪证据 | candidate assertion |
-| S-10 | Refund 事件重复或乱序到达 | 消费方去重并根据 Payment 权威事实收敛；不得回退已确认事实 | candidate assertion |
-| S-11 | Inventory 效果在超时、崩溃或重启边界重试 | 保持 pending/unknown 直到权威结果明确；重试不重复效果 | candidate assertion |
-| S-12 | 取消时优惠券资格已变化 | 历史折扣快照不变；是否复用及判断时点由 Promotion owner 决定 | owner_policy |
-
-故事不是最终测试用例。Owner 确认规则后，Domain Author 才能把故事拆成 Rule、Examples、Questions 和可观察行为。
-
-## 15. Command / Rule Decision Tables
-
-| Command | Authority owner | 稳定前置条件 | 成功/受理事实 | 稳定拒绝条件 | 跨域交接与证据 |
-| --- | --- | --- | --- | --- | --- |
-| `CreateOrder` | Order | actor 与输入通过授权/校验；幂等身份无冲突 | `OrderCreated` 与金额/商品快照 durable | 无权限、输入非法、幂等冲突 | 后续支付/库存动作使用独立 request/event identity |
-| `RecordPaymentFact` | Payment | provider 引用和消息通过真实性、schema、重复检查 | 记录授权/扣款/失败的权威事实 | 来源无效、状态倒退、金额/币种不一致 | Integration Event 引用 Payment 与 Order，不直接改写 Order 为“完成” |
-| `SubmitFulfilment` | Fulfilment | Order 提供可履约意图；实际资格由 owner policy | 记录 requested/accepted/pending 等独立事实 | 重复冲突、对象/数量无效、政策拒绝 | 返回 fulfilment work identity 与相关事件 |
-| `RequestOrderCancellation` | Order | 对象级授权、幂等、并发条件；取消资格由 owner policy | 只记录 Order 的 accepted/rejected decision | 非 owner、终态冲突、policy 不允许、幂等冲突 | 退款、履约撤回、库存和促销均为独立后续请求 |
-| `RequestFulfilmentCancellation` | Fulfilment | 已存在可识别 fulfilment work；撤回能力由服务方/policy 决定 | requested/accepted/pending/completed/failed 分离 | 服务方不支持、工作已不可撤回、请求冲突 | 结果事件不得被 Order 提前推断 |
-| `RequestRefund` | Payment | 支付存在、币种一致、金额不超过剩余可退、幂等无冲突 | Refund requested/pending；只有 provider 结果能证明 succeeded | 无有效支付、超额、币种/输入冲突 | 保存 payment/refund/provider/request 关联 |
-| `ApplyInventoryEffect` | Inventory | 效果身份唯一；库存对象、数量和业务原因有效 | applied/pending/failed 的权威效果事实 | 重复冲突、无效库存或路径不允许 | Order 只消费结果；release/restock policy 另行确认 |
-| `EvaluatePromotionReuse` | Promotion | 历史 Application 与当前规则/使用记录可用 | eligible/ineligible decision 及规则依据 | 资料不足、规则版本未知、输入冲突 | 不修改历史折扣快照；恢复效果另有幂等身份 |
-| `CloseOrder` | Order | 关闭所需商业、履约和财务条件由 owner policy 定义且可证明 | `OrderClosed` | 任一必要事实 pending/failed/unknown | 关闭是派生商业终态，不改写其他领域事实 |
-
-表中未确认的 policy 不能成为默认值。Owner 的回答应形成单独 Claim 或 Policy Card，再进入 Contract。
-
-## 16. Claim Evidence Matrix
-
-本文件本身是后续 source snapshot。Domain Pack materialization 时记录本文件的 SHA-256；每条 Claim 使用下列 section locator 和外部一手来源，不维护另一份版本化基线。
-
-| Claim | Baseline locator | External evidence | Applicability | Proposed owner | False-accept risk | 当前可观察面 |
-| --- | --- | --- | --- | --- | --- | --- |
-| C-01 正交状态事实 | `heading:C-01` | Shopify Order；Adobe Order Workflow | 被调研平台的订单/财务/履约模型 | Order + Payment + Fulfilment | high | persisted state faces 与 cross-reference replay |
-| C-02 取消不证明退款结算 | `heading:C-02` | Shopify orderCancel；Adobe Credit Memo；Stripe Refund | 全单取消与退款 | Order + Payment | critical | `cancellation_and_refund_states_are_separate` |
-| C-03 退款绑定支付余额 | `heading:C-03` | Stripe Refund | 当前 full-order/payment scope | Payment | critical | `paid_unshipped_creates_paid_amount_refund` |
-| C-04 金额带币种/表示法 | `heading:C-04` | Stripe Currencies | provider 集成与内部金额契约 | Payment | high | schema/contract guard；当前 Oracle 不完整覆盖 |
-| C-05 对象级授权 | `heading:C-05` | OWASP API1:2023 | 所有 order-id 读写 | Authorization + Order | critical | `customer_ownership_is_enforced` |
-| C-06 重放不重复效果 | `heading:C-06` | Stripe Idempotency/Webhooks | 命令与 integration consumers | 各效果 owner | critical | `inventory_release_is_exactly_once`、restart/idempotency behavior |
-| C-07 请求/受理/完成分离 | `heading:C-07` | Shopify Fulfilment Solutions | 跨 Order/Payment/Fulfilment/Inventory/Promotion 交接 | 发送方 + 接收方 | critical | refund-state separation；其余受影响 Claim 可能 residual |
-| C-08 durable recovery evidence | `heading:C-08` | AWS Outbox/Saga | 分布式状态和消息交接 | 各权威 context + platform | critical | `restart_recovery_preserves_idempotency_and_audit` |
-
-`External evidence` 是 provenance，不直接拥有本产品真相；最终 Claim 仍需 owner 确认其 applicability、风险与 wording。
-
-## 17. Baseline Sufficiency Gate
-
-```yaml
-metric_birth_certificate:
-  utility_claim: >
-    所有适用维度 ready，表示 Domain Author 和后续 Requirement 可以在不猜测
-    领域规则的情况下抽取 Claims、暴露政策问题并计算影响。
-  estimator: >
-    对固定的 scope、关系、12 个 Domain Stories、Command/Rule 表、Claim Evidence Matrix
-    和 owner-policy slots 逐维判定 ready / partial / missing / owner_policy / out_of_scope；
-    不排除未回答项，不计算综合分。
-  validity_bounds: >
-    仅适用于本文声明的全单订单范围；引入部分订单、退货、税费、跨境、欺诈、
-    分账或会计总账后必须扩展问题集并重新审阅。
-  consumer: >
-    co-creator 用它决定是否允许 Domain Author 抽取候选 Cards，以及是否允许
-    management profile 签发 Product Domain Contract。
-  calibration_plan: >
-    用缺 owner、缺拒绝路径、来源不可定位、请求与完成混同、实现模式冒充业务真相、
-    静默默认 policy 的 mutant 文档验证 Gate 必须拒绝。
-  repeatability_contract: >
-    同一 baseline bytes、source snapshot 和固定问题集必须得到相同维度结果；
-    Author 叙述、章节顺序或措辞热情不得改变 Gate。
-```
-
-### 当前维度结果
-
-| Dimension | Result | Evidence / remaining condition |
-| --- | --- | --- |
-| scope | ready | in-scope 与 exclusions 明确 |
-| ubiquitous_language | ready | 核心概念和事实所有者已定义 |
-| authority_closure | ready | 六个业务 authority + 横切能力边界明确 |
-| static_relationships | ready | §13 关系、cardinality 与当前范围约束 |
-| behavioral_scenarios | ready_for_owner_review | §14 覆盖正常、拒绝、重复、乱序、失败和恢复 |
-| command_rule_closure | ready_for_owner_review | §15 稳定规则与 policy 空位分离 |
-| failure_recovery | ready_for_owner_review | §8、S-08..S-11 与 Command 表形成闭包 |
-| handoff_closure | ready | request/accepted/pending/completed/failed 分离 |
-| provenance | ready_for_snapshot | §16 locator 与来源齐全；物化时绑定本文件 digest |
-| observation_coverage | partial | C-04、C-07 等超出当前冻结 Commerce Oracle 的部分必须 residual |
-| owner_policy | owner_policy | §9 十项需要 operator 回答，不允许静默默认 |
-| owner_confirmation | missing | 尚未写入 authority ledger，这是当前预期状态 |
-
-### 两个不同终态
-
-- `author_discovery_ready`：成立。不存在隐含默认值；未决项均显式标为 `owner_policy` 或 `partial`，可以让 Author 抽取候选 Claims/Questions。
-- `product_domain_contract_ready`：不成立。必须先完成 owner-policy 回答、source snapshot digest materialization、Evidence Card 审阅与 management confirmation。
-
-任何在范围内的问题必须落入 `answered_with_evidence / owner_policy / out_of_scope` 三者之一；出现 `implicit / unknown_without_question / unverifiable_source` 时，Gate 直接失败。
+- [Shopify Order](https://shopify.dev/docs/api/admin-graphql/latest/objects/Order)
+- [Shopify orderCancel](https://shopify.dev/docs/api/admin-graphql/latest/mutations/orderCancel)
+- [Shopify Fulfilment Solutions](https://shopify.dev/docs/apps/build/orders-fulfillment/order-management-apps/build-fulfillment-solutions)
+- [Adobe Order Workflow](https://experienceleague.adobe.com/en/docs/commerce-admin/stores-sales/order-management/orders/order-processing)
+- [Adobe Reservations](https://experienceleague.adobe.com/en/docs/commerce-admin/inventory/basics/order-status)
+- [Adobe Coupon Codes](https://experienceleague.adobe.com/en/docs/commerce-admin/marketing/promotions/cart-rules/price-rules-cart-coupon)
+- [Stripe Refund](https://docs.stripe.com/api/refunds/create)
+- [Stripe Currencies](https://docs.stripe.com/currencies)
+- [Stripe Idempotency](https://docs.stripe.com/api/idempotent_requests)
+- [Stripe Webhooks](https://docs.stripe.com/webhooks)
+- [OWASP API1:2023](https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/)
+- [AWS Transactional Outbox](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
+- [AWS Saga Orchestration](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html)
