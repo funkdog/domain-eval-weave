@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { buildCommerceGraderAdmission } from "../../src/commerce-withdrawal/admission.js";
 import { parseCommerceObservationCatalog } from "../../src/commerce-withdrawal/catalog.js";
 import {
+  CommerceCompilerError,
   compileCommerceGrader,
   replayCommerceOraclePlan,
 } from "../../src/commerce-withdrawal/compiler.js";
@@ -24,6 +25,12 @@ const catalog = parseCommerceObservationCatalog(
   JSON.parse(readFileSync(`${packRoot}/claim-observation-catalog.json`, "utf8")),
 );
 const digest = (character: string) => character.repeat(64);
+
+type DeepMutable<T> = T extends readonly (infer Item)[]
+  ? DeepMutable<Item>[]
+  : T extends object
+    ? { -readonly [Key in keyof T]: DeepMutable<T[Key]> }
+    : T;
 
 const claimInputs = [
   ["CLM-COMMERCE-R01", "uses", [3, 4, 8, 9, 12, 13]],
@@ -43,6 +50,8 @@ const claimInputs = [
   ["CLM-COMMERCE-D09", "preserves", [12, 15]],
 ] as const;
 
+const excludedClaimIds = ["CLM-COMMERCE-D05", "CLM-COMMERCE-D06"] as const;
+
 function observation(index: number) {
   const entry = catalog.behaviors[index];
   assert.ok(entry);
@@ -56,31 +65,54 @@ function observation(index: number) {
 }
 
 function validatedPack(): ValidatedDomainPack {
-  const claims = claimInputs.map(([claimId, _effect, observations], index) => ({
-    claim_id: claimId,
-    domain_id: "commerce-order",
-    statement: `Confirmed statement for ${claimId}.`,
-    applicability: "Synthetic whole-order self-service cancellation.",
-    evidence_card: { ref: `evidence-cards/${claimId}/r1.json`, sha256: digest("3") },
-    authority_refs: [
-      {
-        source_id: `owner-${claimId}`,
-        kind: "owner_statement" as const,
-        artifact_ref: "sources/owner-policy.md",
-        digest: digest(String((index % 6) + 4)),
-      },
-    ],
-    observation_refs: observations.map(observation),
-    false_accept_risk: "critical" as const,
-    false_reject_risk: "high" as const,
-    dependencies: [],
-    lifecycle: "active" as const,
-  }));
+  const claims = [
+    ...claimInputs.map(([claimId, _effect, observations], index) => ({
+      claim_id: claimId,
+      domain_id: "commerce-order",
+      statement: `Confirmed statement for ${claimId}.`,
+      applicability: "Synthetic whole-order self-service cancellation.",
+      evidence_card: { ref: `evidence-cards/${claimId}/r1.json`, sha256: digest("3") },
+      authority_refs: [
+        {
+          source_id: `owner-${claimId}`,
+          kind: "owner_statement" as const,
+          artifact_ref: "sources/owner-policy.md",
+          digest: digest(String((index % 6) + 4)),
+        },
+      ],
+      observation_refs: observations.map(observation),
+      false_accept_risk: "critical" as const,
+      false_reject_risk: "high" as const,
+      dependencies: [],
+      lifecycle: "active" as const,
+    })),
+    ...excludedClaimIds.map((claimId, index) => ({
+      claim_id: claimId,
+      domain_id: "commerce-order",
+      statement: `Confirmed statement for ${claimId}.`,
+      applicability: "Synthetic whole-order self-service cancellation.",
+      evidence_card: { ref: `evidence-cards/${claimId}/r1.json`, sha256: digest("3") },
+      authority_refs: [
+        {
+          source_id: `owner-${claimId}`,
+          kind: "owner_statement" as const,
+          artifact_ref: "sources/owner-policy.md",
+          digest: digest(String(index + 4)),
+        },
+      ],
+      observation_refs: [],
+      false_accept_risk: "critical" as const,
+      false_reject_risk: "high" as const,
+      dependencies: [],
+      lifecycle: "active" as const,
+    })),
+  ];
   const contract = {
     schema_version: 1 as const,
     contract_id: "commerce-order-contract",
     product_id: "synthetic-commerce",
     version: 2,
+    predecessor: { ref: "contracts/commerce-order-contract/v1.json", sha256: digest("0") },
     source_interview: { ref: "interviews/commerce/r1.json", sha256: digest("1") },
     source_snapshot_digest: digest("2"),
     claims,
@@ -97,6 +129,10 @@ function validatedPack(): ValidatedDomainPack {
     schema_version: 1 as const,
     requirement_id: "self-service-order-cancellation",
     version: 2,
+    predecessor: {
+      ref: "requirements/self-service-order-cancellation/v1.json",
+      sha256: digest("0"),
+    },
     product_id: "synthetic-commerce",
     requirement_refs: [
       {
@@ -154,6 +190,24 @@ function validatedPack(): ValidatedDomainPack {
   };
 }
 
+function expectCompileFailure(
+  mutate: (pack: DeepMutable<ValidatedDomainPack>) => void,
+  code: string,
+): void {
+  const pack = structuredClone(validatedPack()) as DeepMutable<ValidatedDomainPack>;
+  mutate(pack);
+  assert.throws(
+    () =>
+      compileCommerceGrader({
+        pack,
+        requirementId: "self-service-order-cancellation",
+        taskPackDigest: digest("9"),
+        catalog,
+      }),
+    (error: unknown) => error instanceof CommerceCompilerError && error.code === code,
+  );
+}
+
 test("fifteen confirmed Claims compile to the exact sixteen-check Oracle Plan", () => {
   const compiled = compileCommerceGrader({
     pack: validatedPack(),
@@ -178,6 +232,105 @@ test("fifteen confirmed Claims compile to the exact sixteen-check Oracle Plan", 
     }),
     compiled.oraclePlan,
   );
+});
+
+test("withdrawal compiler rejects an omitted required Claim even when behaviors stay covered", () => {
+  expectCompileFailure((pack) => {
+    const requirement = pack.requirements[0]?.value;
+    assert.ok(requirement);
+    requirement.effects.uses = requirement.effects.uses.filter(
+      (claim) => claim.claim_id !== "CLM-COMMERCE-R02",
+    );
+    pack.manifest.requirements[0] = {
+      ref: pack.manifest.requirements[0]?.ref ?? "",
+      sha256: canonicalJsonDigest(requirement),
+    };
+  }, "COMMERCE_REQUIREMENT_CLOSURE_INVALID");
+});
+
+test("withdrawal compiler rejects excluded D05 or D06 in the Requirement closure", () => {
+  for (const claimId of excludedClaimIds) {
+    expectCompileFailure((pack) => {
+      const requirement = pack.requirements[0]?.value;
+      assert.ok(requirement);
+      requirement.effects.preserves.push({ claim_id: claimId, contract_version: 2 });
+      pack.manifest.requirements[0] = {
+        ref: pack.manifest.requirements[0]?.ref ?? "",
+        sha256: canonicalJsonDigest(requirement),
+      };
+    }, "COMMERCE_REQUIREMENT_CLOSURE_INVALID");
+  }
+});
+
+test("withdrawal compiler rejects a Claim assigned to the wrong effect axis", () => {
+  expectCompileFailure((pack) => {
+    const requirement = pack.requirements[0]?.value;
+    assert.ok(requirement);
+    requirement.effects.preserves = requirement.effects.preserves.filter(
+      (claim) => claim.claim_id !== "CLM-COMMERCE-R03",
+    );
+    requirement.effects.uses.push({ claim_id: "CLM-COMMERCE-R03", contract_version: 2 });
+    pack.manifest.requirements[0] = {
+      ref: pack.manifest.requirements[0]?.ref ?? "",
+      sha256: canonicalJsonDigest(requirement),
+    };
+  }, "COMMERCE_REQUIREMENT_CLOSURE_INVALID");
+});
+
+test("withdrawal compiler rejects a missing or extra Contract Claim", () => {
+  expectCompileFailure((pack) => {
+    pack.contract.claims = pack.contract.claims.filter(
+      (claim) => claim.claim_id !== "CLM-COMMERCE-D06",
+    );
+    pack.manifest.contract = {
+      ...pack.manifest.contract,
+      sha256: canonicalJsonDigest(pack.contract),
+    };
+    const requirement = pack.requirements[0]?.value;
+    assert.ok(requirement);
+    requirement.base_contract = pack.manifest.contract;
+    pack.manifest.requirements[0] = {
+      ref: pack.manifest.requirements[0]?.ref ?? "",
+      sha256: canonicalJsonDigest(requirement),
+    };
+  }, "COMMERCE_CONTRACT_CLOSURE_INVALID");
+
+  expectCompileFailure((pack) => {
+    const exemplar = pack.contract.claims[0];
+    assert.ok(exemplar);
+    pack.contract.claims.push({
+      ...structuredClone(exemplar),
+      claim_id: "CLM-COMMERCE-X01",
+      authority_refs: exemplar.authority_refs.map((source) => ({
+        ...source,
+        source_id: "owner-CLM-COMMERCE-X01",
+      })),
+      observation_refs: [],
+    });
+    pack.manifest.contract = {
+      ...pack.manifest.contract,
+      sha256: canonicalJsonDigest(pack.contract),
+    };
+    const requirement = pack.requirements[0]?.value;
+    assert.ok(requirement);
+    requirement.base_contract = pack.manifest.contract;
+    pack.manifest.requirements[0] = {
+      ref: pack.manifest.requirements[0]?.ref ?? "",
+      sha256: canonicalJsonDigest(requirement),
+    };
+  }, "COMMERCE_CONTRACT_CLOSURE_INVALID");
+});
+
+test("withdrawal compiler requires the predecessor-bound Requirement v2 face", () => {
+  expectCompileFailure((pack) => {
+    const requirement = pack.requirements[0]?.value;
+    assert.ok(requirement);
+    delete requirement.predecessor;
+    pack.manifest.requirements[0] = {
+      ref: pack.manifest.requirements[0]?.ref ?? "",
+      sha256: canonicalJsonDigest(requirement),
+    };
+  }, "COMMERCE_REQUIREMENT_SUCCESSOR_INVALID");
 });
 
 test("the frozen v2 calibration corpus produces an admitted Grader", async () => {

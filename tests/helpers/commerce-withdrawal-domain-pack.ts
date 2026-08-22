@@ -128,6 +128,18 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
       behaviors: [12, 15],
       falseAcceptRisk: "critical" as const,
     },
+    {
+      claimId: "CLM-COMMERCE-D05",
+      statement: "Privileged support and merchant cancellation use separate authority paths.",
+      behaviors: [],
+      falseAcceptRisk: "critical" as const,
+    },
+    {
+      claimId: "CLM-COMMERCE-D06",
+      statement: "Guest-order access uses a separate possession-factor policy.",
+      behaviors: [],
+      falseAcceptRisk: "critical" as const,
+    },
   ].map((input) => ({
     domainId: "commerce-order",
     applicability: "Synthetic whole-order self-service cancellation.",
@@ -250,7 +262,7 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     decision_question_refs: [],
     status: "completed" as const,
     started_at: "2026-08-21T00:00:00.000Z",
-    ended_at: "2026-08-21T00:10:00.000Z",
+    ended_at: "2026-08-21T00:20:00.000Z",
   };
   await write(`${packRoot}/${interviewRef}`, canonicalJson(interview));
   await Promise.all(
@@ -290,20 +302,31 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
       invocation_sha256: "7".repeat(64),
     },
     supporting_source_ref: ownerSources[0],
-    occurred_at: "2026-08-21T00:11:00.000Z",
+    occurred_at: "2026-08-21T00:21:00.000Z",
   };
   const contractConfirmation = await ledger.write(contractEvent);
   const contract = issueProductDomainContract(contractDraft, { event: contractEvent });
   const contractRef = "contracts/commerce-order-contract/v1.json";
   const contractPointer = { ref: contractRef, sha256: canonicalJsonDigest(contract) };
-  const requirementRef = "requirements/self-service-order-cancellation/v1.json";
   const requirementSource = {
     source_id: "requirement-self-service-order-cancellation",
     kind: "requirement" as const,
     artifact_ref: "sources/self-service-order-cancellation.md",
     digest: sha256Hex(requirementText),
   };
-  const requirementBase = {
+  const requirementUses = policyInputs.slice(0, 5).map((input) => ({
+    claim_id: input.claimId,
+    contract_version: 1,
+  }));
+  const requirementPreserves = policyInputs.slice(5, 15).map((input) => ({
+    claim_id: input.claimId,
+    contract_version: 1,
+  }));
+  const legacyD05 = policyInputs[15];
+  if (legacyD05?.claimId !== "CLM-COMMERCE-D05") {
+    throw new Error("synthetic Commerce policy ordering drifted");
+  }
+  const requirementV1Base = {
     schema_version: 1 as const,
     requirement_id: "self-service-order-cancellation",
     version: 1,
@@ -311,14 +334,8 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     requirement_refs: [requirementSource],
     base_contract: contractPointer,
     effects: {
-      uses: policyInputs.slice(0, 5).map((input) => ({
-        claim_id: input.claimId,
-        contract_version: 1,
-      })),
-      preserves: policyInputs.slice(5).map((input) => ({
-        claim_id: input.claimId,
-        contract_version: 1,
-      })),
+      uses: requirementUses,
+      preserves: [...requirementPreserves, { claim_id: legacyD05.claimId, contract_version: 1 }],
       introduces: [],
       modifies: [],
       deprecates: [],
@@ -327,7 +344,7 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     decision_question_refs: [],
     status: "owner_confirmed" as const,
   };
-  const requirementEvent = {
+  const requirementV1Event = {
     schema_version: 1 as const,
     confirmation_id: "confirm-self-service-order-cancellation-v1",
     actor_id: "commerce-withdrawal-domain-owner",
@@ -337,9 +354,9 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     },
     target: {
       kind: "requirement_change_set" as const,
-      object_id: requirementBase.requirement_id,
+      object_id: requirementV1Base.requirement_id,
       object_version: 1,
-      projection_sha256: confirmationProjectionDigest("requirement_change_set", requirementBase),
+      projection_sha256: confirmationProjectionDigest("requirement_change_set", requirementV1Base),
     },
     decision: "confirm" as const,
     origin: {
@@ -349,10 +366,44 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
       invocation_sha256: "8".repeat(64),
     },
     supporting_source_ref: ownerSources[0],
-    occurred_at: "2026-08-21T00:12:00.000Z",
+    occurred_at: "2026-08-21T00:22:00.000Z",
+  };
+  const requirementV1Confirmation = await ledger.write(requirementV1Event);
+  const requirementV1 = {
+    ...requirementV1Base,
+    confirmation: requirementV1Confirmation,
+  };
+  const requirementV1Ref = "requirements/self-service-order-cancellation/v1.json";
+  const requirementV1Pointer = {
+    ref: requirementV1Ref,
+    sha256: canonicalJsonDigest(requirementV1),
+  };
+  const requirementBase = {
+    ...requirementV1Base,
+    version: 2,
+    predecessor: requirementV1Pointer,
+    effects: {
+      ...requirementV1Base.effects,
+      preserves: requirementPreserves,
+    },
+  };
+  const requirementEvent = {
+    ...requirementV1Event,
+    confirmation_id: "confirm-self-service-order-cancellation-v2",
+    target: {
+      ...requirementV1Event.target,
+      object_version: 2,
+      projection_sha256: confirmationProjectionDigest("requirement_change_set", requirementBase),
+    },
+    origin: {
+      ...requirementV1Event.origin,
+      invocation_sha256: "9".repeat(64),
+    },
+    occurred_at: "2026-08-21T00:23:00.000Z",
   };
   const requirementConfirmation = await ledger.write(requirementEvent);
   const requirement = { ...requirementBase, confirmation: requirementConfirmation };
+  const requirementRef = "requirements/self-service-order-cancellation/v2.json";
   const graph = buildClaimDependencyGraph({
     contract: { ref: contractRef, contract },
     requirements: [{ ref: requirementRef, requirement }],
@@ -360,11 +411,11 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
   const graphRef = `graphs/${graph.graph_id}.json`;
   const request = {
     schema_version: 1 as const,
-    request_id: "readiness-self-service-order-cancellation-v1",
+    request_id: "readiness-self-service-order-cancellation-v2",
     product_id: "synthetic-commerce-withdrawal",
     requirements: [{ ref: requirementRef, sha256: canonicalJsonDigest(requirement) }],
     requested_by: "commerce-withdrawal-domain-owner",
-    requested_at: "2026-08-21T00:13:00.000Z",
+    requested_at: "2026-08-21T00:24:00.000Z",
     source_ref: ownerSources[0],
   };
   const requestRef = `readiness/requests/${request.request_id}.json`;
@@ -375,7 +426,7 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     evidenceCards: cardArtifacts.map((artifact) => ({ ref: artifact.ref, card: artifact.card })),
     decisionQuestions: [],
     request: { ref: requestRef, request },
-    generatedAt: "2026-08-21T00:14:00.000Z",
+    generatedAt: "2026-08-21T00:25:00.000Z",
   });
   const readinessRef = `readiness/reports/${readiness.report_id}.json`;
   const manifestRef = "manifests/commerce-order-withdrawal-v2.json";
@@ -392,6 +443,7 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
     confirmations: [
       ...cardArtifacts.map((artifact) => artifact.confirmation),
       contractConfirmation,
+      requirementV1Confirmation,
       requirementConfirmation,
     ],
     decision_questions: [],
@@ -402,6 +454,7 @@ export async function writeSyntheticCommerceWithdrawalDomainPack(projectRoot: st
   };
   await Promise.all([
     write(`${packRoot}/${contractRef}`, canonicalJson(contract)),
+    write(`${packRoot}/${requirementV1Ref}`, canonicalJson(requirementV1)),
     write(`${packRoot}/${requirementRef}`, canonicalJson(requirement)),
     write(`${packRoot}/${graphRef}`, canonicalJson(graph)),
     write(`${packRoot}/${requestRef}`, canonicalJson(request)),

@@ -34,16 +34,16 @@ import {
 } from "../../src/runtime-profile/init.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
-test("the Phase 3B.1 successor allowlist pins the accepted f274e7f package bytes", () => {
+test("the Phase 3B.2 successor allowlist pins the accepted 3026921 package bytes", () => {
   assert.equal(
     ACCEPTED_PHASE3B_EVAL_TARBALL_SHA256,
-    "7a240adde5c14596184c2a9a425e40636c51809771b46dbc320860b28b5e8bcd",
+    "ef944406a0f4b8d37c6979a136587ef2eeee821b5ac28cd210a41d0cfbb5c946",
   );
   assert.equal(
     ACCEPTED_PHASE3B_EVAL_CONTENT_SHA256,
-    "cb3f1e27688e5795e2aece8e239390e5be4c2b6c4e6276064d6976a194d156c4",
+    "c5f6f70450ade80548bd4688c884fa3c2bb53cad103611a2cdc47c7f1fff323e",
   );
-  assert.equal(ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE, 362_247);
+  assert.equal(ACCEPTED_PHASE3B_EVAL_TARBALL_SIZE, 406_702);
 });
 
 function syntheticProfileLockfile(packageSpec: string): string {

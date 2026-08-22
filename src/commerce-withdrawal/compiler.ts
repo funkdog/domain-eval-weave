@@ -14,6 +14,47 @@ import {
 type ContractClaim = ProductDomainContract["claims"][number];
 type ClaimEffect = "uses" | "preserves";
 
+const CONTRACT_CLAIM_IDS = [
+  "CLM-COMMERCE-D01",
+  "CLM-COMMERCE-D02",
+  "CLM-COMMERCE-D03",
+  "CLM-COMMERCE-D04",
+  "CLM-COMMERCE-D05",
+  "CLM-COMMERCE-D06",
+  "CLM-COMMERCE-D07",
+  "CLM-COMMERCE-D08",
+  "CLM-COMMERCE-D09",
+  "CLM-COMMERCE-R01",
+  "CLM-COMMERCE-R02",
+  "CLM-COMMERCE-R03",
+  "CLM-COMMERCE-R04",
+  "CLM-COMMERCE-R05",
+  "CLM-COMMERCE-R06",
+  "CLM-COMMERCE-R07",
+  "CLM-COMMERCE-R08",
+] as const;
+
+const REQUIREMENT_USES = [
+  "CLM-COMMERCE-R01",
+  "CLM-COMMERCE-R02",
+  "CLM-COMMERCE-R07",
+  "CLM-COMMERCE-D01",
+  "CLM-COMMERCE-D02",
+] as const;
+
+const REQUIREMENT_PRESERVES = [
+  "CLM-COMMERCE-R03",
+  "CLM-COMMERCE-R04",
+  "CLM-COMMERCE-R05",
+  "CLM-COMMERCE-R06",
+  "CLM-COMMERCE-R08",
+  "CLM-COMMERCE-D03",
+  "CLM-COMMERCE-D04",
+  "CLM-COMMERCE-D07",
+  "CLM-COMMERCE-D08",
+  "CLM-COMMERCE-D09",
+] as const;
+
 export class CommerceCompilerError extends Error {
   readonly code: string;
 
@@ -87,6 +128,23 @@ function bindings(claim: ContractClaim, catalog: CommerceObservationCatalog) {
 
 function claimRefKey(ref: { readonly claim_id: string; readonly contract_version: number }) {
   return `${ref.claim_id}@${ref.contract_version}`;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function exactClaimRefs(
+  refs: readonly { readonly claim_id: string; readonly contract_version: number }[],
+  claimIds: readonly string[],
+  contractVersion: number,
+): boolean {
+  return (
+    refs.length === claimIds.length &&
+    refs.every(
+      (ref, index) => ref.claim_id === claimIds[index] && ref.contract_version === contractVersion,
+    )
+  );
 }
 
 function buildChecks(
@@ -198,6 +256,20 @@ export function compileCommerceGrader(input: {
       "Contract bytes do not match the Domain Pack manifest",
     );
   }
+  const activeContractClaimIds = contract.claims
+    .filter((claim) => claim.lifecycle === "active")
+    .map((claim) => claim.claim_id)
+    .sort();
+  if (
+    contract.claims.length !== CONTRACT_CLAIM_IDS.length ||
+    activeContractClaimIds.length !== CONTRACT_CLAIM_IDS.length ||
+    !sameStrings(activeContractClaimIds, [...CONTRACT_CLAIM_IDS].sort())
+  ) {
+    throw new CommerceCompilerError(
+      "COMMERCE_CONTRACT_CLOSURE_INVALID",
+      "Commerce withdrawal requires the exact seventeen active Contract Claims",
+    );
+  }
   if (
     requirement.status !== "owner_confirmed" ||
     requirement.product_id !== contract.product_id ||
@@ -226,10 +298,26 @@ export function compileCommerceGrader(input: {
       "Requirement bytes do not match the manifest",
     );
   }
-  if (requirement.effects.deprecates.length > 0 || requirement.effects.conflicts_with.length > 0) {
+  if (
+    requirement.version !== 2 ||
+    requirement.predecessor?.ref !== `requirements/${requirement.requirement_id}/v1.json`
+  ) {
     throw new CommerceCompilerError(
-      "COMMERCE_REQUIREMENT_EFFECT_UNSUPPORTED",
-      "Commerce withdrawal template refuses deprecations and declared conflicts",
+      "COMMERCE_REQUIREMENT_SUCCESSOR_INVALID",
+      "Commerce withdrawal requires the predecessor-bound Requirement v2 face",
+    );
+  }
+  if (
+    !exactClaimRefs(requirement.effects.uses, REQUIREMENT_USES, contract.version) ||
+    !exactClaimRefs(requirement.effects.preserves, REQUIREMENT_PRESERVES, contract.version) ||
+    requirement.effects.introduces.length !== 0 ||
+    requirement.effects.modifies.length !== 0 ||
+    requirement.effects.deprecates.length !== 0 ||
+    requirement.effects.conflicts_with.length !== 0
+  ) {
+    throw new CommerceCompilerError(
+      "COMMERCE_REQUIREMENT_CLOSURE_INVALID",
+      "Commerce withdrawal requires exact uses/preserves closure and excludes D05/D06",
     );
   }
 
@@ -269,6 +357,19 @@ export function compileCommerceGrader(input: {
       if (!existed) queue.push(dependency.claim_id);
     }
   }
+  const expectedEffects = new Map<string, ClaimEffect>([
+    ...REQUIREMENT_USES.map((claimId) => [claimId, "uses"] as const),
+    ...REQUIREMENT_PRESERVES.map((claimId) => [claimId, "preserves"] as const),
+  ]);
+  if (
+    effects.size !== expectedEffects.size ||
+    [...expectedEffects].some(([claimId, effect]) => effects.get(claimId) !== effect)
+  ) {
+    throw new CommerceCompilerError(
+      "COMMERCE_REQUIREMENT_CLOSURE_INVALID",
+      "Commerce withdrawal Claim dependencies escaped the exact Requirement closure",
+    );
+  }
 
   const deterministicClaims: CommerceClaimIr["claims"][number][] = [];
   const semanticResidual: CommerceClaimIr["semantic_residual"][number][] = [];
@@ -296,20 +397,6 @@ export function compileCommerceGrader(input: {
       false_reject_risk: claim.false_reject_risk,
       dependencies: claim.dependencies.map((dependency) => dependency.claim_id),
       observation_bindings: observations,
-    });
-  }
-  for (const proposed of requirement.effects.introduces) {
-    semanticResidual.push({
-      claim_id: proposed.claim_id,
-      axis: "requirement_delta",
-      reason_code: "PROPOSED_CLAIM_RISK_UNSPECIFIED",
-    });
-  }
-  for (const modification of requirement.effects.modifies) {
-    semanticResidual.push({
-      claim_id: modification.proposed.claim_id,
-      axis: "requirement_delta",
-      reason_code: "PROPOSED_CLAIM_RISK_UNSPECIFIED",
     });
   }
   const claimToBehaviors = Object.fromEntries(

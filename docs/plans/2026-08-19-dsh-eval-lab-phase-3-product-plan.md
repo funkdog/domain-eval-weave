@@ -14,7 +14,8 @@ description: "DSH Eval Lab Phase 3 产品方案：把可信测量内核升级为
 >
 > 当前获准实施的范围是 Phase 3A、
 > `2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md` 冻结的首个 bounded Phase 3B vertical，
-> 以及 `2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md` 冻结的第二个 commerce template。
+> `2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md` 冻结的第二个 commerce template，
+> 以及 `2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md` 冻结的履约撤回 successor。
 > Phase 3C 仍只有产品方向，必须另有 implementation spec 才能开始编码。
 >
 > **Phase 3A scope contraction（2026-08-19）**：本阶段只保留建立可信真相闭环所需的显式 `confirm`。通用
@@ -232,6 +233,11 @@ Phase 3B.1 只把编译期冻结模板从一个扩为两个：`reservation-ledge
 `commerce-order-cancellation-v1`。它不引入开放注册表；每个 template 仍需独立 Task Pack、行为向量、Gold/mutants、
 校准 expectation 与 release acceptance。
 
+Phase 3B.2 新增第三个编译期冻结模板 `commerce-order-cancellation-v2`。它把订单、履约、履约撤回与退款建模为
+四条正交状态轴，要求 17 条 active Commerce Contract Claims 中的 exact 15-Claim Requirement successor closure，
+并以 16 维确定性 behavior vector、Gold/red/11 个风险 mutants、双臂 Campaign 与 artifact-only replay 验收。
+`D05` 的特权操作与 `D06` 的 Guest order 明确留在本模板范围外；v1 artifacts 保持只读可重放。
+
 ## 8. Phase 3C — Calibrated Semantic Residual
 
 只有无法转成确定性 Claim 的剩余语义进入 Phase 3C，例如架构适配、可维护性、handoff 理解与开放文档质量。
@@ -350,3 +356,4 @@ Phase 3A 不建设：
 - [Phase 3A implementation spec](./2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md)
 - [Phase 3B implementation spec](./2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 - [Phase 3B.1 commerce implementation spec](./2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
+- [Phase 3B.2 commerce withdrawal implementation spec](./2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md)

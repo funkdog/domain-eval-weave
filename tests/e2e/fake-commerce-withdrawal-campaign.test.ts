@@ -45,6 +45,39 @@ test("a Commerce withdrawal paired Campaign freezes two Agent outcomes without l
     const validated = await validateDomainPack(root, "domain-eval", domain.manifestRef, {
       confirmationLedger: domain.confirmationLedger,
     });
+    assert.equal(validated.contract.claims.length, 17);
+    const requirement = validated.requirements[0]?.value;
+    assert.ok(requirement);
+    assert.equal(requirement.version, 2);
+    assert.equal(
+      requirement.predecessor?.ref,
+      "requirements/self-service-order-cancellation/v1.json",
+    );
+    assert.deepEqual(
+      requirement.effects.uses.map((claim) => claim.claim_id),
+      [
+        "CLM-COMMERCE-R01",
+        "CLM-COMMERCE-R02",
+        "CLM-COMMERCE-R07",
+        "CLM-COMMERCE-D01",
+        "CLM-COMMERCE-D02",
+      ],
+    );
+    assert.deepEqual(
+      requirement.effects.preserves.map((claim) => claim.claim_id),
+      [
+        "CLM-COMMERCE-R03",
+        "CLM-COMMERCE-R04",
+        "CLM-COMMERCE-R05",
+        "CLM-COMMERCE-R06",
+        "CLM-COMMERCE-R08",
+        "CLM-COMMERCE-D03",
+        "CLM-COMMERCE-D04",
+        "CLM-COMMERCE-D07",
+        "CLM-COMMERCE-D08",
+        "CLM-COMMERCE-D09",
+      ],
+    );
     const [taskPackIdentity, taskPackDigest, publicTask] = await Promise.all([
       loadTaskPackIdentity(packRoot),
       digestTaskPack(packRoot),
