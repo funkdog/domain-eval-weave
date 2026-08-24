@@ -18,6 +18,11 @@ one equally bounded commerce template for self-service order cancellation. Phase
 orthogonal fulfillment-withdrawal successor required for active-fulfillment cancellation, while
 keeping payment/refund, inventory, coupon, ownership, idempotency, restart, audit, and retention
 truths independently observable. It does not run a Semantic Judge or open a runtime template registry.
+Phase 3C is the next bounded measurement successor: it replaces implementation-shaped deterministic
+assertions with a domain observation normal form, adds separately calibrated Semantic and Code Quality
+Judges, and emits Delivery, Semantic, Code Quality, and Harness Effect axes under one Measurement
+Validity envelope. DSH development capabilities remain separate runtime products; Eval Lab only
+ablates and observes them.
 
 ## Canonical plans
 
@@ -30,6 +35,8 @@ truths independently observable. It does not run a Semantic Judge or open a runt
 - [Phase 3B implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 - [Phase 3B.1 commerce implementation spec](docs/plans/2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
 - [Phase 3B.2 commerce withdrawal implementation spec](docs/plans/2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md)
+- [Phase 3C product plan](docs/plans/2026-08-24-dsh-eval-lab-phase-3c-product-plan.md)
+- [Phase 3C implementation spec](docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md)
 - [Commerce experience acceptance guide](docs/guides/commerce-experience-acceptance.md)
 
 ## Workspace boundary
@@ -175,6 +182,11 @@ completed release acceptance in Suite `suite-20260818092709-d1a5faa7`: one quali
 six fresh Candidate Episodes, six externally verified outcomes, and byte-stable artifact-only replay.
 The Suite retained holdout no-activation as paired insufficiency while keeping the bounded
 multi-task diagnostic valid; it did not produce a general effect claim.
+
+Phase 3C is contract-complete and not yet implemented. Its first release must preserve every historical
+replay contract, repair the Commerce false-reject observation boundary, admit both Judges against
+human-labeled calibration and bias suites, and keep the pinned external TDD Skill outside the Eval Lab
+implementation.
 
 The operator gates are intentional: `auth login` must be invoked explicitly,
 and any replacement for an already exposed holdout must be approved as a new

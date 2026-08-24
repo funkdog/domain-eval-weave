@@ -15,8 +15,9 @@ description: "DSH Eval Lab Phase 3 产品方案：把可信测量内核升级为
 > 当前获准实施的范围是 Phase 3A、
 > `2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md` 冻结的首个 bounded Phase 3B vertical，
 > `2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md` 冻结的第二个 commerce template，
-> 以及 `2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md` 冻结的履约撤回 successor。
-> Phase 3C 仍只有产品方向，必须另有 implementation spec 才能开始编码。
+> `2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md` 冻结的履约撤回 successor，
+> 以及 `2026-08-24-dsh-eval-lab-phase-3c-product-plan.md` 与配套 implementation spec 冻结的 bounded Phase 3C
+> measurement successor。
 >
 > **Phase 3A scope contraction（2026-08-19）**：本阶段只保留建立可信真相闭环所需的显式 `confirm`。通用
 > `reject/withdraw`、rejection receipt 历史审计和对象撤销治理后移，不作为 Phase 3A 公开 surface 或验收门槛；候选未获确认时
@@ -240,17 +241,23 @@ Phase 3B.2 新增第三个编译期冻结模板 `commerce-order-cancellation-v2`
 
 ## 8. Phase 3C — Calibrated Semantic Residual
 
-只有无法转成确定性 Claim 的剩余语义进入 Phase 3C，例如架构适配、可维护性、handoff 理解与开放文档质量。
-Semantic Judge 必须：
+Phase 3C 先发布 deterministic Observation Boundary successor，使确定性裁决只比较 confirmed Claim 声明的领域
+normal form 与 invariant，不再把 throw/typed-result、非权威文本、内部持久化布局或 Gold 执行轨迹当成交付真相。
 
-- 分维输出，不计算覆盖硬门禁的总分；
-- 绑定 rubric、人工 Gold、分歧仲裁、版本与 bridge set；
-- 支持 abstention；
-- 经过 OOD、顺序、位置、verbosity 与格式偏差测试；
-- 不重判退款次数、持久状态等确定性事实；
-- 不用 semantic pass 抵消 deterministic fail。
+只有无法转成确定性 Claim 的剩余需求语义进入 Semantic Judge；代码坏味道与维护质量进入独立 Code Quality rubric。
+两个 Judge 分别绑定人工标签、分歧仲裁、bias suite、repeat evidence 与 abstention contract，并使用独立 invocation。
 
-## 9. 最终报告的五条轴
+Phase 3C 的 DSH Harness 仍属于 DSH runtime。首个 pilot 绑定一份现有、可独立运行的 external TDD Skill exact closure；
+Eval Lab 只切换该 Skill 并观察 red/green 行为，不实现或改写开发流程。
+
+详细产品与实现合同：
+
+- [Phase 3C product plan](./2026-08-24-dsh-eval-lab-phase-3c-product-plan.md)
+- [Phase 3C implementation spec](./2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md)
+
+## 9. 报告轴 successor
+
+Phase 3B/B.1/B.2 历史报告继续使用五轴 schema：
 
 ```text
 Requirement Delta       本次声明新增/修改的是否交付
@@ -260,7 +267,14 @@ Measurement Validity    这次测量是否有效
 Harness Impact          treatment 相比 baseline 改变了什么
 ```
 
-没有跨轴综合分。确定性 hard-gate fail 时，Semantic Judge 的高评价不能改变交付失败。
+Phase 3C successor 将 Requirement Delta 与 Domain Preservation 收入 `Delivery`，把 Measurement Validity 提升为
+verdict envelope，并使用四个产品结果轴：
+
+```text
+Delivery / Semantic / Code Quality / Harness Effect
+```
+
+两个版本都没有跨轴综合分。Delivery hard failure 不能被其他轴抵消；Harness Effect 不改变单个 Candidate 的交付决定。
 
 ## 10. Phase 3A 验收定义
 
@@ -357,3 +371,5 @@ Phase 3A 不建设：
 - [Phase 3B implementation spec](./2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md)
 - [Phase 3B.1 commerce implementation spec](./2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md)
 - [Phase 3B.2 commerce withdrawal implementation spec](./2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md)
+- [Phase 3C product plan](./2026-08-24-dsh-eval-lab-phase-3c-product-plan.md)
+- [Phase 3C implementation spec](./2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md)
