@@ -43,3 +43,13 @@ test("Phase 3C Judge patch disables every mutable or measurement-leaking capabil
   });
   assert.deepEqual(byId.get("approval")?.config, { policy: "never" });
 });
+
+test("Phase 3C TDD arms differ only by normal DSH Skill availability", async () => {
+  const [off, on] = await Promise.all([
+    readFile(new URL("../../variants/tdd-off.patch.yml", import.meta.url), "utf8").then(parse),
+    readFile(new URL("../../variants/tdd-on.patch.yml", import.meta.url), "utf8").then(parse),
+  ]);
+  assert.deepEqual(off.slice(0, -1), on.slice(0, -1));
+  assert.deepEqual(off.at(-1), { id: "tool-skill", disabled: true });
+  assert.deepEqual(on.at(-1), { id: "tool-skill", disabled: false });
+});

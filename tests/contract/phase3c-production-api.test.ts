@@ -7,7 +7,7 @@ import {
 } from "../../src/delivery/production.js";
 import { validPhase3cReport } from "../helpers/phase3c-fixtures.js";
 
-test("Phase 3C production API renders v3 and fails closed before Candidate execution without Skill deployment", async () => {
+test("Phase 3C production API renders v3 and fails closed before Candidate execution when readiness is incomplete", async () => {
   const markdown = renderDeliveryEvaluationMarkdown(
     validPhase3cReport,
     "commerce-order-cancellation-v3",
@@ -31,7 +31,10 @@ test("Phase 3C production API renders v3 and fails closed before Candidate execu
         },
       }),
     (error: unknown) =>
-      error instanceof Error && "code" in error && error.code === "PHASE3C_TDD_SKILL_UNAVAILABLE",
+      error instanceof Error &&
+      "code" in error &&
+      (error.code === "PHASE3C_TDD_SKILL_UNAVAILABLE" ||
+        error.code === "PHASE3C_JUDGE_HOLDOUT_UNAVAILABLE"),
   );
   assert.equal(confirmed, false);
 });

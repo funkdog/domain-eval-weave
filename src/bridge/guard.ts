@@ -14,6 +14,8 @@ export interface GuardedToolExecution {
 
 export interface WorkspaceToolGuardInput {
   readonly workspaceRoot: string;
+  readonly allowedWriteRoots?: readonly string[];
+  readonly allowedSkillNames?: readonly string[];
 }
 
 function sameOrNested(root: string, candidate: string): boolean {
@@ -46,8 +48,16 @@ export function createWorkspaceToolGuard(
   input: WorkspaceToolGuardInput,
 ): (execution: GuardedToolExecution) => string | undefined {
   const workspaceRoot = realpathSync(input.workspaceRoot);
+  const allowedWriteRoots = input.allowedWriteRoots ?? ["src"];
+  const allowedSkillNames = new Set(input.allowedSkillNames ?? []);
   return (execution) => {
     if (PATHLESS_TOOLS.has(execution.name)) return undefined;
+    if (execution.name === "skill") {
+      return typeof execution.arguments.name === "string" &&
+        allowedSkillNames.has(execution.arguments.name)
+        ? undefined
+        : "skill is not allowlisted for this Eval Lab variant";
+    }
     if (GOAL_TOOLS.has(execution.name)) {
       const maxRounds = execution.arguments.max_goal_rounds;
       if (
@@ -72,8 +82,8 @@ export function createWorkspaceToolGuard(
     if (!sameOrNested(workspaceRoot, resolved)) return "tool path is outside the workspace";
     if (WRITE_TOOLS.has(execution.name)) {
       const relation = relative(workspaceRoot, resolved);
-      if (relation !== "src" && !relation.startsWith("src/")) {
-        return "writes are allowed only under src/";
+      if (!allowedWriteRoots.some((root) => relation === root || relation.startsWith(`${root}/`))) {
+        return `writes are allowed only under ${allowedWriteRoots.join(", ")}`;
       }
     }
     return undefined;

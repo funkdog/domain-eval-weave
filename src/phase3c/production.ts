@@ -1,7 +1,8 @@
 import { readArtifactBytesByRef } from "../contracts/artifacts.js";
 import { PHASE2_INSTANCE } from "../instance.js";
+import { DEDICATED_DSH_HOME } from "../runtime-root.js";
 import { renderPhase3cDeliveryReport, replayPhase3cEvaluation } from "./artifacts.js";
-import { unavailableTddSkillDeployment } from "./tdd-binding.js";
+import { verifyInstalledTddSkill } from "./tdd-binding.js";
 
 const MANIFEST_REF = "artifact://campaign/phase3c/replay-manifest.json";
 
@@ -33,10 +34,26 @@ export async function runRealPhase3cDelivery(input: {
       "Phase 3C timeout must be a positive integer no greater than 5400000 ms",
     );
   }
-  const deployment = unavailableTddSkillDeployment("skill_not_installed");
+  try {
+    const runnerManifest = JSON.parse(
+      await readFile(
+        `${DEDICATED_DSH_HOME}/profiles/${PHASE2_INSTANCE.runnerProfile}/node_modules/dsh-eval-lab/package.json`,
+        "utf8",
+      ),
+    ) as { readonly version?: unknown };
+    if (runnerManifest.version !== "0.4.0-alpha.1") {
+      throw new Error("runner package is not the Phase 3C successor");
+    }
+    await verifyInstalledTddSkill(`${DEDICATED_DSH_HOME}/skills/tdd`);
+  } catch {
+    throw new Phase3cProductionError(
+      "PHASE3C_TDD_SKILL_UNAVAILABLE",
+      "Phase 3C real Harness acceptance is fail-closed because the exact external TDD Skill deployment is unavailable; no Candidate Episode was started",
+    );
+  }
   throw new Phase3cProductionError(
-    "PHASE3C_TDD_SKILL_UNAVAILABLE",
-    `Phase 3C real Harness acceptance is fail-closed because the exact external TDD Skill deployment is ${deployment.availability}; no Candidate Episode was started`,
+    "PHASE3C_JUDGE_HOLDOUT_UNAVAILABLE",
+    "Phase 3C real Candidate acceptance is fail-closed until independently curated Semantic and Code Quality Judge holdouts are admitted; no Candidate Episode was started",
   );
 }
 
@@ -56,3 +73,5 @@ export async function replayRealPhase3cDelivery(campaignId: string) {
 export function renderRealPhase3cDelivery(report: unknown): string {
   return renderPhase3cDeliveryReport(report);
 }
+
+import { readFile } from "node:fs/promises";

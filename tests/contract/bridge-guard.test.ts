@@ -62,6 +62,25 @@ test("bridge guard allows workspace reads and src writes but rejects escapes bef
       undefined,
     );
     assert.match(reason("tool-bash") ?? "", /not allowed/);
+
+    const tddGuard = createWorkspaceToolGuard({
+      workspaceRoot: workspace,
+      allowedWriteRoots: ["src", "test/agent"],
+      allowedSkillNames: ["tdd"],
+    });
+    assert.equal(tddGuard({ name: "skill", arguments: { name: "tdd" } }), undefined);
+    assert.match(
+      tddGuard({ name: "skill", arguments: { name: "another-skill" } }) ?? "",
+      /not allowlisted/,
+    );
+    assert.equal(
+      tddGuard({ name: "write", arguments: { file_path: "test/agent/cancel.test.ts" } }),
+      undefined,
+    );
+    assert.match(
+      tddGuard({ name: "write", arguments: { file_path: "test/public/cancel.test.ts" } }) ?? "",
+      /src, test\/agent/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

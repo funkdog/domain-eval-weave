@@ -1,6 +1,9 @@
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { resolve } from "node:path";
+
 import { z } from "zod";
 
-import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import { HARNESS_BUCKETS } from "./contracts.js";
 
 export const TDD_SKILL_BINDING = {
@@ -189,6 +192,59 @@ export function unavailableTddSkillDeployment(
     skill_binding_sha256: canonicalJsonDigest(TDD_SKILL_BINDING),
     reason,
   });
+}
+
+export async function verifyInstalledTddSkill(skillRootInput: string): Promise<string> {
+  const skillRoot = resolve(skillRootInput);
+  const root = await lstat(skillRoot);
+  if (root.isSymbolicLink() || !root.isDirectory() || (await realpath(skillRoot)) !== skillRoot) {
+    throw new Error("TDD Skill deployment root must be one physical directory");
+  }
+  const expected = [
+    ...TDD_SKILL_BINDING.files.map((entry) => ({
+      path: entry.path,
+      sha256: entry.sha256,
+      size: entry.size,
+    })),
+    {
+      path: "LICENSE",
+      sha256: TDD_SKILL_BINDING.license.sha256,
+      size: TDD_SKILL_BINDING.license.size,
+    },
+  ];
+  const actualFiles: string[] = [];
+  async function walk(directory: string, prefix: string): Promise<void> {
+    for (const name of (await readdir(directory)).sort()) {
+      const path = `${directory}/${name}`;
+      const relativePath = prefix === "" ? name : `${prefix}/${name}`;
+      const entry = await lstat(path);
+      if (entry.isSymbolicLink()) throw new Error("TDD Skill deployment cannot contain symlinks");
+      if (entry.isDirectory()) await walk(path, relativePath);
+      else if (entry.isFile() && entry.nlink === 1) actualFiles.push(relativePath);
+      else throw new Error("TDD Skill deployment contains a non-physical entry");
+    }
+  }
+  await walk(skillRoot, "");
+  if (canonicalJson(actualFiles) !== canonicalJson(expected.map((entry) => entry.path).sort())) {
+    throw new Error("TDD Skill deployment closure has missing or extra files");
+  }
+  const closure = [];
+  for (const expectedFile of expected) {
+    const path = resolve(skillRoot, expectedFile.path);
+    const entry = await lstat(path);
+    const bytes = await readFile(path);
+    if (
+      entry.isSymbolicLink() ||
+      !entry.isFile() ||
+      entry.nlink !== 1 ||
+      entry.size !== expectedFile.size ||
+      sha256Hex(bytes) !== expectedFile.sha256
+    ) {
+      throw new Error(`TDD Skill deployment identity drifted: ${expectedFile.path}`);
+    }
+    closure.push({ path: expectedFile.path, sha256: expectedFile.sha256, size: expectedFile.size });
+  }
+  return canonicalJsonDigest(closure);
 }
 
 function inRoots(path: string, roots: readonly string[]): boolean {

@@ -22,6 +22,8 @@ export interface DshEvalBridgeConfig {
   readonly workspaceRoot?: string;
   readonly runner?: WorkspaceTestRunner;
   readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly allowedWriteRoots?: readonly string[];
+  readonly allowedSkillNames?: readonly string[];
 }
 
 function strictWorkspaceTestRunner(workspaceRoot: string): WorkspaceTestRunner {
@@ -48,7 +50,17 @@ async function applyDshEvalBridge(
   assertCurrentPhase2Profile(context.root.baseUrl, "runner");
   await assertPhase2InstanceLayout();
   const workspaceRoot = config.workspaceRoot ?? process.cwd();
-  context.tools.guard(createWorkspaceToolGuard({ workspaceRoot }));
+  context.tools.guard(
+    createWorkspaceToolGuard({
+      workspaceRoot,
+      ...(config.allowedWriteRoots === undefined
+        ? {}
+        : { allowedWriteRoots: config.allowedWriteRoots }),
+      ...(config.allowedSkillNames === undefined
+        ? {}
+        : { allowedSkillNames: config.allowedSkillNames }),
+    }),
+  );
   context.tools.register(
     createWorkspaceTestDefinition({
       workspaceRoot,

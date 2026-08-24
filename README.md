@@ -169,7 +169,7 @@ and Oracle Plan compilation, actual Gold/red/mutant calibration admission, one p
 `delivery run` entry, and a replayable report across Requirement Delta, Domain Preservation,
 Semantic Residual, Measurement Validity, and Harness Impact. The release build physically omits trusted builder siblings;
 replay revalidates the entire paired Campaign deployment and rebuilds the Oracle Plan from Claim IR plus
-the frozen observation catalog. Its profile successor accepts only the exact accepted `3026921` Phase 3B.1
+the frozen observation catalog. Its profile successor accepts only the exact accepted `6725a48` Phase 3B.2
 management+runner+author package cohort. The Phase 3A `0.3.0-alpha.1` package adds strict domain artifacts, immutable snapshot replay,
 an isolated author Skill/profile with an author-only `domain_artifact` helper, runtime-owned forward-run receipts and promotion-attempt
 evidence, and a management-only confirmation ledger; it is not yet release-accepted.
@@ -193,9 +193,9 @@ Phase 3C now implements the typed public Observation Catalog, total Authority Ma
 normal-form evaluator, exact Gold/equivalent/mutant calibration, isolated no-tools Judge runner,
 freeze/unseal/admission protocol, independent Semantic and Code Quality contracts, four-axis report,
 and artifact-only replay. The package does not vendor or emulate the external TDD Skill. On the
-current machine its exact DSH deployment is unavailable, so a new v3 real Harness Campaign fails
-closed before confirmation or Candidate execution; historical or externally produced v3 artifacts
-remain replayable. Human-curated locked Judge holdouts and the exact Skill deployment are still
+runtime checks the exact DSH Skill deployment before a new v3 Campaign and fails closed before
+Candidate execution when it is missing; historical or externally produced v3 artifacts remain
+replayable. Human-curated locked Judge holdouts and an exact verified Skill deployment are both
 required before production acceptance can be claimed.
 
 The operator gates are intentional: `auth login` must be invoked explicitly,
