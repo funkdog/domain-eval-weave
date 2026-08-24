@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "judge_kind": {
+      "type": "string",
+      "enum": ["semantic", "code_quality"]
+    },
+    "freeze_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_admission_execution_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_bias_execution_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_admission_labels_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_bias_labels_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "unsealed_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "judge_kind",
+    "freeze_receipt_sha256",
+    "locked_admission_execution_sha256",
+    "locked_bias_execution_sha256",
+    "locked_admission_labels_sha256",
+    "locked_bias_labels_sha256",
+    "unsealed_at"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/judge-labels-unseal-receipt.schema.json"
+}

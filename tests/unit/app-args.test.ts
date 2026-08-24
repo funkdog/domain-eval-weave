@@ -57,6 +57,20 @@ test("app grammar normalizes Phase 1 compatibility, Phase 2, and Phase 3A comman
   assert.deepEqual(
     parseAppArguments([
       "delivery",
+      "report",
+      "commerce-phase3c-campaign",
+      "--template",
+      "commerce-order-cancellation-v3",
+    ]),
+    {
+      kind: "delivery-report",
+      campaignId: "commerce-phase3c-campaign",
+      templateId: "commerce-order-cancellation-v3",
+    },
+  );
+  assert.deepEqual(
+    parseAppArguments([
+      "delivery",
       "run",
       "domain-eval",
       "manifests/commerce-v2.json",

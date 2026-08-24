@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "candidate_archive": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    },
+    "candidate_diff": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    },
+    "base_tree": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    },
+    "public_task": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    },
+    "untrusted_candidate_content": {
+      "type": "boolean",
+      "const": true
+    },
+    "judge_kind": {
+      "type": "string",
+      "const": "code_quality"
+    },
+    "public_test_evidence": {
+      "minItems": 0,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["ref", "sha256"],
+        "additionalProperties": false
+      }
+    },
+    "rubric": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": ["ref", "sha256"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "candidate_archive",
+    "candidate_diff",
+    "base_tree",
+    "public_task",
+    "untrusted_candidate_content",
+    "judge_kind",
+    "public_test_evidence",
+    "rubric"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/code-quality-judge-input-manifest.schema.json"
+}

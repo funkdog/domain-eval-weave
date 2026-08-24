@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "judge_kind": {
+      "type": "string",
+      "enum": ["semantic", "code_quality"]
+    },
+    "judge_definition_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rubric_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "model_route_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "output_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "development_set_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_admission_inputs_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_bias_inputs_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "frozen_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "judge_kind",
+    "judge_definition_sha256",
+    "rubric_sha256",
+    "prompt_sha256",
+    "model_route_sha256",
+    "output_schema_sha256",
+    "development_set_sha256",
+    "locked_admission_inputs_sha256",
+    "locked_bias_inputs_sha256",
+    "frozen_at"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/judge-freeze-receipt.schema.json"
+}

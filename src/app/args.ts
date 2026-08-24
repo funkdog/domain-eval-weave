@@ -12,10 +12,17 @@ export const EXIT_CODE = {
 
 export type ExitCode = (typeof EXIT_CODE)[keyof typeof EXIT_CODE];
 
-export type DeliveryTemplateId =
-  | "reservation-ledger-v1"
-  | "commerce-order-cancellation-v1"
-  | "commerce-order-cancellation-v2";
+export const DELIVERY_TEMPLATE_IDS = [
+  "reservation-ledger-v1",
+  "commerce-order-cancellation-v1",
+  "commerce-order-cancellation-v2",
+  "commerce-order-cancellation-v3",
+] as const;
+export type DeliveryTemplateId = (typeof DELIVERY_TEMPLATE_IDS)[number];
+
+function isDeliveryTemplateId(value: string | undefined): value is DeliveryTemplateId {
+  return DELIVERY_TEMPLATE_IDS.some((templateId) => templateId === value);
+}
 
 export type AppInvocation =
   | { readonly kind: "help" }
@@ -169,11 +176,7 @@ function parseDeliveryRunArguments(args: readonly string[]): AppInvocation {
         throw new AppUsageError(`--timeout-ms must not exceed ${MAX_TIMEOUT_MS}`);
       }
     } else if (option === "--template") {
-      if (
-        value !== "reservation-ledger-v1" &&
-        value !== "commerce-order-cancellation-v1" &&
-        value !== "commerce-order-cancellation-v2"
-      ) {
+      if (!isDeliveryTemplateId(value)) {
         throw new AppUsageError("delivery --template is not a frozen template id");
       }
       templateId = value;
@@ -293,12 +296,7 @@ export function parseAppArguments(args: readonly string[]): AppInvocation {
         let templateId: DeliveryTemplateId = "reservation-ledger-v1";
         if (deliveryRest.length === 3) {
           const value = deliveryRest[2];
-          if (
-            deliveryRest[1] !== "--template" ||
-            (value !== "reservation-ledger-v1" &&
-              value !== "commerce-order-cancellation-v1" &&
-              value !== "commerce-order-cancellation-v2")
-          ) {
+          if (deliveryRest[1] !== "--template" || !isDeliveryTemplateId(value)) {
             throw new AppUsageError("delivery report --template is invalid");
           }
           templateId = value;

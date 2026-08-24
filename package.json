@@ -1,6 +1,6 @@
 {
   "name": "dsh-eval-lab",
-  "version": "0.3.0-alpha.1",
+  "version": "0.4.0-alpha.1",
   "private": true,
   "type": "module",
   "description": "DSH-native controlled harness evaluation plugin",
@@ -15,7 +15,8 @@
     "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
-    "./delivery": "./dist/delivery/index.js"
+    "./delivery": "./dist/delivery/index.js",
+    "./phase3c": "./dist/phase3c/index.js"
   },
   "files": [
     "dist",
@@ -39,6 +40,8 @@
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
     "check": "biome check .",
     "check:fix": "biome check --write .",
+    "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
+    "generate:phase3c-task-pack": "node --import tsx scripts/generate-phase3c-task-pack.ts",
     "lint": "tsc -p tsconfig.test.json",
     "prepare": "pnpm build",
     "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",

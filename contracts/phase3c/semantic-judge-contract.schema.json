@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "judge_contract_id": {
+      "type": "string",
+      "const": "phase3c-semantic-judge-v1"
+    },
+    "dimensions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dimension_id": {
+            "type": "string",
+            "enum": [
+              "requirement_intent_alignment",
+              "architecture_fit",
+              "failure_semantics_coherence",
+              "handoff_comprehensibility"
+            ]
+          },
+          "applicability": {
+            "type": "string",
+            "enum": ["required", "optional"]
+          },
+          "decision_rule": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "blocking": {
+            "type": "boolean"
+          },
+          "required_evidence": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["requirement_ref", "domain_ref", "code_location", "base_or_diff_ref"]
+            }
+          }
+        },
+        "required": [
+          "dimension_id",
+          "applicability",
+          "decision_rule",
+          "blocking",
+          "required_evidence"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "model_route": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        }
+      },
+      "required": ["provider", "model", "reasoning_effort"],
+      "additionalProperties": false
+    },
+    "prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "output_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "calibration_admission_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repeats_per_evaluation": {
+      "type": "number",
+      "const": 3
+    }
+  },
+  "required": [
+    "schema_version",
+    "judge_contract_id",
+    "dimensions",
+    "model_route",
+    "prompt_sha256",
+    "output_schema_sha256",
+    "calibration_admission_sha256",
+    "repeats_per_evaluation"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/semantic-judge-contract.schema.json"
+}

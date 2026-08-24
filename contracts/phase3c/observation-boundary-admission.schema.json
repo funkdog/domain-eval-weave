@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "boundary_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "task_pack_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "runner_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "cases": {
+      "minItems": 4,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "case_kind": {
+            "type": "string",
+            "enum": ["gold", "equivalent", "mutant", "relaxation_mutant"]
+          },
+          "candidate_archive": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": ["ref", "sha256"],
+            "additionalProperties": false
+          },
+          "expected_failed_observation_ids": {
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            }
+          },
+          "observed_failed_observation_ids": {
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            }
+          },
+          "deterministic_result": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": ["ref", "sha256"],
+            "additionalProperties": false
+          },
+          "match": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          }
+        },
+        "required": [
+          "case_id",
+          "case_kind",
+          "candidate_archive",
+          "expected_failed_observation_ids",
+          "observed_failed_observation_ids",
+          "deterministic_result",
+          "match"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "false_reject_case_ids": {
+      "minItems": 0,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      }
+    },
+    "false_accept_case_ids": {
+      "minItems": 0,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["admitted", "rejected"]
+    }
+  },
+  "required": [
+    "schema_version",
+    "boundary_sha256",
+    "task_pack_sha256",
+    "runner_sha256",
+    "seed",
+    "cases",
+    "false_reject_case_ids",
+    "false_accept_case_ids",
+    "status"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/observation-boundary-admission.schema.json"
+}

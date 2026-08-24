@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "candidates": [
+    {
+      "candidate_id": "equivalent-typed-rejection",
+      "transformations": ["typed_rejection"]
+    },
+    {
+      "candidate_id": "equivalent-reason-variation",
+      "transformations": ["reason_variation"]
+    },
+    {
+      "candidate_id": "equivalent-persistence-layout",
+      "transformations": ["persistence_layout"]
+    },
+    {
+      "candidate_id": "relaxation-malformed-refund-effect",
+      "transformations": ["malformed_refund_effect"]
+    }
+  ]
+}

@@ -1,0 +1,415 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "judge_kind": {
+      "type": "string",
+      "enum": ["semantic", "code_quality"]
+    },
+    "judge_definition_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "freeze_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_admission_execution_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_bias_execution_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_admission_labels_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "locked_bias_labels_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "labels_unseal_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "run_receipts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        },
+        "required": ["ref", "sha256"],
+        "additionalProperties": false
+      }
+    },
+    "case_results": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "repeat_results": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              }
+            ],
+            "minItems": 3,
+            "maxItems": 3,
+            "items": false
+          },
+          "observed_dimensions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dimension_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "requirement_intent_alignment",
+                        "architecture_fit",
+                        "failure_semantics_coherence",
+                        "handoff_comprehensibility"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "change_scope_discipline",
+                        "cohesion_and_responsibility",
+                        "state_transition_clarity",
+                        "error_handling_clarity",
+                        "test_maintainability",
+                        "duplication_and_locality"
+                      ]
+                    }
+                  ]
+                },
+                "applicability": {
+                  "type": "string",
+                  "enum": ["applicable", "not_applicable"]
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "abstain"]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": ["blocking", "concern", "none"]
+                },
+                "matched_condition_ids": {
+                  "minItems": 0,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  }
+                },
+                "abstention_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "insufficient_evidence",
+                        "conflicting_authority",
+                        "rubric_not_applicable",
+                        "out_of_distribution",
+                        "unsafe_or_untrusted_instruction",
+                        "unstable_across_repeats"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "dimension_id",
+                "applicability",
+                "verdict",
+                "severity",
+                "matched_condition_ids",
+                "abstention_reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "expected_dimensions_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "match": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          }
+        },
+        "required": [
+          "case_id",
+          "repeat_results",
+          "observed_dimensions",
+          "expected_dimensions_sha256",
+          "match"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "bias_results": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "repeat_results": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "ref": {
+                    "type": "string",
+                    "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": ["ref", "sha256"],
+                "additionalProperties": false
+              }
+            ],
+            "minItems": 3,
+            "maxItems": 3,
+            "items": false
+          },
+          "observed_dimensions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dimension_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "requirement_intent_alignment",
+                        "architecture_fit",
+                        "failure_semantics_coherence",
+                        "handoff_comprehensibility"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "change_scope_discipline",
+                        "cohesion_and_responsibility",
+                        "state_transition_clarity",
+                        "error_handling_clarity",
+                        "test_maintainability",
+                        "duplication_and_locality"
+                      ]
+                    }
+                  ]
+                },
+                "applicability": {
+                  "type": "string",
+                  "enum": ["applicable", "not_applicable"]
+                },
+                "verdict": {
+                  "type": "string",
+                  "enum": ["pass", "fail", "abstain"]
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": ["blocking", "concern", "none"]
+                },
+                "matched_condition_ids": {
+                  "minItems": 0,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                  }
+                },
+                "abstention_reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "insufficient_evidence",
+                        "conflicting_authority",
+                        "rubric_not_applicable",
+                        "out_of_distribution",
+                        "unsafe_or_untrusted_instruction",
+                        "unstable_across_repeats"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "dimension_id",
+                "applicability",
+                "verdict",
+                "severity",
+                "matched_condition_ids",
+                "abstention_reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "expected_dimensions_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "match": {
+            "type": "string",
+            "enum": ["pass", "fail"]
+          },
+          "canonical_case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "transform_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          }
+        },
+        "required": [
+          "case_id",
+          "repeat_results",
+          "observed_dimensions",
+          "expected_dimensions_sha256",
+          "match",
+          "canonical_case_id",
+          "transform_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["admitted", "rejected"]
+    }
+  },
+  "required": [
+    "schema_version",
+    "judge_kind",
+    "judge_definition_sha256",
+    "freeze_receipt_sha256",
+    "locked_admission_execution_sha256",
+    "locked_bias_execution_sha256",
+    "locked_admission_labels_sha256",
+    "locked_bias_labels_sha256",
+    "labels_unseal_receipt_sha256",
+    "run_receipts",
+    "case_results",
+    "bias_results",
+    "status"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/judge-admission.schema.json"
+}

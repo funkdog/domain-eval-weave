@@ -23,6 +23,11 @@ export const PHASE3A_AUTHOR = {
   sessionsRoot: `${DEDICATED_DSH_HOME}/sessions/clowder-ai-author`,
 } as const;
 
+export const PHASE3C_JUDGE = {
+  profile: PHASE2_INSTANCE.runnerProfile,
+  sessionsRoot: `${DEDICATED_DSH_HOME}/sessions/clowder-ai-judge`,
+} as const;
+
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 export class Phase2InstanceError extends Error {
@@ -180,4 +185,12 @@ export async function ensurePhase3AuthorLayout(): Promise<void> {
 
 export async function assertPhase3AuthorLayout(): Promise<void> {
   await validateContainedDirectory(DEDICATED_DSH_HOME, PHASE3A_AUTHOR.sessionsRoot, false);
+}
+
+export async function ensurePhase3cJudgeLayout(): Promise<void> {
+  await validateContainedDirectory(DEDICATED_DSH_HOME, PHASE3C_JUDGE.sessionsRoot, true);
+}
+
+export async function assertPhase3cJudgeLayout(): Promise<void> {
+  await validateContainedDirectory(DEDICATED_DSH_HOME, PHASE3C_JUDGE.sessionsRoot, false);
 }

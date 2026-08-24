@@ -147,6 +147,12 @@ DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
 DSH_EVAL_INSTANCE_ID=clowder-ai \
   dsh --profile eval-clowder delivery report <campaign-id> \
     --template commerce-order-cancellation-v2
+
+# Phase 3C artifact-only replay is available under the successor template.
+DSH_HOME=/Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home \
+DSH_EVAL_INSTANCE_ID=clowder-ai \
+  dsh --profile eval-clowder delivery report <campaign-id> \
+    --template commerce-order-cancellation-v3
 ```
 
 The Phase 1 compatibility commands remain `run` and `report <campaign-id>` on
@@ -183,10 +189,14 @@ six fresh Candidate Episodes, six externally verified outcomes, and byte-stable 
 The Suite retained holdout no-activation as paired insufficiency while keeping the bounded
 multi-task diagnostic valid; it did not produce a general effect claim.
 
-Phase 3C is contract-complete and not yet implemented. Its first release must preserve every historical
-replay contract, repair the Commerce false-reject observation boundary, admit both Judges against
-human-labeled calibration and bias suites, and keep the pinned external TDD Skill outside the Eval Lab
-implementation.
+Phase 3C now implements the typed public Observation Catalog, total Authority Map compiler, closed
+normal-form evaluator, exact Gold/equivalent/mutant calibration, isolated no-tools Judge runner,
+freeze/unseal/admission protocol, independent Semantic and Code Quality contracts, four-axis report,
+and artifact-only replay. The package does not vendor or emulate the external TDD Skill. On the
+current machine its exact DSH deployment is unavailable, so a new v3 real Harness Campaign fails
+closed before confirmation or Candidate execution; historical or externally produced v3 artifacts
+remain replayable. Human-curated locked Judge holdouts and the exact Skill deployment are still
+required before production acceptance can be claimed.
 
 The operator gates are intentional: `auth login` must be invoked explicitly,
 and any replacement for an already exposed holdout must be approved as a new

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "mutants": [
+    {
+      "candidate_id": "mutant-handed-off-cancel",
+      "operations": ["allow_handed_off_cancel"]
+    },
+    {
+      "candidate_id": "mutant-overrefund-or-currency",
+      "operations": ["refund_list_amount_or_wrong_currency"]
+    },
+    {
+      "candidate_id": "mutant-premature-cancel",
+      "operations": ["cancel_before_withdrawal"]
+    },
+    {
+      "candidate_id": "mutant-withdrawal-rejection-effects",
+      "operations": ["apply_effects_on_withdrawal_rejection"]
+    },
+    {
+      "candidate_id": "mutant-withdrawal-failure-effects",
+      "operations": ["apply_effects_on_withdrawal_failure"]
+    },
+    {
+      "candidate_id": "mutant-double-effects",
+      "operations": ["duplicate_inventory_on_replay"]
+    },
+    {
+      "candidate_id": "mutant-coupon-always-restored",
+      "operations": ["restore_expired_coupon"]
+    },
+    {
+      "candidate_id": "mutant-no-ownership",
+      "operations": ["disable_ownership"]
+    },
+    {
+      "candidate_id": "mutant-no-persistence",
+      "operations": ["skip_cancellation_persist"]
+    },
+    {
+      "candidate_id": "mutant-expired-replay-fresh",
+      "operations": ["treat_expired_replay_as_fresh"]
+    },
+    {
+      "candidate_id": "mutant-sparse-audit",
+      "operations": ["omit_required_audit_fields"]
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "number",
+          "const": 1
+        },
+        "availability": {
+          "type": "string",
+          "const": "available"
+        },
+        "skill_binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "package_tree_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "control_profile_rows_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "treatment_profile_rows_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "model_visible_skill_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "only_declared_difference": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "schema_version",
+        "availability",
+        "skill_binding_sha256",
+        "package_tree_sha256",
+        "control_profile_rows_sha256",
+        "treatment_profile_rows_sha256",
+        "model_visible_skill_sha256",
+        "only_declared_difference"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "number",
+          "const": 1
+        },
+        "availability": {
+          "type": "string",
+          "const": "unavailable"
+        },
+        "skill_binding_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["skill_not_installed", "profile_not_published", "identity_unverifiable"]
+        }
+      },
+      "required": ["schema_version", "availability", "skill_binding_sha256", "reason"],
+      "additionalProperties": false
+    }
+  ],
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/tdd-skill-deployment.schema.json"
+}

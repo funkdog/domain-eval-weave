@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "set_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "judge_kind": {
+      "type": "string",
+      "enum": ["semantic", "code_quality"]
+    },
+    "set_kind": {
+      "type": "string",
+      "enum": ["development", "locked_admission", "locked_bias"]
+    },
+    "cases": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "input_closure_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "risk_class": {
+            "type": "string",
+            "enum": ["critical", "standard"]
+          },
+          "canonical_case_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transform_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "case_id",
+          "input_closure_sha256",
+          "risk_class",
+          "canonical_case_id",
+          "transform_id"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "set_id", "judge_kind", "set_kind", "cases"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/judge-case-input-set.schema.json"
+}

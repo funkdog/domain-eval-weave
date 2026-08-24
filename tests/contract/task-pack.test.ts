@@ -21,6 +21,9 @@ const commercePackRoot = fileURLToPath(
 const commerceWithdrawalPackRoot = fileURLToPath(
   new URL("../../task-packs/open-coding-ts-commerce-order-v2", import.meta.url),
 );
+const phase3cPackRoot = fileURLToPath(
+  new URL("../../task-packs/open-coding-ts-commerce-order-v3", import.meta.url),
+);
 
 test("Task Pack manifest binds the base tree and calibration corpus digests", async () => {
   const pack = await loadTaskPack(packRoot);
@@ -74,6 +77,24 @@ test("the commerce withdrawal successor binds its own task, Oracle, and sixteen 
     await readFile(`${commerceWithdrawalPackRoot}/public-task.md`, "utf8"),
     /TASK_COMPLETE/,
   );
+});
+
+test("Phase 3C Task Pack binds the typed observation catalog and public TDD seams", async () => {
+  const [pack, identity, catalog] = await Promise.all([
+    loadTaskPack(phase3cPackRoot),
+    loadTaskPackIdentity(phase3cPackRoot),
+    loadObservationCatalog(phase3cPackRoot),
+  ]);
+  assert.equal(pack.schema_version, 3);
+  assert.equal(pack.template_id, "commerce-order-cancellation-v3");
+  assert.equal(pack.task_id, "open-coding-ts-commerce-order-v3");
+  assert.deepEqual(pack.allowed_candidate_globs, ["src/**", "test/agent/**"]);
+  assert.equal(pack.base_tree_sha256, await digestDirectory(`${phase3cPackRoot}/base`));
+  assert.equal(pack.calibration_digest, await digestDirectory(`${phase3cPackRoot}/calibration`));
+  assert.equal(identity.schema_version, 3);
+  assert.equal(identity.template_id, "commerce-order-cancellation-v3");
+  assert.equal(catalog.template_id, "commerce-order-cancellation-v3");
+  assert.match(await readFile(`${phase3cPackRoot}/public-task.md`, "utf8"), /preconfirmed/i);
 });
 
 test("Task Pack digest binds the public task, hidden Oracle, and observation catalog bytes", async () => {

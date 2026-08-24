@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "registry_id": {
+      "type": "string",
+      "const": "phase3c-tdd-task-registry-v1"
+    },
+    "skill_binding_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tasks": {
+      "minItems": 4,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "number",
+            "const": 1
+          },
+          "task_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": ["TDD-suitable", "borderline", "non-trigger", "holdout"]
+          },
+          "preconfirmed_test_seams": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allowed_test_roots": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "allowed_production_roots": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "task_id",
+          "bucket",
+          "preconfirmed_test_seams",
+          "allowed_test_roots",
+          "allowed_production_roots"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "registry_id", "skill_binding_sha256", "tasks"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/tdd-task-registry.schema.json"
+}

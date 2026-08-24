@@ -1,0 +1,6 @@
+{
+  "name": "open-coding-ts-commerce-order-v3",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/public/*.test.ts test/agent" }
+}

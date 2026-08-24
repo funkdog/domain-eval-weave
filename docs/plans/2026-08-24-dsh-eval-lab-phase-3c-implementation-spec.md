@@ -443,6 +443,7 @@ JudgeLabelSet:
 JudgeFreezeReceipt:
   schema_version: 1
   judge_kind: semantic | code_quality
+  judge_definition_sha256: sha256
   rubric_sha256: sha256
   prompt_sha256: sha256
   model_route_sha256: sha256
@@ -457,12 +458,13 @@ JudgeExecutionManifest:
   judge_kind: semantic | code_quality
   set_kind: locked_admission | locked_bias
   freeze_receipt_sha256: sha256
-  judge_contract_sha256: sha256
+  judge_definition_sha256: sha256
   input_set_sha256: sha256
   repeats_per_case: 3
 
 JudgeAdmission:
   schema_version: 1
+  judge_definition_sha256: sha256
   freeze_receipt_sha256: sha256
   locked_admission_execution_sha256: sha256
   locked_bias_execution_sha256: sha256
@@ -494,8 +496,11 @@ Development set 与 labels 可用于迭代。
 `JudgeResultDimension` 按 `judge_kind` discriminated：Semantic 使用 §3.6 dimension schema，Code Quality 使用 §3.7
 dimension schema；unknown/mixed shape 不能进入 Admission。
 
-迭代结束后，`JudgeFreezeReceipt` 绑定最终 rubric、prompt、model、schema 与三套 input digests；随后 production builder 才为
-两套 locked inputs exclusive-create `JudgeExecutionManifest`，绑定 final Judge contract 与固定三次运行。两个 execution manifests
+`JudgeDefinitionDigest` 是 Judge contract 去掉后生成的 `calibration_admission_sha256` 字段后的 canonical digest，避免
+Contract→Admission→Freeze→Contract 的不可构造哈希环。迭代结束后，`JudgeFreezeReceipt` 绑定最终 definition、rubric、prompt、
+model、schema 与三套 input digests；随后 production builder 才为两套 locked inputs exclusive-create
+`JudgeExecutionManifest`，绑定同一 Judge definition 与固定三次运行。Admission 完成后 production contract 才加入 exact
+`calibration_admission_sha256`；真实 Candidate run result 绑定该完整 production contract digest。两个 execution manifests
 落盘后，独立 labels root 才允许 unseal 双人标签与 adjudication。Freeze 前读取 holdout labels、freeze 后修改任一 Judge byte、
 或 development case 出现在 locked set 都拒绝 admission。
 

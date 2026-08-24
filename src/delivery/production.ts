@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-
+import type { DeliveryTemplateId } from "../app/args.js";
 import { runRealCampaign } from "../campaign/real.js";
 import {
   CommerceProductionError,
@@ -24,6 +24,12 @@ import { fingerprintPackageContent } from "../fingerprint/deployment.js";
 import { PHASE2_INSTANCE, phase2CalibrationPath } from "../instance.js";
 import { calibrateLedgerPackDetailed, projectCalibrationResult } from "../oracle/calibration.js";
 import { LedgerOracle } from "../oracle/ledger.js";
+import {
+  Phase3cProductionError,
+  renderRealPhase3cDelivery,
+  replayRealPhase3cDelivery,
+  runRealPhase3cDelivery,
+} from "../phase3c/production.js";
 import { StrictProcessRunner } from "../process/strict-runner.js";
 import {
   digestTaskPack,
@@ -42,11 +48,6 @@ import type { DeliveryEvaluationReport } from "./contracts.js";
 const PACKAGE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const TASK_PACK_ROOT = `${PACKAGE_ROOT}/task-packs/open-coding-ts-ledger-v1`;
 const DELIVERY_REPORT_REF = "artifact://campaign/delivery/report.json";
-type DeliveryTemplateId =
-  | "reservation-ledger-v1"
-  | "commerce-order-cancellation-v1"
-  | "commerce-order-cancellation-v2";
-
 export class DeliveryProductionError extends Error {
   readonly code: string;
 
@@ -59,7 +60,11 @@ export class DeliveryProductionError extends Error {
 
 function parseDeliveryTemplateId(input: unknown): DeliveryTemplateId {
   if (input === undefined || input === "reservation-ledger-v1") return "reservation-ledger-v1";
-  if (input === "commerce-order-cancellation-v1" || input === "commerce-order-cancellation-v2") {
+  if (
+    input === "commerce-order-cancellation-v1" ||
+    input === "commerce-order-cancellation-v2" ||
+    input === "commerce-order-cancellation-v3"
+  ) {
     return input;
   }
   throw new DeliveryProductionError(
@@ -134,6 +139,16 @@ export async function runRealDeliveryEvaluation(input: {
       return await runRealCommerceWithdrawalDelivery(input);
     } catch (error) {
       if (error instanceof CommerceWithdrawalProductionError) {
+        throw new DeliveryProductionError(error.code, error.message);
+      }
+      throw error;
+    }
+  }
+  if (templateId === "commerce-order-cancellation-v3") {
+    try {
+      return await runRealPhase3cDelivery(input);
+    } catch (error) {
+      if (error instanceof Phase3cProductionError) {
         throw new DeliveryProductionError(error.code, error.message);
       }
       throw error;
@@ -243,7 +258,9 @@ export function renderDeliveryEvaluationMarkdown(
     ? renderRealCommerceDelivery(report)
     : parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v2"
       ? renderRealCommerceWithdrawalDelivery(report)
-      : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
+      : parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v3"
+        ? renderRealPhase3cDelivery(report)
+        : renderDeliveryEvaluationMarkdownInternal(report as DeliveryEvaluationReport);
 }
 
 export async function replayRealDeliveryEvaluation(
@@ -258,6 +275,9 @@ export async function replayRealDeliveryEvaluation(
   }
   if (parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v2") {
     return replayRealCommerceWithdrawalDelivery(campaignId);
+  }
+  if (parseDeliveryTemplateId(templateId) === "commerce-order-cancellation-v3") {
+    return replayRealPhase3cDelivery(campaignId);
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(campaignId)) {
     throw new DeliveryProductionError(

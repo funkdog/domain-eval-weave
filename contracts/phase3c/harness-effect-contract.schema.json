@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "contract_id": {
+      "type": "string",
+      "const": "tdd-skill-harness-effect-v1"
+    },
+    "harness_binding_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "task_registry_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "opportunity_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "enum": ["TDD-suitable", "borderline", "non-trigger", "holdout"]
+          },
+          "expected_opportunity": {
+            "type": "string",
+            "enum": ["eligible", "ineligible", "unknown"]
+          }
+        },
+        "required": ["bucket", "expected_opportunity"],
+        "additionalProperties": false
+      }
+    },
+    "activation": {
+      "type": "object",
+      "properties": {
+        "source_schema_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "event_ids": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "skill_loaded"
+            },
+            {
+              "type": "string",
+              "const": "first_test_write"
+            },
+            {
+              "type": "string",
+              "const": "first_production_write"
+            },
+            {
+              "type": "string",
+              "const": "focused_red"
+            },
+            {
+              "type": "string",
+              "const": "focused_green"
+            },
+            {
+              "type": "string",
+              "const": "full_suite_green"
+            },
+            {
+              "type": "string",
+              "const": "refactor_after_green"
+            }
+          ],
+          "minItems": 7,
+          "maxItems": 7,
+          "items": false
+        },
+        "dependency_escape_event_id": {
+          "type": "string",
+          "const": "codebase_design_requested"
+        }
+      },
+      "required": ["source_schema_sha256", "event_ids", "dependency_escape_event_id"],
+      "additionalProperties": false
+    },
+    "quality_partial_order": {
+      "type": "object",
+      "properties": {
+        "delivery": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "fail"
+            },
+            {
+              "type": "string",
+              "const": "pass"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        },
+        "semantic": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "fail"
+            },
+            {
+              "type": "string",
+              "const": "pass"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false
+        },
+        "code_quality": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "string",
+              "const": "fail"
+            },
+            {
+              "type": "string",
+              "const": "concern"
+            },
+            {
+              "type": "string",
+              "const": "pass"
+            }
+          ],
+          "minItems": 3,
+          "maxItems": 3,
+          "items": false
+        }
+      },
+      "required": ["delivery", "semantic", "code_quality"],
+      "additionalProperties": false
+    },
+    "cost": {
+      "type": "object",
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "metric_id": {
+                "type": "string",
+                "enum": [
+                  "elapsed_ms",
+                  "input_tokens",
+                  "cached_input_tokens",
+                  "output_tokens",
+                  "failed_tool_calls"
+                ]
+              },
+              "unit": {
+                "type": "string",
+                "enum": ["milliseconds", "tokens", "calls"]
+              },
+              "direction": {
+                "type": "string",
+                "const": "lower_is_better"
+              },
+              "tolerance": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["maximum", "none"]
+                  },
+                  "value": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["kind", "value"],
+                "additionalProperties": false
+              },
+              "missing_or_null": {
+                "type": "string",
+                "enum": ["insufficient", "invalid"]
+              }
+            },
+            "required": [
+              "metric_id",
+              "unit",
+              "direction",
+              "tolerance",
+              "budget",
+              "missing_or_null"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["rules"],
+      "additionalProperties": false
+    },
+    "claim_strength_rules": {
+      "type": "object",
+      "properties": {
+        "single_pair": {
+          "type": "string",
+          "const": "descriptive"
+        },
+        "repeated_known_tasks": {
+          "type": "string",
+          "const": "diagnostic"
+        },
+        "holdout_minimum": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "effect_eligible_minimum": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "single_pair",
+        "repeated_known_tasks",
+        "holdout_minimum",
+        "effect_eligible_minimum"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_id",
+    "harness_binding_sha256",
+    "task_registry_sha256",
+    "opportunity_rules",
+    "activation",
+    "quality_partial_order",
+    "cost",
+    "claim_strength_rules"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/harness-effect-contract.schema.json"
+}

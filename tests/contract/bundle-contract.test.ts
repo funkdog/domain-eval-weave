@@ -59,6 +59,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
     "./bridge": "./dist/bridge/index.js",
     "./delivery": "./dist/delivery/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
+    "./phase3c": "./dist/phase3c/index.js",
   });
   assert.deepEqual(manifest.dsh, { bundle: { patch: "./cordis.patch.yml" } });
   assert.equal(
@@ -73,7 +74,7 @@ test("package is a DSH bundle with app/bridge exports and no standalone bin", as
   );
 });
 
-test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay immutable", async () => {
+test("Phase 3C package advances while the accepted Phase 2 Harness/Registry stay immutable", async () => {
   const [manifestSource, harnessSource, registrySource] = await Promise.all([
     readFile(new URL("../../package.json", import.meta.url), "utf8"),
     readFile(new URL("../../harnesses/dsh-goal-stack/harness.json", import.meta.url), "utf8"),
@@ -83,7 +84,7 @@ test("Phase 3 package advances while the accepted Phase 2 Harness/Registry stay 
   const harness = JSON.parse(harnessSource) as Record<string, unknown>;
   const registry = JSON.parse(registrySource) as Record<string, unknown>;
 
-  assert.equal(manifest.version, "0.3.0-alpha.1");
+  assert.equal(manifest.version, "0.4.0-alpha.1");
   assert.equal(harness.harness_version, "0.2.0-rc.4");
   assert.equal(registry.registry_id, "dsh-eval-lab-phase2-v4");
 });
@@ -203,6 +204,27 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     ) as Record<string, unknown>;
     assert.equal(packedCommerceWithdrawalPack.schema_version, 2);
     assert.equal(packedCommerceWithdrawalPack.template_id, "commerce-order-cancellation-v2");
+    const packedPhase3cPack = JSON.parse(
+      await readFile(
+        join(packageRoot, "task-packs/open-coding-ts-commerce-order-v3/pack.json"),
+        "utf8",
+      ),
+    ) as Record<string, unknown>;
+    assert.equal(packedPhase3cPack.schema_version, 3);
+    assert.equal(packedPhase3cPack.template_id, "commerce-order-cancellation-v3");
+    const packedPhase3cReportSchema = await readFile(
+      join(packageRoot, "contracts/phase3c/delivery-evaluation-report.schema.json"),
+      "utf8",
+    );
+    assert.match(packedPhase3cReportSchema, /"const": 3/);
+    assert.match(packedPhase3cReportSchema, /semantic_judge_contract/);
+    assert.match(
+      await readFile(
+        join(packageRoot, "contracts/phase3c/observation-authority-map.schema.json"),
+        "utf8",
+      ),
+      /observation-authority-map\.schema\.json/,
+    );
     assert.match(
       await readFile(
         join(packageRoot, "contracts/commerce/delivery-evaluation-report.schema.json"),

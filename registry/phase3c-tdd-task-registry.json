@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "registry_id": "phase3c-tdd-task-registry-v1",
+  "skill_binding_sha256": "37d606fef2af98e5a5ea15820327970d639f41c88b77ec3d30bc6535fb8732ed",
+  "tasks": [
+    {
+      "schema_version": 1,
+      "task_id": "commerce-order-cancellation-tdd-v1",
+      "bucket": "TDD-suitable",
+      "preconfirmed_test_seams": ["OrderService public API"],
+      "allowed_test_roots": ["test/agent"],
+      "allowed_production_roots": ["src"]
+    },
+    {
+      "schema_version": 1,
+      "task_id": "commerce-order-small-change-borderline-v1",
+      "bucket": "borderline",
+      "preconfirmed_test_seams": ["OrderService public API"],
+      "allowed_test_roots": ["test/agent"],
+      "allowed_production_roots": ["src"]
+    },
+    {
+      "schema_version": 1,
+      "task_id": "commerce-static-contract-non-trigger-v1",
+      "bucket": "non-trigger",
+      "preconfirmed_test_seams": ["No executable seam is required"],
+      "allowed_test_roots": ["test/agent"],
+      "allowed_production_roots": ["src"]
+    },
+    {
+      "schema_version": 1,
+      "task_id": "commerce-order-unseen-holdout-v1",
+      "bucket": "holdout",
+      "preconfirmed_test_seams": ["OrderService public API"],
+      "allowed_test_roots": ["test/agent"],
+      "allowed_production_roots": ["src"]
+    }
+  ]
+}

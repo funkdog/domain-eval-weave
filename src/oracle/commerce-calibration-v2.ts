@@ -156,7 +156,7 @@ function applyOperation(source: string, operation: MutationOperation): string {
   }
 }
 
-async function materializeCandidate(input: {
+export async function materializeCommerceCalibrationCandidate(input: {
   readonly candidate: CommerceCalibrationCandidate;
   readonly packRoot: string;
   readonly scratchRoot: string;
@@ -198,7 +198,7 @@ export async function calibrateCommercePackDetailed(input: {
 }): Promise<CommerceCalibrationEvidence> {
   const entries: Array<readonly [CommerceCalibrationCandidate, CommerceBehaviorVector]> = [];
   for (const candidate of COMMERCE_CALIBRATION_CANDIDATES) {
-    const candidateRoot = await materializeCandidate({
+    const candidateRoot = await materializeCommerceCalibrationCandidate({
       candidate,
       packRoot: input.packRoot,
       scratchRoot: input.scratchRoot,

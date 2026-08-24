@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "operation": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["accepted", "rejected", "unavailable"]
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "field_id": {
+            "type": "string",
+            "enum": [
+              "order_status",
+              "fulfillment_state",
+              "withdrawal_state",
+              "refund_status",
+              "refund_amount",
+              "currency",
+              "inventory_reserved",
+              "coupon_state",
+              "version"
+            ]
+          },
+          "value": {
+            "type": "object",
+            "properties": {
+              "domain_id": {
+                "type": "string",
+                "enum": [
+                  "order_status_enum",
+                  "fulfillment_state_enum",
+                  "withdrawal_state_enum",
+                  "refund_status_enum",
+                  "currency_enum",
+                  "coupon_state_enum",
+                  "boolean",
+                  "nonnegative_integer",
+                  "nonnegative_minor_units",
+                  "positive_version",
+                  "opaque_id",
+                  "timestamp"
+                ]
+              },
+              "scalar": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["domain_id", "scalar"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["field_id", "value"],
+        "additionalProperties": false
+      }
+    },
+    "effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "effect_id": {
+            "type": "string",
+            "enum": [
+              "order_cancelled",
+              "refund_requested",
+              "inventory_compensated",
+              "coupon_restored",
+              "command_rejected",
+              "withdrawal_requested",
+              "withdrawal_completed",
+              "idempotency_conflict"
+            ]
+          },
+          "identity": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field_id": {
+                  "type": "string",
+                  "enum": [
+                    "order_id",
+                    "request_id",
+                    "effect_key",
+                    "amount",
+                    "currency",
+                    "eligibility",
+                    "provider_ref"
+                  ]
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["field_id", "value"],
+              "additionalProperties": false
+            }
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field_id": {
+                  "type": "string",
+                  "enum": [
+                    "order_id",
+                    "request_id",
+                    "effect_key",
+                    "amount",
+                    "currency",
+                    "eligibility",
+                    "provider_ref"
+                  ]
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["field_id", "value"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["effect_id", "identity", "attributes"],
+        "additionalProperties": false
+      }
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "relation_id": {
+            "type": "string",
+            "enum": [
+              "withdrawal_before_cancellation",
+              "request_replay_same_as_first",
+              "restart_preserves_public_state"
+            ]
+          },
+          "status": {
+            "type": "boolean"
+          }
+        },
+        "required": ["relation_id", "status"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "operation", "state", "effects", "relations"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/domain-observation-normal-form.schema.json"
+}

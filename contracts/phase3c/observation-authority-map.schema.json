@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "catalog_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "claim_ir_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dimension_id": {
+            "type": "string",
+            "enum": [
+              "create_order_outcome",
+              "cancel_order_outcome",
+              "resolve_withdrawal_outcome",
+              "mark_refunded_outcome",
+              "get_order_outcome",
+              "get_audit_outcome",
+              "get_retention_outcome",
+              "order_status_state",
+              "fulfillment_state_state",
+              "withdrawal_state_state",
+              "refund_status_state",
+              "refund_amount_state",
+              "currency_state",
+              "inventory_reserved_state",
+              "coupon_state_state",
+              "version_state",
+              "order_cancelled_effect",
+              "refund_requested_effect",
+              "inventory_compensated_effect",
+              "coupon_restored_effect",
+              "command_rejected_effect",
+              "withdrawal_requested_effect",
+              "withdrawal_completed_effect",
+              "idempotency_conflict_effect",
+              "withdrawal_before_cancellation",
+              "request_replay_same_as_first",
+              "restart_preserves_public_state",
+              "retention_window"
+            ]
+          },
+          "disposition": {
+            "type": "string",
+            "enum": ["deterministic", "semantic_residual", "out_of_scope"]
+          },
+          "claim_ids": {
+            "minItems": 0,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            }
+          },
+          "authority_refs": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "pattern": "^artifact:\\/\\/campaign\\/(?!\\.{1,2}(?:\\/|$))(?!.*\\/\\.{1,2}(?:\\/|$))(?!.*\\/\\/)[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": ["ref", "sha256"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["dimension_id", "disposition", "claim_ids", "authority_refs"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "catalog_sha256", "claim_ir_sha256", "dimensions"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/observation-authority-map.schema.json"
+}

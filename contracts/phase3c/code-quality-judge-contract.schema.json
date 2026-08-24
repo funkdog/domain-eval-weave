@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "rubric_id": {
+      "type": "string",
+      "const": "phase3c-code-quality-v1"
+    },
+    "dimensions": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dimension_id": {
+            "type": "string",
+            "enum": [
+              "change_scope_discipline",
+              "cohesion_and_responsibility",
+              "state_transition_clarity",
+              "error_handling_clarity",
+              "test_maintainability",
+              "duplication_and_locality"
+            ]
+          },
+          "applicability": {
+            "type": "string",
+            "enum": ["required", "optional"]
+          },
+          "decision_rule": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "required_evidence": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["requirement_ref", "domain_ref", "code_location", "base_or_diff_ref"]
+            }
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "condition_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": ["blocking", "concern"]
+                },
+                "statement": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                },
+                "applicability": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "required_evidence": {
+                  "minItems": 1,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": ["requirement_ref", "domain_ref", "code_location", "base_or_diff_ref"]
+                  }
+                }
+              },
+              "required": [
+                "condition_id",
+                "level",
+                "statement",
+                "applicability",
+                "required_evidence"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "dimension_id",
+          "applicability",
+          "decision_rule",
+          "required_evidence",
+          "conditions"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "model_route": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        "reasoning_effort": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        }
+      },
+      "required": ["provider", "model", "reasoning_effort"],
+      "additionalProperties": false
+    },
+    "prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "output_schema_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "calibration_admission_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "repeats_per_evaluation": {
+      "type": "number",
+      "const": 3
+    }
+  },
+  "required": [
+    "schema_version",
+    "rubric_id",
+    "dimensions",
+    "model_route",
+    "prompt_sha256",
+    "output_schema_sha256",
+    "calibration_admission_sha256",
+    "repeats_per_evaluation"
+  ],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/phase3c/code-quality-judge-contract.schema.json"
+}

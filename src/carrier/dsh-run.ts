@@ -12,6 +12,7 @@ export interface DshRunInput {
   readonly task: string;
   readonly timeoutMs: number;
   readonly postOutputExitGraceMs?: number;
+  readonly permissionMode?: "read-only" | "workspace-write";
 }
 
 export interface DshRunOutput {
@@ -53,7 +54,7 @@ export class DshRunCarrier {
           DSH_HOME: DEDICATED_DSH_HOME,
           DSH_EVAL_INSTANCE_ID: PHASE2_INSTANCE.id,
           DSH_TOOLS_MODE: "native",
-          DSH_PERMISSION_MODE: "workspace-write",
+          DSH_PERMISSION_MODE: input.permissionMode ?? "workspace-write",
         },
         stdio: ["ignore", "pipe", "pipe"],
       },
