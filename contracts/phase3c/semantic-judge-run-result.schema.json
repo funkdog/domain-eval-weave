@@ -46,7 +46,7 @@
             "enum": ["blocking", "concern", "none"]
           },
           "matched_condition_ids": {
-            "minItems": 0,
+            "maxItems": 0,
             "type": "array",
             "items": {
               "type": "string",

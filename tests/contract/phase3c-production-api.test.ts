@@ -34,7 +34,7 @@ test("Phase 3C production API renders v3 and fails closed before Candidate execu
       error instanceof Error &&
       "code" in error &&
       (error.code === "PHASE3C_TDD_SKILL_UNAVAILABLE" ||
-        error.code === "PHASE3C_JUDGE_HOLDOUT_UNAVAILABLE"),
+        error.code === "PHASE3C_JUDGE_NOT_ADMITTED"),
   );
   assert.equal(confirmed, false);
 });

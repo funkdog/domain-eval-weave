@@ -146,6 +146,20 @@ test("Semantic Judge requires contract-authorized severity and evidence", () => 
   assert.throws(() => validateSemanticJudgeRun(semanticContract, bad), /severity/i);
 });
 
+test("Semantic Judge schema forbids Code Quality condition ids", () => {
+  const run = semanticRun();
+  assert.throws(() =>
+    validateSemanticJudgeRun(semanticContract, {
+      ...run,
+      dimensions: run.dimensions.map((dimension, index) =>
+        index === 0
+          ? { ...dimension, matched_condition_ids: ["semantic-residual-claim"] }
+          : dimension,
+      ),
+    }),
+  );
+});
+
 test("three unanimous Semantic runs decide while disagreement abstains", () => {
   const pass = aggregateSemanticJudgeRuns(semanticContract, [
     semanticRun(),

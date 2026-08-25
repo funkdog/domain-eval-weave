@@ -568,6 +568,7 @@ const judgeDimensionBase = {
 export const semanticJudgeDimensionSchema = z.strictObject({
   dimension_id: semanticDimensionSchema,
   ...judgeDimensionBase,
+  matched_condition_ids: z.array(idSchema).max(0),
 });
 export const codeQualityJudgeDimensionSchema = z.strictObject({
   dimension_id: codeQualityDimensionSchema,

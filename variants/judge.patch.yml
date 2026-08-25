@@ -17,6 +17,12 @@
   disabled: true
 - id: tool-jobs
   disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-fs-search
+  disabled: true
+- id: tool-todo
+  disabled: true
 - id: tool-str-replace-editor
   disabled: true
 - id: tool-web
@@ -50,3 +56,16 @@
 - id: approval
   config:
     policy: never
+- id: permission
+  config:
+    defaultPreset: read-only
+    presets:
+      read-only:
+        sandbox: read-only
+        approval: never
+      workspace-write:
+        sandbox: workspace-write
+        approval: never
+      danger-full-access:
+        sandbox: danger-full-access
+        approval: never

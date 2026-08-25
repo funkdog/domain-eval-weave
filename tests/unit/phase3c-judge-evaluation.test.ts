@@ -54,6 +54,7 @@ test("admitted Judge evaluation persists three independent runs and one aggregat
       return {
         sessionId: `synthetic-session-${repeatIndex}`,
         sessionTranscriptSha256: sha(String(repeatIndex)),
+        sessionProtocolValid: true,
         exitCode: 0,
         signal: null,
         stdout: JSON.stringify({

@@ -4,10 +4,12 @@ import test from "node:test";
 import { sha256Hex } from "../../src/contracts/canonical-json.js";
 import {
   CODE_QUALITY_DIMENSIONS,
+  CODE_QUALITY_JUDGE_DEFINITION_VERSION,
   CODE_QUALITY_JUDGE_PROMPT,
   createCodeQualityJudgeContract,
   createSemanticJudgeContract,
   SEMANTIC_DIMENSIONS,
+  SEMANTIC_JUDGE_DEFINITION_VERSION,
   SEMANTIC_JUDGE_PROMPT,
 } from "../../src/phase3c/index.js";
 
@@ -33,6 +35,10 @@ test("frozen Judge factories bind complete independent rubrics and prompt bytes"
   assert.equal(semantic.prompt_sha256, sha256Hex(SEMANTIC_JUDGE_PROMPT));
   assert.equal(quality.prompt_sha256, sha256Hex(CODE_QUALITY_JUDGE_PROMPT));
   assert.notEqual(semantic.prompt_sha256, quality.prompt_sha256);
+  assert.match(SEMANTIC_JUDGE_PROMPT, new RegExp(SEMANTIC_JUDGE_DEFINITION_VERSION));
+  assert.match(CODE_QUALITY_JUDGE_PROMPT, new RegExp(CODE_QUALITY_JUDGE_DEFINITION_VERSION));
+  assert.match(SEMANTIC_JUDGE_PROMPT, /input_manifest_sha256/);
+  assert.match(CODE_QUALITY_JUDGE_PROMPT, /rubric_sha256/);
   assert.ok(quality.dimensions.every((entry) => entry.conditions.length === 2));
   assert.ok(
     quality.dimensions.every(

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+
 import { readArtifactBytesByRef } from "../contracts/artifacts.js";
 import { PHASE2_INSTANCE } from "../instance.js";
 import { DEDICATED_DSH_HOME } from "../runtime-root.js";
@@ -52,8 +54,8 @@ export async function runRealPhase3cDelivery(input: {
     );
   }
   throw new Phase3cProductionError(
-    "PHASE3C_JUDGE_HOLDOUT_UNAVAILABLE",
-    "Phase 3C real Candidate acceptance is fail-closed until independently curated Semantic and Code Quality Judge holdouts are admitted; no Candidate Episode was started",
+    "PHASE3C_JUDGE_NOT_ADMITTED",
+    "Phase 3C real Candidate acceptance is fail-closed because the independently curated Semantic and Code Quality Judges are not both admitted; no Candidate Episode was started",
   );
 }
 
@@ -73,5 +75,3 @@ export async function replayRealPhase3cDelivery(campaignId: string) {
 export function renderRealPhase3cDelivery(report: unknown): string {
   return renderPhase3cDeliveryReport(report);
 }
-
-import { readFile } from "node:fs/promises";

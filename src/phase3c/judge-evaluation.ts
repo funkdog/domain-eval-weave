@@ -102,6 +102,7 @@ export async function runAdmittedJudgeEvaluation(input: {
       inputManifest: manifest,
       inputManifestPointer: inputPointer,
       outputSchemaPointer,
+      outputSchemaBytes: input.outputSchemaBytes,
       materials: input.materials,
       startedAt: clock(),
       endedAt: clock,

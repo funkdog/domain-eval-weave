@@ -22,10 +22,16 @@ function inventoryEntry(
   return entry;
 }
 
-function verifyJudgeSession(input: {
-  readonly transcript: string;
-  readonly workspace: string;
-}): JudgeCarrierResult["observedModelRoute"] {
+export function assertNoJudgeTools(value: unknown): void {
+  if (value !== undefined && (!Array.isArray(value) || value.length !== 0)) {
+    throw new Error("Judge request exposed tools");
+  }
+}
+
+function verifyJudgeSession(input: { readonly transcript: string; readonly workspace: string }): {
+  readonly observedModelRoute: JudgeCarrierResult["observedModelRoute"];
+  readonly sessionProtocolValid: boolean;
+} {
   const decoded = decodeOfficialSessionJsonl(input.transcript);
   if (
     decoded.header.version !== 0 ||
@@ -35,22 +41,18 @@ function verifyJudgeSession(input: {
   ) {
     throw new Error("Judge Session header violates the isolated root contract");
   }
-  if (
-    decoded.events.some((event) => event.type === "tool/call" || event.type === "tool/result") ||
-    !decoded.events.some((event) => event.type === "assistant/message") ||
-    !decoded.events.some((event) => event.type === "turn/end")
-  ) {
-    throw new Error("Judge Session lifecycle or no-tools contract is invalid");
+  if (decoded.events.some((event) => event.type === "tool/call" || event.type === "tool/result")) {
+    throw new Error("Judge Session no-tools contract is invalid");
   }
+  const sessionProtocolValid =
+    decoded.events.some((event) => event.type === "assistant/message") &&
+    decoded.events.some((event) => event.type === "turn/end");
   const routes = decoded.events
     .filter((event) => event.type === "request/header")
     .map((event) => {
       const header = record(record(event.data).header);
       const config = record(header.config);
-      const tools = header.tools;
-      if (!Array.isArray(tools) || tools.length !== 0) {
-        throw new Error("Judge request exposed tools");
-      }
+      assertNoJudgeTools(header.tools);
       return {
         provider: config.provider,
         model: config.model,
@@ -80,7 +82,10 @@ function verifyJudgeSession(input: {
   ) {
     throw new Error("Judge Session model route changed across requests");
   }
-  return first as JudgeCarrierResult["observedModelRoute"];
+  return {
+    observedModelRoute: first as JudgeCarrierResult["observedModelRoute"],
+    sessionProtocolValid,
+  };
 }
 
 export class DshJudgeCarrier implements JudgeCarrier {
@@ -138,7 +143,7 @@ export class DshJudgeCarrier implements JudgeCarrier {
     const transcript = await readStableSessionTranscript(
       inventoryEntry(after, discovered.id).transcriptPath,
     );
-    const observedModelRoute = verifyJudgeSession({
+    const verifiedSession = verifyJudgeSession({
       transcript,
       workspace: this.#workspace,
     });
@@ -148,13 +153,14 @@ export class DshJudgeCarrier implements JudgeCarrier {
     return {
       sessionId: discovered.id,
       sessionTranscriptSha256: sha256Hex(transcript),
+      sessionProtocolValid: verifiedSession.sessionProtocolValid,
       exitCode: terminal.exitCode,
       signal: terminal.signal,
       stdout: terminal.stdout,
       stderr: terminal.stderr,
       timedOut: terminal.timedOut,
       outputLimitExceeded: terminal.outputLimitExceeded,
-      observedModelRoute,
+      observedModelRoute: verifiedSession.observedModelRoute,
     };
   }
 }

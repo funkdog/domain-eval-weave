@@ -19,6 +19,9 @@ test("Phase 3C Judge patch disables every mutable or measurement-leaking capabil
     "tool-bash",
     "tool-pwsh",
     "tool-jobs",
+    "tool-fs",
+    "tool-fs-search",
+    "tool-todo",
     "tool-str-replace-editor",
     "tool-web",
     "tool-skill",
@@ -42,6 +45,14 @@ test("Phase 3C Judge patch disables every mutable or measurement-leaking capabil
     packChunks: false,
   });
   assert.deepEqual(byId.get("approval")?.config, { policy: "never" });
+  assert.deepEqual(byId.get("permission")?.config, {
+    defaultPreset: "read-only",
+    presets: {
+      "read-only": { sandbox: "read-only", approval: "never" },
+      "workspace-write": { sandbox: "workspace-write", approval: "never" },
+      "danger-full-access": { sandbox: "danger-full-access", approval: "never" },
+    },
+  });
 });
 
 test("Phase 3C TDD arms differ only by normal DSH Skill availability", async () => {
