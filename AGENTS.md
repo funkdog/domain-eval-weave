@@ -15,6 +15,8 @@
 - Phase 3C implementation contract: `docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md`
 - Phase 4A product contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-product-plan.md`
 - Phase 4A implementation contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-implementation-spec.md`
+- Phase 4B product contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md`
+- Phase 4B implementation contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md`
 
 Read the product boundary and the implementation contract for the phase in scope before coding.
 Do not broaden either phase beyond its frozen contract.

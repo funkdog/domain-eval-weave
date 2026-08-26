@@ -47,7 +47,9 @@
     }
   },
   "scripts": {
-    "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "build": "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "build:packages": "pnpm --filter @dsh-eval/lab build && pnpm --filter @dsh-eval/dsh-adapter build",
+    "build:lab": "pnpm --filter @dsh-eval/lab build",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
@@ -55,6 +57,7 @@
     "generate:phase3c-task-pack": "node --import tsx scripts/generate-phase3c-task-pack.ts",
     "freeze:phase3c-judges": "node --import tsx scripts/freeze-phase3c-judges.ts",
     "run:phase3c-judge-cohort": "node --import tsx scripts/run-phase3c-judge-cohort.ts",
+    "readiness:open-source": "node scripts/open-source-readiness.mjs",
     "lint": "tsc -p tsconfig.test.json",
     "prepare": "pnpm build",
     "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",

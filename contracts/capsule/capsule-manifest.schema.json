@@ -25,7 +25,6 @@
       "maxLength": 512
     },
     "sources": {
-      "minItems": 1,
       "type": "array",
       "items": {
         "type": "object",
@@ -68,7 +67,6 @@
       }
     },
     "requirements": {
-      "minItems": 1,
       "type": "array",
       "items": {
         "type": "string",
@@ -77,7 +75,6 @@
       }
     },
     "evaluators": {
-      "minItems": 1,
       "type": "array",
       "items": {
         "type": "string",
@@ -86,7 +83,6 @@
       }
     },
     "candidates": {
-      "minItems": 1,
       "type": "array",
       "items": {
         "type": "object",
@@ -128,7 +124,6 @@
       }
     },
     "cases": {
-      "minItems": 1,
       "type": "array",
       "items": {
         "type": "string",

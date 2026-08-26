@@ -72,11 +72,11 @@ export const capsuleManifestSchema = z
     version: versionSchema,
     title: z.string().min(1).max(256),
     domain: relativePathSchema,
-    sources: uniqueBy(capsuleSourceSchema, (value) => value.source_id).min(1),
-    requirements: z.array(relativePathSchema).min(1),
-    evaluators: z.array(relativePathSchema).min(1),
-    candidates: uniqueBy(capsuleCandidateSchema, (value) => value.candidate_id).min(1),
-    cases: z.array(relativePathSchema).min(1),
+    sources: uniqueBy(capsuleSourceSchema, (value) => value.source_id),
+    requirements: z.array(relativePathSchema),
+    evaluators: z.array(relativePathSchema),
+    candidates: uniqueBy(capsuleCandidateSchema, (value) => value.candidate_id),
+    cases: z.array(relativePathSchema),
   })
   .superRefine((manifest, context) => {
     for (const [field, values] of [
@@ -160,7 +160,7 @@ export const capsuleDomainSchema = z
       z.strictObject({ owner_id: idSchema, display_name: z.string().min(1).max(256) }),
       (value) => value.owner_id,
     ).min(1),
-    claims: uniqueBy(claimSchema, (value) => value.claim_id).min(1),
+    claims: uniqueBy(claimSchema, (value) => value.claim_id),
   })
   .superRefine((domain, context) => {
     const owners = new Set(domain.owners.map((owner) => owner.owner_id));
@@ -325,7 +325,7 @@ export const capsuleReleaseSchema = z.strictObject({
   capsule_version: versionSchema,
   entries: z.array(releaseEntrySchema).min(1),
   derived: z.strictObject({
-    claims: uniqueStrings(1),
+    claims: uniqueStrings(),
     requirement_edges: z.array(
       z.strictObject({
         requirement_id: idSchema,

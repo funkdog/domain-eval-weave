@@ -76,7 +76,7 @@ test("package preserves the DSH bundle and exposes the standalone Capsule surfac
   );
   assert.equal(
     (manifest.scripts as Record<string, unknown>).build,
-    "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
     "every package build must clean output and hide trusted Delivery builders in one facade bundle",
   );
 });

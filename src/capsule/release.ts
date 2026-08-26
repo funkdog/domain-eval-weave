@@ -130,12 +130,20 @@ async function writeExclusiveOrVerify(path: string, bytes: Uint8Array): Promise<
 
 export async function releaseCapsule(root: string): Promise<ReleasedCapsule> {
   const capsule = await loadCapsule(root);
+  const released = await previewCapsuleRelease(capsule);
+  const output = resolve(capsule.root, released.ref);
+  await mkdir(resolve(capsule.root, ".eval/releases"), { recursive: true, mode: 0o700 });
+  await writeExclusiveOrVerify(output, Buffer.from(`${canonicalJson(released.release)}\n`, "utf8"));
+  return released;
+}
+
+export async function previewCapsuleRelease(
+  input: string | LoadedCapsule,
+): Promise<ReleasedCapsule> {
+  const capsule = typeof input === "string" ? await loadCapsule(input) : input;
   const release = await buildRelease(capsule);
   const sha256 = canonicalJsonDigest(release);
   const ref = `.eval/releases/${sha256}.json`;
-  const output = resolve(capsule.root, ref);
-  await mkdir(resolve(capsule.root, ".eval/releases"), { recursive: true, mode: 0o700 });
-  await writeExclusiveOrVerify(output, Buffer.from(`${canonicalJson(release)}\n`, "utf8"));
   return { release, sha256, ref };
 }
 

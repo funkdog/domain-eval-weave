@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import { access, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 
 import type { CapsuleManifest } from "../capsule/contracts.js";
 import { CapsuleError, type LoadedCapsule } from "../capsule/loader.js";
@@ -67,6 +68,7 @@ function sandboxProfile(
       "cases",
       ".eval/releases",
       ".eval/runs",
+      ".eval/calibrations",
     ].map((path) => `(deny file-read* (subpath ${literal(resolve(capsuleRoot, path))}))`),
     ...[".codex", ".dsh", ".ssh", ".config/gh", "Library/Keychains"].map(
       (path) => `(deny file-read* (subpath ${literal(resolve(homedir(), path))}))`,
@@ -75,6 +77,99 @@ function sandboxProfile(
     '(allow file-write* (subpath "/dev"))',
     "(deny network*)",
   ].join("\n");
+}
+
+export interface CandidateSandboxPlan {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+}
+
+export function buildCandidateSandboxPlan(input: {
+  readonly platform: NodeJS.Platform;
+  readonly capsuleRoot: string;
+  readonly candidateRoot: string;
+  readonly scratchRoot: string;
+  readonly command: { readonly executable: string; readonly args: readonly string[] };
+  readonly sandboxExecutable?: string;
+}): CandidateSandboxPlan {
+  const env = { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", LANG: "C", LC_ALL: "C" };
+  if (input.platform === "darwin") {
+    return {
+      executable: input.sandboxExecutable ?? "/usr/bin/sandbox-exec",
+      args: [
+        "-p",
+        sandboxProfile(
+          input.capsuleRoot,
+          input.candidateRoot,
+          input.scratchRoot,
+          input.command.executable,
+        ),
+        input.command.executable,
+        ...input.command.args,
+      ],
+      cwd: input.candidateRoot,
+      env: { ...env, TMPDIR: input.scratchRoot },
+    };
+  }
+  if (input.platform === "linux") {
+    const systemRoots = ["/usr", "/bin", "/lib", "/lib64", "/etc/alternatives", "/etc/ld.so.cache"]
+      .filter(existsSync)
+      .flatMap((root) => ["--ro-bind", root, root]);
+    const executableRelation = relative(input.candidateRoot, input.command.executable);
+    const executable =
+      executableRelation !== "" &&
+      !executableRelation.startsWith("..") &&
+      !executableRelation.startsWith("/")
+        ? `/candidate/${executableRelation.split("\\").join("/")}`
+        : input.command.executable;
+    return {
+      executable: input.sandboxExecutable ?? "/usr/bin/bwrap",
+      args: [
+        "--die-with-parent",
+        "--unshare-all",
+        "--new-session",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--tmpfs",
+        "/tmp",
+        ...systemRoots,
+        "--ro-bind",
+        input.candidateRoot,
+        "/candidate",
+        "--bind",
+        input.scratchRoot,
+        "/scratch",
+        "--chdir",
+        "/candidate",
+        "--clearenv",
+        "--setenv",
+        "PATH",
+        env.PATH,
+        "--setenv",
+        "LANG",
+        env.LANG,
+        "--setenv",
+        "LC_ALL",
+        env.LC_ALL,
+        "--setenv",
+        "TMPDIR",
+        "/scratch",
+        "--",
+        executable,
+        ...input.command.args,
+      ],
+      cwd: input.candidateRoot,
+      env,
+    };
+  }
+  throw new CapsuleError(
+    "CAPSULE_SANDBOX_UNAVAILABLE",
+    `Unsupported Candidate sandbox platform: ${input.platform}`,
+  );
 }
 
 function resolveCommand(candidateRoot: string, command: readonly string[]) {
@@ -98,45 +193,58 @@ function resolveCommand(candidateRoot: string, command: readonly string[]) {
 }
 
 export class SandboxedCommandRunner implements CandidateRunner {
-  constructor(readonly sandboxExecutable = "/usr/bin/sandbox-exec") {}
+  readonly #platform: NodeJS.Platform;
+  readonly #sandboxExecutable: string | undefined;
+
+  constructor(
+    options:
+      | string
+      | { readonly platform?: NodeJS.Platform; readonly sandboxExecutable?: string } = {},
+  ) {
+    if (typeof options === "string") {
+      this.#platform = process.platform;
+      this.#sandboxExecutable = options;
+    } else {
+      this.#platform = options.platform ?? process.platform;
+      this.#sandboxExecutable = options.sandboxExecutable;
+    }
+  }
 
   async run(input: {
     readonly capsule: LoadedCapsule;
     readonly candidate: CapsuleManifest["candidates"][number];
   }): Promise<CandidateExecution> {
-    if (process.platform !== "darwin") {
-      throw new CapsuleError(
-        "CAPSULE_SANDBOX_UNAVAILABLE",
-        "The default command adapter currently requires the macOS sandbox adapter",
-      );
-    }
     const candidateRoot = resolve(input.capsule.root, input.candidate.path);
     const scratchRoot = resolve(
       input.capsule.root,
       ".eval/tmp",
       `${input.candidate.candidate_id}-${process.pid}`,
     );
-    await mkdir(scratchRoot, { recursive: true, mode: 0o700 });
     const command = resolveCommand(candidateRoot, input.candidate.command);
-    const child = spawn(
-      this.sandboxExecutable,
-      [
-        "-p",
-        sandboxProfile(input.capsule.root, candidateRoot, scratchRoot, command.executable),
-        command.executable,
-        ...command.args,
-      ],
-      {
-        cwd: candidateRoot,
-        env: {
-          PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
-          LANG: "C",
-          LC_ALL: "C",
-          TMPDIR: scratchRoot,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    const plan = buildCandidateSandboxPlan({
+      platform: this.#platform,
+      capsuleRoot: input.capsule.root,
+      candidateRoot,
+      scratchRoot,
+      command,
+      ...(this.#sandboxExecutable === undefined
+        ? {}
+        : { sandboxExecutable: this.#sandboxExecutable }),
+    });
+    try {
+      await access(plan.executable, constants.X_OK);
+    } catch {
+      throw new CapsuleError(
+        "CAPSULE_SANDBOX_UNAVAILABLE",
+        `Candidate sandbox executable is unavailable: ${plan.executable}`,
+      );
+    }
+    await mkdir(scratchRoot, { recursive: true, mode: 0o700 });
+    const child = spawn(plan.executable, [...plan.args], {
+      cwd: plan.cwd,
+      env: plan.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     if (child.stdout === null || child.stderr === null) {
       child.kill("SIGKILL");
       throw new CapsuleError("CAPSULE_PROCESS_INVALID", "Candidate output pipes are unavailable");

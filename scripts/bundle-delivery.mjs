@@ -4,6 +4,15 @@ import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
 
+const bundleWorkspacePackages = {
+  name: "bundle-dsh-eval-workspaces",
+  setup(context) {
+    context.onResolve({ filter: /^[^./]/ }, (args) =>
+      args.path.startsWith("@dsh-eval/") ? undefined : { path: args.path, external: true },
+    );
+  },
+};
+
 const repositoryRoot = await realpath(fileURLToPath(new URL("..", import.meta.url)));
 const source = resolve(repositoryRoot, "src/delivery/production.ts");
 const deliveryRoot = resolve(repositoryRoot, "dist/delivery");
@@ -34,7 +43,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node24",
-  packages: "external",
+  plugins: [bundleWorkspacePackages],
   legalComments: "none",
   sourcemap: false,
 });
@@ -71,6 +80,27 @@ for (const moduleName of [
     await rm(resolve(commerceRoot, `${moduleName}.${extension}`), { force: true });
   }
 }
+
+await build({
+  entryPoints: {
+    "adapters/index": resolve(repositoryRoot, "src/adapters/index.ts"),
+    "adapters/commerce-observation": resolve(
+      repositoryRoot,
+      "src/adapters/commerce-observation.ts",
+    ),
+    "adapters/dsh-harness": resolve(repositoryRoot, "src/adapters/dsh-harness.ts"),
+    "adapters/raw-dsh-events": resolve(repositoryRoot, "src/adapters/raw-dsh-events.ts"),
+    "phase3c/tdd-binding": resolve(repositoryRoot, "src/phase3c/tdd-binding.ts"),
+  },
+  outdir: resolve(repositoryRoot, "dist"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node24",
+  plugins: [bundleWorkspacePackages],
+  legalComments: "none",
+  sourcemap: false,
+});
 
 const commerceWithdrawalRoot = resolve(repositoryRoot, "dist/commerce-withdrawal");
 if (

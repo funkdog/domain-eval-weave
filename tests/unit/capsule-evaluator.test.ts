@@ -5,12 +5,14 @@ import { join } from "node:path";
 import test from "node:test";
 import { parse, stringify } from "yaml";
 
-import { loadCapsule, releaseCapsule } from "../../src/capsule/index.js";
+import { loadCapsule, previewCapsuleRelease, releaseCapsule } from "../../src/capsule/index.js";
 import {
   type CandidateRunner,
+  calibrateAndPersistEvaluator,
   calibrateEvaluator,
   compareEvaluators,
   evaluateCandidate,
+  findCalibrationReports,
   replayEvaluationRun,
 } from "../../src/evaluator/index.js";
 
@@ -96,6 +98,50 @@ test("Evaluator comparison reports the repaired false reject per Claim", async (
         claim_changes: [{ claim_id: "cancel-status", left: "fail", right: "pass" }],
       },
     ]);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("calibration readiness is bound to one exact Capsule release", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "dsh-capsule-calibration-release-"));
+  const root = join(parent, "capsule");
+  try {
+    await cp(example, root, { recursive: true });
+    const capsule = await loadCapsule(root);
+    const release = await releaseCapsule(root);
+    const persisted = await calibrateAndPersistEvaluator({
+      capsule,
+      release,
+      evaluatorRef: "commerce-delivery@2.0.0",
+    });
+    assert.equal(persisted.report.qualified, true);
+    assert.equal(
+      (
+        await findCalibrationReports({
+          capsule,
+          releaseSha256: release.sha256,
+          evaluatorRef: "commerce-delivery@2.0.0",
+        })
+      ).length,
+      1,
+    );
+
+    const policy = join(root, "sources", "product-policy.md");
+    await writeFile(policy, `${await readFile(policy, "utf8")}\nClarified source.\n`, "utf8");
+    const changed = await loadCapsule(root);
+    const changedRelease = await previewCapsuleRelease(changed);
+    assert.notEqual(changedRelease.sha256, release.sha256);
+    assert.equal(
+      (
+        await findCalibrationReports({
+          capsule: changed,
+          releaseSha256: changedRelease.sha256,
+          evaluatorRef: "commerce-delivery@2.0.0",
+        })
+      ).length,
+      0,
+    );
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

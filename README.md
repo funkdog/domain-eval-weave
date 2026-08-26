@@ -3,7 +3,7 @@
 DSH Eval Lab turns provenance-bound domain truth into versioned evaluators and can use the same
 evaluation asset to measure how one Harness intervention changes delivery under controlled conditions.
 
-Phase 4A introduces the runner-neutral public baseline:
+Phase 4B turns the runner-neutral baseline into one physically independent main package:
 
 ```text
 Sources → Capsule → Evaluator → Candidate Evaluation → optional Harness Experiment
@@ -13,6 +13,12 @@ The primary user journey exposes only Capsule, Claim, Requirement, Evaluator and
 first high-integrity Harness experiment adapter; it is not required to author, validate, calibrate or replay
 a Capsule.
 
+```text
+@dsh-eval/lab          default Capsule/Evaluator package
+@dsh-eval/dsh-adapter  optional DSH and TDD evidence projection
+dsh-eval-lab           private historical DSH compatibility package
+```
+
 ## Offline quickstart
 
 The synthetic Commerce reference needs no DSH profile, OAuth credential, model call, network access or
@@ -20,20 +26,34 @@ Judge. Copy it before running so generated `.eval/` artifacts stay outside the s
 
 ```sh
 pnpm install --frozen-lockfile
+pnpm --filter @dsh-eval/lab build
 
 CAPSULE_DEMO_ROOT="$(mktemp -d)"
-cp -R examples/capsules/commerce-cancellation "$CAPSULE_DEMO_ROOT/capsule"
+cp -R packages/lab/dist/examples/commerce-cancellation "$CAPSULE_DEMO_ROOT/capsule"
 
-node bin/dsh-eval-capsule.mjs validate "$CAPSULE_DEMO_ROOT/capsule"
-node bin/dsh-eval-capsule.mjs calibrate \
+node packages/lab/bin/dsh-eval-capsule.mjs validate "$CAPSULE_DEMO_ROOT/capsule"
+node packages/lab/bin/dsh-eval-capsule.mjs calibrate \
   "$CAPSULE_DEMO_ROOT/capsule" commerce-delivery@2.0.0
-node bin/dsh-eval-capsule.mjs compare \
+node packages/lab/bin/dsh-eval-capsule.mjs compare \
   "$CAPSULE_DEMO_ROOT/capsule" self-service-cancellation \
   commerce-delivery@1.0.0 commerce-delivery@2.0.0
 ```
 
 The v1 Evaluator intentionally false-rejects a valid typed-result implementation. The v2 comparison
 demonstrates how a community evaluator can repair that error without changing the Domain Claims.
+
+## Start a Capsule contribution
+
+```sh
+node packages/lab/bin/dsh-eval-capsule.mjs init \
+  ./returns-policy returns-policy commerce.returns returns-owner
+node packages/lab/bin/dsh-eval-capsule.mjs doctor ./returns-policy
+node packages/lab/bin/dsh-eval-capsule.mjs show ./returns-policy
+```
+
+`init` creates a valid truth-empty draft—never fake Claims. `doctor` reports `draft`, `runnable`,
+`qualified` or `publishable` plus stable next actions. Calibration records are content-addressed and bound
+to the exact Capsule release, so source/Evaluator drift returns the Capsule to an earlier readiness stage.
 
 ## Historical DSH measurement kernel
 
@@ -73,6 +93,9 @@ ablates and observes them.
 - [Phase 3C implementation spec](docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md)
 - [Phase 4A product plan](docs/plans/2026-08-26-dsh-eval-lab-phase-4a-product-plan.md)
 - [Phase 4A implementation spec](docs/plans/2026-08-26-dsh-eval-lab-phase-4a-implementation-spec.md)
+- [Phase 4B product plan](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md)
+- [Phase 4B implementation spec](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md)
+- [Platform support matrix](docs/support-matrix.md)
 - [Commerce experience acceptance guide](docs/guides/commerce-experience-acceptance.md)
 
 ## Workspace boundary
@@ -198,16 +221,16 @@ historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
 
-Phase 4A now has a runner-neutral Capsule v0 candidate with exactly six public JSON Schemas, a
-standalone offline CLI, explicit owner confirmation, content-addressed releases, command-sandboxed
-Candidate evaluation, Gold/equivalent/mutant calibration, Evaluator v1/v2 comparison, artifact-only
-Run replay and a DSH typed-event Harness adapter. The checked-in Commerce example is synthetic and
-produces no source-tree runtime artifacts. A packed-package consumer can validate and compare the
-reference Capsule without DSH, OAuth or model calls. One fresh bounded DSH control/treatment pair now
-consumes the same released Capsule and v2 Evaluator: both arms pass cancellation status and exactly-once
-refund, both fail the required replay observation, and the treatment mechanism is correctly marked
-insufficient rather than receiving an effect claim. Independent human clean-room acceptance remains the
-Phase 4A completion gate; the live pair supports only a descriptive, inconclusive Harness projection.
+Phase 4B now builds an independent `@dsh-eval/lab` tarball containing only bundled Capsule/Evaluator/Harness
+code, six schemas, CLI and the synthetic reference Capsule; its runtime dependencies are only `yaml` and
+`zod`. A separate `@dsh-eval/dsh-adapter` owns raw Session, observation and TDD mechanism projection while
+Phase 3C re-exports it for historical compatibility. Truth-empty `init`, non-mutating `doctor`, deterministic
+`show` and content-addressed calibration records implement the draft→runnable→qualified→publishable journey.
+The Candidate runner supports macOS sandbox-exec and Linux bubblewrap plans and fails closed elsewhere.
+A packed clean consumer completes init, calibration, comparison, Candidate Run and replay without repository
+source imports, DSH, OAuth or model calls. Open-source implementation readiness is green; Developer Preview
+remains blocked on operator license selection, and Public Alpha additionally requires an independent human
+clean-room contributor.
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 3A Author forward slice and the
 Reservation Phase 3B production vertical have completed isolated acceptance and independent replay;
@@ -262,4 +285,5 @@ pnpm check
 pnpm lint
 pnpm test
 pnpm build
+pnpm readiness:open-source
 ```

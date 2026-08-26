@@ -1,0 +1,34 @@
+{
+  "name": "@dsh-eval/dsh-adapter",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "description": "Optional DSH Session and TDD mechanism adapter for @dsh-eval/lab",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tdd": {
+      "types": "./dist/tdd.d.ts",
+      "import": "./dist/tdd.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "@dsh-eval/lab": "workspace:*",
+    "zod": "4.4.3"
+  }
+}
