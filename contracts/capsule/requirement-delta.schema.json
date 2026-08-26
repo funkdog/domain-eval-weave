@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "requirement_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source_ids": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      }
+    },
+    "edges": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "relation": {
+            "type": "string",
+            "enum": ["uses", "preserves", "introduces", "modifies", "deprecates", "conflicts_with"]
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": ["claim_id", "relation", "required"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "requirement_id", "version", "title", "source_ids", "edges"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/capsule/requirement-delta.schema.json"
+}

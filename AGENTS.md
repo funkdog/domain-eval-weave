@@ -13,6 +13,8 @@
 - Phase 3B.2 commerce withdrawal successor: `docs/plans/2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md`
 - Phase 3C product contract: `docs/plans/2026-08-24-dsh-eval-lab-phase-3c-product-plan.md`
 - Phase 3C implementation contract: `docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md`
+- Phase 4A product contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-product-plan.md`
+- Phase 4A implementation contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-implementation-spec.md`
 
 Read the product boundary and the implementation contract for the phase in scope before coding.
 Do not broaden either phase beyond its frozen contract.

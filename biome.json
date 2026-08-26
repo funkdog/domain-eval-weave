@@ -4,6 +4,7 @@
     "includes": [
       "src/**/*.ts",
       "tests/**/*.ts",
+      "bin/**/*.mjs",
       "contracts/**/*.json",
       "package.json",
       "tsconfig.json",

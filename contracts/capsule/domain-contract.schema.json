@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "domain_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "owners": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": ["owner_id", "display_name"],
+        "additionalProperties": false
+      }
+    },
+    "claims": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "applicability": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["confirmed", "proposed", "unresolved", "conflicted", "observability_gap"]
+          },
+          "source_ids": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            }
+          },
+          "false_accept_risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "false_reject_risk": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "confirmation": {
+            "type": "object",
+            "properties": {
+              "owner_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+              },
+              "projection_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "required": ["owner_id", "projection_sha256"],
+            "additionalProperties": false
+          },
+          "conflict_source_ids": {
+            "minItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+            }
+          }
+        },
+        "required": [
+          "claim_id",
+          "statement",
+          "applicability",
+          "status",
+          "source_ids",
+          "false_accept_risk",
+          "false_reject_risk"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "domain_id", "version", "owners", "claims"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/capsule/domain-contract.schema.json"
+}

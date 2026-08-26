@@ -44,21 +44,28 @@ async function loadCordisContext(): Promise<
   return cordis.Context;
 }
 
-test("package is a DSH bundle with app/bridge exports and no standalone bin", async () => {
+test("package preserves the DSH bundle and exposes the standalone Capsule surface", async () => {
   const manifest = JSON.parse(
     await readFile(new URL("../../package.json", import.meta.url), "utf8"),
   ) as Record<string, unknown>;
 
   assert.equal(manifest.name, "dsh-eval-lab");
-  assert.equal("bin" in manifest, false);
+  assert.deepEqual(manifest.bin, {
+    "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs",
+  });
   assert.deepEqual(manifest.exports, {
     "./app": "./dist/app/index.js",
+    "./adapters": "./dist/adapters/index.js",
     "./author-bridge": "./dist/author-bridge/index.js",
     "./author-evidence": "./dist/author-evidence/index.js",
     "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
+    "./capsule": "./dist/capsule/index.js",
+    "./capsule-cli": "./dist/capsule-cli/index.js",
     "./delivery": "./dist/delivery/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
+    "./evaluator": "./dist/evaluator/index.js",
+    "./harness": "./dist/harness/index.js",
     "./phase3c": "./dist/phase3c/index.js",
   });
   assert.deepEqual(manifest.dsh, { bundle: { patch: "./cordis.patch.yml" } });
@@ -187,7 +194,9 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     const packedManifest = JSON.parse(
       await readFile(join(packageRoot, "package.json"), "utf8"),
     ) as Record<string, unknown>;
-    assert.equal("bin" in packedManifest, false);
+    assert.deepEqual(packedManifest.bin, {
+      "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs",
+    });
     const packedCommercePack = JSON.parse(
       await readFile(
         join(packageRoot, "task-packs/open-coding-ts-commerce-order-v1/pack.json"),
@@ -248,6 +257,34 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     await execFileAsync(process.execPath, [pnpmCli, "install", "--ignore-scripts"], {
       cwd: packageRoot,
     });
+
+    const capsuleCli = await execFileAsync(
+      process.execPath,
+      [
+        join(packageRoot, "bin/dsh-eval-capsule.mjs"),
+        "validate",
+        join(packageRoot, "examples/capsules/commerce-cancellation"),
+      ],
+      { cwd: packageRoot },
+    );
+    assert.equal(
+      (JSON.parse(capsuleCli.stdout) as { readonly status?: unknown }).status,
+      "valid",
+      "the packed standalone Capsule binary must run without the DSH plugin",
+    );
+
+    const [capsule, capsuleApi, evaluator, harness, adapters] = await Promise.all([
+      import(pathToFileURL(join(packageRoot, "dist/capsule/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/capsule-cli/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/evaluator/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/harness/index.js")).href),
+      import(pathToFileURL(join(packageRoot, "dist/adapters/index.js")).href),
+    ]);
+    assert.equal(typeof capsule.loadCapsule, "function");
+    assert.equal(typeof capsuleApi.runCapsuleCli, "function");
+    assert.equal(typeof evaluator.evaluateCandidate, "function");
+    assert.equal(typeof harness.buildHarnessExperimentReport, "function");
+    assert.equal(typeof adapters.projectRawDshTddEvents, "function");
 
     const [
       app,

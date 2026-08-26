@@ -1,0 +1,24 @@
+schema_version: 1
+requirement_id: self-service-cancellation
+version: 1.0.0
+title: Allow a customer to cancel a paid, unfulfilled order
+source_ids: [product-policy, owner-interview]
+edges:
+  - claim_id: cancel-status
+    relation: uses
+    required: true
+  - claim_id: refund-exactly-once
+    relation: uses
+    required: true
+  - claim_id: cancellation-idempotent
+    relation: preserves
+    required: true
+  - claim_id: cancellation-reason-copy
+    relation: uses
+    required: false
+  - claim_id: active-fulfillment-policy
+    relation: conflicts_with
+    required: false
+  - claim_id: audit-retention
+    relation: preserves
+    required: false

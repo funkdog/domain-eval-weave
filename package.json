@@ -10,17 +10,27 @@
   "packageManager": "pnpm@11.7.0",
   "exports": {
     "./app": "./dist/app/index.js",
+    "./adapters": "./dist/adapters/index.js",
     "./author-bridge": "./dist/author-bridge/index.js",
     "./author-evidence": "./dist/author-evidence/index.js",
     "./author-forward-carrier": "./dist/carrier/author-forward.js",
     "./bridge": "./dist/bridge/index.js",
     "./domain-skill": "./dist/domain/skill-provider.js",
     "./delivery": "./dist/delivery/index.js",
-    "./phase3c": "./dist/phase3c/index.js"
+    "./phase3c": "./dist/phase3c/index.js",
+    "./capsule": "./dist/capsule/index.js",
+    "./capsule-cli": "./dist/capsule-cli/index.js",
+    "./evaluator": "./dist/evaluator/index.js",
+    "./harness": "./dist/harness/index.js"
+  },
+  "bin": {
+    "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs"
   },
   "files": [
+    "bin",
     "dist",
     "contracts",
+    "examples/capsules",
     "cordis.patch.yml",
     "runtime-profile",
     "variants",
@@ -41,6 +51,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
+    "generate:capsule-schemas": "node --import tsx scripts/generate-capsule-schemas.ts",
     "generate:phase3c-task-pack": "node --import tsx scripts/generate-phase3c-task-pack.ts",
     "freeze:phase3c-judges": "node --import tsx scripts/freeze-phase3c-judges.ts",
     "run:phase3c-judge-cohort": "node --import tsx scripts/run-phase3c-judge-cohort.ts",

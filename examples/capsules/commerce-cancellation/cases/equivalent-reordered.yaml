@@ -1,0 +1,8 @@
+schema_version: 1
+case_id: equivalent-reordered
+kind: equivalent
+candidate_id: equivalent-reordered
+expected_claims:
+  - { claim_id: cancel-status, status: pass }
+  - { claim_id: refund-exactly-once, status: pass }
+  - { claim_id: cancellation-idempotent, status: pass }

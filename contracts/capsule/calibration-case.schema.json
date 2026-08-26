@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "number",
+      "const": 1
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["gold", "equivalent", "mutant"]
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "target_claim_ids": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      }
+    },
+    "expected_claims": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pass", "fail", "inconclusive", "measurement_error"]
+          }
+        },
+        "required": ["claim_id", "status"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "case_id", "kind", "candidate_id", "expected_claims"],
+  "additionalProperties": false,
+  "$id": "https://dsh-eval-lab.local/contracts/capsule/calibration-case.schema.json"
+}

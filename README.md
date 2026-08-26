@@ -1,7 +1,41 @@
 # DSH Eval Lab
 
-DSH Eval Lab is a DSH-native local plugin for measuring how one harness
-intervention changes open-coding delivery under controlled conditions.
+DSH Eval Lab turns provenance-bound domain truth into versioned evaluators and can use the same
+evaluation asset to measure how one Harness intervention changes delivery under controlled conditions.
+
+Phase 4A introduces the runner-neutral public baseline:
+
+```text
+Sources → Capsule → Evaluator → Candidate Evaluation → optional Harness Experiment
+```
+
+The primary user journey exposes only Capsule, Claim, Requirement, Evaluator and Run. DSH remains the
+first high-integrity Harness experiment adapter; it is not required to author, validate, calibrate or replay
+a Capsule.
+
+## Offline quickstart
+
+The synthetic Commerce reference needs no DSH profile, OAuth credential, model call, network access or
+Judge. Copy it before running so generated `.eval/` artifacts stay outside the source tree.
+
+```sh
+pnpm install --frozen-lockfile
+
+CAPSULE_DEMO_ROOT="$(mktemp -d)"
+cp -R examples/capsules/commerce-cancellation "$CAPSULE_DEMO_ROOT/capsule"
+
+node bin/dsh-eval-capsule.mjs validate "$CAPSULE_DEMO_ROOT/capsule"
+node bin/dsh-eval-capsule.mjs calibrate \
+  "$CAPSULE_DEMO_ROOT/capsule" commerce-delivery@2.0.0
+node bin/dsh-eval-capsule.mjs compare \
+  "$CAPSULE_DEMO_ROOT/capsule" self-service-cancellation \
+  commerce-delivery@1.0.0 commerce-delivery@2.0.0
+```
+
+The v1 Evaluator intentionally false-rejects a valid typed-result implementation. The v2 comparison
+demonstrates how a community evaluator can repair that error without changing the Domain Claims.
+
+## Historical DSH measurement kernel
 
 Phase 2 binds the first-party DSH Goal harness to a frozen three-bucket Task
 Registry. It runs trigger, non-trigger, and holdout paired Campaigns and emits
@@ -37,6 +71,8 @@ ablates and observes them.
 - [Phase 3B.2 commerce withdrawal implementation spec](docs/plans/2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md)
 - [Phase 3C product plan](docs/plans/2026-08-24-dsh-eval-lab-phase-3c-product-plan.md)
 - [Phase 3C implementation spec](docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md)
+- [Phase 4A product plan](docs/plans/2026-08-26-dsh-eval-lab-phase-4a-product-plan.md)
+- [Phase 4A implementation spec](docs/plans/2026-08-26-dsh-eval-lab-phase-4a-implementation-spec.md)
 - [Commerce experience acceptance guide](docs/guides/commerce-experience-acceptance.md)
 
 ## Workspace boundary
@@ -51,7 +87,8 @@ campaign outputs in this repository.
 
 ## Product entry
 
-Eval Lab is installed as a DSH bundle and has no standalone `dsh-eval` command.
+The Capsule baseline is available through the standalone local `dsh-eval-capsule` command. Historical
+Campaigns and live Harness experiments continue to use the DSH bundle.
 The Clowder implementation owns `eval-clowder` / `eval-clowder-runner`, instance
 id `clowder-ai`, plus the Phase 3A authoring profile `eval-clowder-author`; it owns no
 `eval` or `eval-dsh` state. Every supported DSH process
@@ -160,6 +197,17 @@ the `eval-clowder` profile. New Campaigns use the `clowder-ai` instance;
 historical fixed-root Campaigns are accepted only for read-only replay.
 
 ## Current state
+
+Phase 4A now has a runner-neutral Capsule v0 candidate with exactly six public JSON Schemas, a
+standalone offline CLI, explicit owner confirmation, content-addressed releases, command-sandboxed
+Candidate evaluation, Gold/equivalent/mutant calibration, Evaluator v1/v2 comparison, artifact-only
+Run replay and a DSH typed-event Harness adapter. The checked-in Commerce example is synthetic and
+produces no source-tree runtime artifacts. A packed-package consumer can validate and compare the
+reference Capsule without DSH, OAuth or model calls. One fresh bounded DSH control/treatment pair now
+consumes the same released Capsule and v2 Evaluator: both arms pass cancellation status and exactly-once
+refund, both fail the required replay observation, and the treatment mechanism is correctly marked
+insufficient rather than receiving an effect claim. Independent human clean-room acceptance remains the
+Phase 4A completion gate; the live pair supports only a descriptive, inconclusive Harness projection.
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 3A Author forward slice and the
 Reservation Phase 3B production vertical have completed isolated acceptance and independent replay;
