@@ -12,13 +12,15 @@ const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const labRoot = join(repositoryRoot, "packages/lab");
 
-test("@dsh-eval/lab packs one importable no-DSH public closure", async () => {
+test("@domaineval/weave packs one importable no-DSH public closure", async () => {
   const manifest = JSON.parse(await readFile(join(labRoot, "package.json"), "utf8")) as {
     readonly name?: unknown;
+    readonly bin?: unknown;
     readonly dependencies?: unknown;
     readonly license?: unknown;
   };
-  assert.equal(manifest.name, "@dsh-eval/lab");
+  assert.equal(manifest.name, "@domaineval/weave");
+  assert.deepEqual(manifest.bin, { "domain-eval": "./bin/domain-eval.mjs" });
   assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.dependencies, { yaml: "2.9.0", zod: "4.4.3" });
 
@@ -78,7 +80,7 @@ test("@dsh-eval/lab packs one importable no-DSH public closure", async () => {
     const validation = await execFileAsync(
       process.execPath,
       [
-        join(packageRoot, "bin/dsh-eval-capsule.mjs"),
+        join(packageRoot, "bin/domain-eval.mjs"),
         "validate",
         join(packageRoot, "dist/examples/commerce-cancellation"),
       ],

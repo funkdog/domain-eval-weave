@@ -46,9 +46,25 @@ test("human clean-room kit is label-free and materializes one immutable package 
     assert.match(String(receipt.lab_package_sha256), /^[0-9a-f]{64}$/);
     const manifest = JSON.parse(
       await readFile(join(materialized, "kit-manifest.json"), "utf8"),
-    ) as { readonly entries: readonly unknown[] };
+    ) as {
+      readonly entries: readonly unknown[];
+      readonly verifier_runtime?: unknown;
+    };
     assert.ok(manifest.entries.length >= 8);
-    assert.equal((await readdir(join(materialized, "package"))).length, 1);
+    assert.equal(manifest.verifier_runtime, "package/verifier-runtime.cjs");
+    assert.deepEqual((await readdir(join(materialized, "package"))).sort(), [
+      "domaineval-weave-0.1.0-alpha.0.tgz",
+      "verifier-runtime.cjs",
+    ]);
+    assert.doesNotMatch(
+      await readFile(join(materialized, "package/verifier-runtime.cjs"), "utf8"),
+      /dsh-eval-lab-phase4b|packages\/lab\/dist/,
+    );
+    assert.doesNotMatch(
+      await readFile(join(repositoryRoot, "scripts/verify-phase4b-cleanroom.mjs"), "utf8"),
+      /packages\/lab\/dist/,
+      "verification must execute the kit-bound runtime rather than the current checkout",
+    );
 
     const invalidReceipt = {
       schema_version: 1,

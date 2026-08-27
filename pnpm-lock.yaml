@@ -45,7 +45,7 @@ importers:
 
   packages/dsh-adapter:
     dependencies:
-      '@dsh-eval/lab':
+      '@domaineval/weave':
         specifier: workspace:*
         version: link:../lab
       zod:

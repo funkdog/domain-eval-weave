@@ -20,7 +20,7 @@ export interface CapsuleCliIo {
   readonly stderr?: (text: string) => void;
 }
 
-const HELP = `DSH Eval Capsule
+const HELP = `DomainEval Weave
 
 init <capsule-root> <capsule-id> <domain-id> <owner-id>
 doctor <capsule-root> [evaluator-id@version]

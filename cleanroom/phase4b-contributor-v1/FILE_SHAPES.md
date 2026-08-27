@@ -17,7 +17,7 @@ These are structural examples, not domain answers.
 Confirm a proposed Claim only through the CLI:
 
 ```sh
-dsh-eval-capsule confirm <capsule> <claim-id> <owner-id>
+domain-eval confirm <capsule> <claim-id> <owner-id>
 ```
 
 ## Requirement edge

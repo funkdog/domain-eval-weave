@@ -1,9 +1,22 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cp, lstat, mkdir, mkdtemp, open, readdir, readFile, rename, rm } from "node:fs/promises";
+import {
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+
+import { build } from "esbuild";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -74,6 +87,32 @@ try {
   if (archives.length !== 1) throw new Error("Lab pack did not produce exactly one archive");
   const archive = resolve(packageRoot, archives[0]);
   const archiveBytes = await readFile(archive);
+  const verifierWork = resolve(staging, ".verifier-work");
+  await mkdir(verifierWork, { mode: 0o700 });
+  await execFileAsync("/usr/bin/tar", ["-xzf", archive, "-C", verifierWork]);
+  const verifierEntry = resolve(verifierWork, "entry.mjs");
+  await writeFile(
+    verifierEntry,
+    [
+      'export * as capsule from "./package/dist/capsule.js";',
+      'export * as evaluator from "./package/dist/evaluator.js";',
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await build({
+    entryPoints: [verifierEntry],
+    outfile: resolve(packageRoot, "verifier-runtime.cjs"),
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    target: "node24",
+    packages: "bundle",
+    nodePaths: [resolve(repositoryRoot, "node_modules")],
+    legalComments: "none",
+    sourcemap: false,
+  });
+  await rm(verifierWork, { recursive: true, force: true });
   const entries = [
     ...(await collect(inputs, "inputs")),
     ...(await collect(packageRoot, "package")),
@@ -83,6 +122,7 @@ try {
     kit_id: "phase4b-contributor-v1",
     lab_package: `package/${archives[0]}`,
     lab_package_sha256: sha256(archiveBytes),
+    verifier_runtime: "package/verifier-runtime.cjs",
     entries,
   };
   await writeExclusive(

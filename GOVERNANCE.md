@@ -1,6 +1,6 @@
 # Governance
 
-DSH Eval Lab separates product truth, evaluator quality and release authority.
+DomainEval Weave separates product truth, evaluator quality and release authority.
 
 ## Roles
 

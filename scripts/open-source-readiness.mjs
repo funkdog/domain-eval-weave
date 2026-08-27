@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const required = [
+  "README.md",
   "packages/lab/package.json",
+  "packages/lab/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
   "CONTRIBUTING.md",
   "SECURITY.md",
@@ -20,6 +22,32 @@ for (const path of required) {
   } catch {
     missing.push(path);
   }
+}
+const publicIdentityMismatches = [];
+const weaveManifest = JSON.parse(
+  await readFile(resolve(repositoryRoot, "packages/lab/package.json"), "utf8"),
+);
+const adapterManifest = JSON.parse(
+  await readFile(resolve(repositoryRoot, "packages/dsh-adapter/package.json"), "utf8"),
+);
+const rootReadme = await readFile(resolve(repositoryRoot, "README.md"), "utf8");
+if (weaveManifest.name !== "@domaineval/weave") {
+  publicIdentityMismatches.push("packages/lab/package.json#name");
+}
+if (weaveManifest.bin?.["domain-eval"] !== "./bin/domain-eval.mjs") {
+  publicIdentityMismatches.push("packages/lab/package.json#bin.domain-eval");
+}
+if (adapterManifest.name !== "@domaineval/dsh-adapter") {
+  publicIdentityMismatches.push("packages/dsh-adapter/package.json#name");
+}
+if (adapterManifest.dependencies?.["@domaineval/weave"] !== "workspace:*") {
+  publicIdentityMismatches.push("packages/dsh-adapter/package.json#dependencies");
+}
+if (
+  !rootReadme.startsWith("# DomainEval Weave\n") ||
+  !rootReadme.includes("Make domain truth executable.")
+) {
+  publicIdentityMismatches.push("README.md#public-identity");
 }
 const status = JSON.parse(
   await readFile(resolve(repositoryRoot, "open-source-status.json"), "utf8"),
@@ -57,12 +85,13 @@ if (status.license !== "unselected") {
 }
 const blockers = [
   ...missing.map((path) => `IMPLEMENTATION_FILE_MISSING:${path}`),
+  ...publicIdentityMismatches.map((path) => `PUBLIC_IDENTITY_MISMATCH:${path}`),
   ...(status.license === "unselected" ? ["LICENSE_UNSELECTED"] : []),
   ...missingLicenseFiles.map((path) => `LICENSE_EVIDENCE_MISSING:${path}`),
   ...(status.remote_ci === "pending" ? ["REMOTE_CI_PENDING"] : []),
   ...(status.human_cleanroom === "pending" ? ["HUMAN_CLEANROOM_PENDING"] : []),
 ];
-const implementationReady = missing.length === 0;
+const implementationReady = missing.length === 0 && publicIdentityMismatches.length === 0;
 const developerPreviewReady =
   implementationReady &&
   status.license !== "unselected" &&

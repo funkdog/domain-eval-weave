@@ -1,19 +1,20 @@
 ---
 feature_ids: [F192, F266, F267]
 related_features: [F202, F203, F261]
-topics: [dsh, eval-lab, capsule, open-source, packages, contributor-experience, acceptance]
+topics: [dsh, domain-eval-weave, capsule, open-source, packages, contributor-experience, acceptance]
 doc_kind: research
 created: 2026-08-26
-description: "Phase 4B independent Lab/DSH adapter packages, Capsule contribution UX and open-source readiness evidence."
+description: "DomainEval Weave Phase 4B package boundary, Capsule contribution UX and open-source readiness evidence."
 ---
 
-# Phase 4B open-source boundary evidence
+# DomainEval Weave Phase 4B open-source boundary evidence
 
 ## Outcome
 
-Phase 4B implementation evidence is complete on top of Phase 4A `a92f559`. The default product is now a
-physically independent `@dsh-eval/lab` package; DSH/TDD evidence lives in optional
-`@dsh-eval/dsh-adapter`; the root `dsh-eval-lab` package remains private historical compatibility.
+Phase 4B implementation evidence is complete on top of Phase 4A `a92f559`. After the operator-approved
+2026-08-27 brand transition, the default product is a physically independent `@domaineval/weave` package;
+DSH/TDD evidence lives in optional `@domaineval/dsh-adapter`; the root `dsh-eval-lab` package remains
+private historical compatibility.
 
 The implementation is not yet an open-source release. The operator approved Apache-2.0 code/docs plus
 CC0-1.0 repository-authored synthetic sources on 2026-08-27. Developer Preview is now blocked only on the
@@ -24,13 +25,13 @@ contribution.
 
 | Package | Packed files | Runtime dependencies | Role |
 | --- | ---: | --- | --- |
-| `@dsh-eval/lab` | 57 | `yaml`, `zod` | Default Capsule/Evaluator/CLI |
-| `@dsh-eval/dsh-adapter` | 12 | `@dsh-eval/lab`, `zod` | Optional DSH observation/TDD projection |
-| `dsh-eval-lab` | 570 | DSH Session, `yaml`, `zod` | Private legacy production/replay |
+| `@domaineval/weave` | 59 | `yaml`, `zod` | Default Capsule/Evaluator/CLI |
+| `@domaineval/dsh-adapter` | 13 | `@domaineval/weave`, `zod` | Optional DSH observation/TDD projection |
+| `dsh-eval-lab` | 573 | DSH Session, `yaml`, `zod` | Private legacy production/replay |
 
 Lab pack tests reject DSH, Phase 3C, Commerce Withdrawal, Task Pack, runtime profile, registry and authoring
 paths. Installed Lab JS/declarations contain no repository absolute path or DSH Session import. The adapter
-tar rewrites its workspace dependency to exact `@dsh-eval/lab@0.1.0-alpha.0`. The root legacy facade bundles
+tar rewrites its workspace dependency to exact `@domaineval/weave@0.1.0-alpha.0`. The root legacy facade bundles
 workspace implementations so historical tar installation does not require unpublished workspace packages.
 
 ## Contribution journey
@@ -68,9 +69,16 @@ exact Lab tar and every kit byte; verification requires a publishable submission
 calibration, accepted Run replay, all supplied sources/Candidates and distinct participant/observer ids.
 
 The verifier reports only `mechanically_valid`; it cannot edit `open-source-status.json`. A synthetic positive
-fixture tests the verifier in temporary runtime storage and is never accepted as human evidence. The actual
-kit is materialized at `/Users/slipshod/AIBuild/dsh-eval-lab-runtime/phase4b-human-cleanroom-v1` with Lab
-package SHA-256 `4ee5ab6ac5aac8d88ed15054d36fafeb7091a8b773d5002788052fd55fcb4f16`.
+fixture tests the verifier in temporary runtime storage and is never accepted as human evidence. The
+DomainEval Weave kit is materialized at
+`/Users/slipshod/AIBuild/dsh-eval-lab-runtime/phase4b-human-cleanroom-domain-eval-weave-v1` with package
+SHA-256 `958d33bd46415eb664d3b145dea1ab63005e7b6e7838750752f74ad7c691f1db`. Earlier package identities remain
+preserved as superseded evidence and cannot satisfy the current clean-room gate.
+
+The kit also contains `package/verifier-runtime.cjs`, bundled from that exact tarball during materialization.
+Verification checks every kit byte before loading this runtime, so readiness, calibration and replay semantics
+cannot silently come from a newer or stale repository checkout. The pre-runtime kit is preserved at
+`phase4b-human-cleanroom-domain-eval-weave-v1-pre-verifier-runtime-superseded` and is not current evidence.
 
 ## License decision evidence
 
@@ -121,8 +129,9 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 - TypeScript strict compile: pass;
 - Biome: pass with the pre-existing broken `cat-cafe-skills` symlink warning;
-- full historical + Phase 4B suite: 393/393 pass;
+- full historical + Phase 4B suite: 395/395 pass;
 - root legacy build/pack/import: pass;
+- root legacy JavaScript and declarations contain no unresolved DomainEval workspace imports;
 - Lab and adapter build/pack closure: pass;
 - packed Lab clean consumer: pass;
 - regenerated six public schemas: pass;
@@ -131,8 +140,9 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 ## Remaining external decisions
 
-1. Configure a repository remote, push the branch and obtain the first real macOS/Ubuntu CI result. A local
-   Node 24 Linux container attempt could not pull the official image because Docker Hub timed out; existing
-   local Linux images contain only Node 20, so no Linux execution claim was made.
+1. Push the reviewed candidate to the private `funkdog/domain-eval-weave` repository and obtain the first
+   real macOS/Ubuntu CI result. A local Node 24 Linux container attempt could not pull the official image
+   because Docker Hub timed out; existing local Linux images contain only Node 20, so no Linux execution
+   claim was made.
 2. Run M5 with an uninvolved human contributor without oral help.
 3. Only after those gates change the main package from private and announce Developer Preview/Public Alpha.

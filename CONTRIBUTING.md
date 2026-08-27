@@ -1,6 +1,6 @@
-# Contributing to DSH Eval Lab
+# Contributing to DomainEval Weave
 
-DSH Eval Lab accepts engine changes and provenance-bound Capsule assets. Use only synthetic, licensed or
+DomainEval Weave accepts engine changes and provenance-bound Capsule assets. Use only synthetic, licensed or
 explicitly authorized source material. Never commit production user data, credentials, OAuth material,
 runtime Sessions or generated `.eval/` state.
 
@@ -11,7 +11,7 @@ license and the contributor must have authority to redistribute it.
 
 ## Capsule contributions
 
-1. Initialize a truth-empty draft with `dsh-eval-capsule init`.
+1. Initialize a truth-empty draft with `domain-eval init`.
 2. Add sources with descriptions and licenses.
 3. Add Claims as `proposed`, `unresolved`, `conflicted` or `observability_gap` until an authorized owner
    explicitly confirms them.

@@ -4,7 +4,7 @@ import {
   canonicalJson,
   canonicalJsonDigest,
   sha256Hex,
-} from "@dsh-eval/lab/internal/canonical-json";
+} from "@domaineval/weave/internal/canonical-json";
 import { z } from "zod";
 
 const HARNESS_BUCKETS = ["TDD-suitable", "borderline", "non-trigger", "holdout"] as const;

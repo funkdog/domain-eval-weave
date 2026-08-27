@@ -19,5 +19,5 @@ data. Until a public security contact is selected, release readiness remains gov
 - Only synthetic fixtures are permitted in repository tests and examples.
 - Runtime artifacts live outside the source repository and are persistent by default.
 
-Historical DSH compatibility code has a larger trusted surface than `@dsh-eval/lab`; findings should state
+Historical DSH compatibility code has a larger trusted surface than `@domaineval/weave`; findings should state
 which package boundary is affected.

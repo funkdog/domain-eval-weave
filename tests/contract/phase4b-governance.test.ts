@@ -70,3 +70,33 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.equal(report.public_alpha_ready, false);
   assert.deepEqual(report.blockers, ["REMOTE_CI_PENDING", "HUMAN_CLEANROOM_PENDING"]);
 });
+
+test("DomainEval Weave is the public identity while the DSH root stays private legacy", async () => {
+  const readManifest = async (path: string) =>
+    JSON.parse(await readFile(`${repositoryRoot}/${path}`, "utf8")) as {
+      readonly name?: unknown;
+      readonly private?: unknown;
+      readonly bin?: unknown;
+      readonly repository?: { readonly url?: unknown; readonly directory?: unknown };
+    };
+
+  const root = await readManifest("package.json");
+  const weave = await readManifest("packages/lab/package.json");
+  const adapter = await readManifest("packages/dsh-adapter/package.json");
+  const readme = await readFile(`${repositoryRoot}/README.md`, "utf8");
+
+  assert.equal(root.name, "dsh-eval-lab");
+  assert.equal(root.private, true);
+  assert.deepEqual(root.bin, { "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs" });
+  assert.equal(weave.name, "@domaineval/weave");
+  assert.deepEqual(weave.bin, { "domain-eval": "./bin/domain-eval.mjs" });
+  assert.equal(weave.repository?.url, "git+https://github.com/funkdog/domain-eval-weave.git");
+  assert.equal(weave.repository?.directory, "packages/lab");
+  assert.equal(adapter.name, "@domaineval/dsh-adapter");
+  assert.equal(adapter.repository?.directory, "packages/dsh-adapter");
+  assert.match(readme, /^# DomainEval Weave$/m);
+  assert.match(readme, /Make domain truth executable\./);
+  for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
+    assert.match(await readFile(`${repositoryRoot}/${path}`, "utf8"), /^# DomainEval Weave/m, path);
+  }
+});

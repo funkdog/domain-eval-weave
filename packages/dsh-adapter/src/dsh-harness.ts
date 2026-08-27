@@ -1,6 +1,9 @@
-import type { EvaluationRun, LoadedCapsule, ReleasedCapsule } from "@dsh-eval/lab/capsule";
-import { evaluateObservedCandidate } from "@dsh-eval/lab/evaluator";
-import { buildHarnessExperimentReport, type HarnessExperimentReport } from "@dsh-eval/lab/harness";
+import type { EvaluationRun, LoadedCapsule, ReleasedCapsule } from "@domaineval/weave/capsule";
+import { evaluateObservedCandidate } from "@domaineval/weave/evaluator";
+import {
+  buildHarnessExperimentReport,
+  type HarnessExperimentReport,
+} from "@domaineval/weave/harness";
 import { parseTddTaskEntry, projectTddMechanism } from "./tdd.js";
 
 type TddTask = Parameters<typeof projectTddMechanism>[0]["task"];

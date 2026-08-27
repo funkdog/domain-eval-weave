@@ -1,13 +1,20 @@
 ---
 feature_ids: [F192, F266, F267]
 related_features: [F202, F203, F261]
-topics: [dsh, eval-lab, capsule, open-source, package-boundary, contributor-experience]
+topics: [dsh, domain-eval-weave, capsule, open-source, package-boundary, contributor-experience]
 doc_kind: plan
 created: 2026-08-26
-description: "DSH Eval Lab Phase 4B 产品合同：独立 Lab 发布包、Capsule 贡献体验与开源预览门禁。"
+description: "DomainEval Weave Phase 4B 产品合同：独立主包、Capsule 贡献体验与开源预览门禁。"
 ---
 
-# DSH Eval Lab Phase 4B 产品方案
+# DomainEval Weave Phase 4B 产品方案
+
+## 0. 2026-08-27 品牌修订
+
+Operator 将开源项目品牌确定为 **DomainEval Weave**，主张为 **Make domain truth executable.**。
+本修订只迁移新用户公共面：主包为 `@domaineval/weave`，CLI 为 `domain-eval`，可选 DSH 包为
+`@domaineval/dsh-adapter`。根 `dsh-eval-lab` 继续作为 private legacy compatibility package；Phase 1–4A
+历史合同、artifact identity 和 replay 语义不重写。
 
 ## 1. 产品判断
 
@@ -28,21 +35,21 @@ Capsule Contribution Experience
 
 ## 2. 一句话目标
 
-> 陌生维护者安装唯一主包 `@dsh-eval/lab`，无需 DSH/OAuth/模型调用即可初始化、理解、补全、校准和重放一份
+> 陌生维护者安装唯一主包 `@domaineval/weave`，无需 DSH/OAuth/模型调用即可初始化、理解、补全、校准和重放一份
 > Capsule；同仓库历史 DSH runtime 仍可兼容，但不进入主包 dependency 或 tarball closure。
 
 ## 3. 物理产品边界
 
-### 3.1 `@dsh-eval/lab`
+### 3.1 `@domaineval/weave`
 
 唯一默认主包，包含 Capsule contracts/loader/release、Evaluator Engine、calibration/compare/replay、runner-neutral Harness
 projection、CLI、TypeScript API、六份 JSON Schema 与 reference Capsule。它不得依赖 DSH Session、profile、Judge、OAuth、
 Commerce production template 或历史 Campaign/Suite。
 
-### 3.2 `@dsh-eval/dsh-adapter`
+### 3.2 `@domaineval/dsh-adapter`
 
 可选包，包含 DSH raw Session projection、observation adapters、TDD mechanism evidence 与 Candidate/Harness bridge。它依赖
-`@dsh-eval/lab`，反向依赖禁止。
+`@domaineval/weave`，反向依赖禁止。
 
 ### 3.3 Legacy 与 research
 
@@ -81,7 +88,7 @@ Candidate closure、隐藏 Capsule truth/labels，并只允许 scratch 写入。
 
 Developer Preview 必须满足：
 
-- `@dsh-eval/lab` tarball 不含 legacy/DSH/Judge 文件或依赖；
+- `@domaineval/weave` tarball 不含 legacy/DSH/Judge 文件或依赖；
 - 安装后的 package 可离线 init/validate/calibrate/compare/replay；
 - macOS/Linux platform contract 有测试，unsupported host fail closed；
 - LICENSE 决策已由 operator 完成；

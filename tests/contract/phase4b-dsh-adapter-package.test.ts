@@ -18,10 +18,10 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
     readonly dependencies?: unknown;
     readonly license?: unknown;
   };
-  assert.equal(manifest.name, "@dsh-eval/dsh-adapter");
+  assert.equal(manifest.name, "@domaineval/dsh-adapter");
   assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.dependencies, {
-    "@dsh-eval/lab": "workspace:*",
+    "@domaineval/weave": "workspace:*",
     zod: "4.4.3",
   });
   const sourceFiles = (await readdir(join(adapterRoot, "src"), { recursive: true })).filter(
@@ -40,7 +40,7 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
 
   const pnpmCli = process.env.npm_execpath;
   assert.ok(pnpmCli);
-  await execFileAsync(process.execPath, [pnpmCli, "--filter", "@dsh-eval/dsh-adapter", "build"], {
+  await execFileAsync(process.execPath, [pnpmCli, "--filter", "@domaineval/dsh-adapter", "build"], {
     cwd: repositoryRoot,
   });
   const adapter = await import(pathToFileURL(join(adapterRoot, "dist/index.js")).href);
@@ -74,7 +74,7 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
     ) as { readonly dependencies?: unknown; readonly license?: unknown };
     assert.equal(packedManifest.license, "Apache-2.0");
     assert.deepEqual(packedManifest.dependencies, {
-      "@dsh-eval/lab": "0.1.0-alpha.0",
+      "@domaineval/weave": "0.1.0-alpha.0",
       zod: "4.4.3",
     });
   } finally {

@@ -1,4 +1,4 @@
-# DSH Eval Lab Provider Entry
+# DomainEval Weave Provider Entry
 
 Before any work, read and follow `AGENTS.md` in full. Its repository-specific
 truth sources, safety boundaries, phase limits, and persistence requirements

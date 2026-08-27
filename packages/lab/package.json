@@ -1,10 +1,26 @@
 {
-  "name": "@dsh-eval/lab",
+  "name": "@domaineval/weave",
   "version": "0.1.0-alpha.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "Provenance-bound domain Capsules and deterministic evaluator engine",
+  "description": "Make domain truth executable with provenance-bound Capsules and replayable evaluations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/funkdog/domain-eval-weave.git",
+    "directory": "packages/lab"
+  },
+  "homepage": "https://github.com/funkdog/domain-eval-weave#readme",
+  "bugs": {
+    "url": "https://github.com/funkdog/domain-eval-weave/issues"
+  },
+  "keywords": [
+    "ai-evaluation",
+    "domain-evaluation",
+    "agent-evaluation",
+    "provenance",
+    "replay"
+  ],
   "engines": {
     "node": ">=24 <25"
   },
@@ -39,7 +55,7 @@
     "./examples/*": "./dist/examples/*"
   },
   "bin": {
-    "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs"
+    "domain-eval": "./bin/domain-eval.mjs"
   },
   "files": [
     "bin",

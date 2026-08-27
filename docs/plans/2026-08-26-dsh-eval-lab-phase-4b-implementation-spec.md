@@ -1,13 +1,18 @@
 ---
 feature_ids: [F192, F266, F267]
 related_features: [F202, F203, F261]
-topics: [dsh, eval-lab, capsule, open-source, package-boundary, contributor-experience]
+topics: [dsh, domain-eval-weave, capsule, open-source, package-boundary, contributor-experience]
 doc_kind: implementation-spec
 created: 2026-08-26
-description: "DSH Eval Lab Phase 4B 实施合同：物理 Lab/DSH adapter 分包、贡献者 CLI、跨平台 runner 与开源门禁。"
+description: "DomainEval Weave Phase 4B 实施合同：物理主包/DSH adapter 分包、贡献者 CLI、跨平台 runner 与开源门禁。"
 ---
 
-# DSH Eval Lab Phase 4B 实施合同
+# DomainEval Weave Phase 4B 实施合同
+
+## 0. 2026-08-27 公共命名修订
+
+Operator 批准 `DomainEval Weave` 作为开源品牌。本合同中的新公共入口固定为 `@domaineval/weave`、
+`@domaineval/dsh-adapter` 与 `domain-eval`。根 `dsh-eval-lab`、历史计划和历史 artifact ids 维持原字节语义。
 
 ## 1. 基线与顺序
 
@@ -25,8 +30,8 @@ contracts
 ## 2. Repository layout
 
 ```text
-packages/lab/                 @dsh-eval/lab package facade/build/contracts/examples
-packages/dsh-adapter/         @dsh-eval/dsh-adapter package facade/build
+packages/lab/                 @domaineval/weave package facade/build/contracts/examples
+packages/dsh-adapter/         @domaineval/dsh-adapter package facade/build
 src/capsule/                  canonical core implementation during 4B migration
 src/evaluator/
 src/harness/
@@ -37,17 +42,17 @@ src/phase3c/                  legacy/research compatibility
 Phase 4B may bundle canonical root source into independent package artifacts to avoid duplicating implementation. The packed closure, dependency
 graph and public exports—not source folder aesthetics—are the release boundary. Root `dsh-eval-lab` remains private legacy compatibility.
 
-## 3. `@dsh-eval/lab` artifact contract
+## 3. `@domaineval/weave` artifact contract
 
 The package must expose:
 
 ```text
-@dsh-eval/lab
-@dsh-eval/lab/capsule
-@dsh-eval/lab/evaluator
-@dsh-eval/lab/harness
-@dsh-eval/lab/cli
-dsh-eval-capsule binary
+@domaineval/weave
+@domaineval/weave/capsule
+@domaineval/weave/evaluator
+@domaineval/weave/harness
+@domaineval/weave/cli
+domain-eval binary
 ```
 
 Allowed runtime dependencies are `yaml`, `zod` and Node built-ins. Packed files are allowlisted to package metadata, README, bin, bundled JS,
@@ -95,7 +100,7 @@ case outcomes and qualified boolean. Replay/doctor reject digest drift and stale
 
 ## 8. DSH adapter extraction
 
-`@dsh-eval/dsh-adapter` owns raw JSONL projection, Commerce observation normalization and TDD task/event/mechanism projection. Phase 3C may
+`@domaineval/dsh-adapter` owns raw JSONL projection, Commerce observation normalization and TDD task/event/mechanism projection. Phase 3C may
 re-export the same implementation for compatibility; the adapter must not import `src/phase3c`. Lab must not import the adapter.
 
 ## 9. Runner adapters
@@ -130,7 +135,7 @@ Freeze Phase 4B product/implementation plans and repository package ownership.
 
 ### M1 — Independent Lab
 
-Build and consume a no-DSH `@dsh-eval/lab` tarball.
+Build and consume a no-DSH `@domaineval/weave` tarball.
 
 ### M2 — Contribution UX
 

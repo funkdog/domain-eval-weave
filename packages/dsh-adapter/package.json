@@ -1,10 +1,19 @@
 {
-  "name": "@dsh-eval/dsh-adapter",
+  "name": "@domaineval/dsh-adapter",
   "version": "0.1.0-alpha.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "Optional DSH Session and TDD mechanism adapter for @dsh-eval/lab",
+  "description": "Optional DSH Session and TDD mechanism adapter for @domaineval/weave",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/funkdog/domain-eval-weave.git",
+    "directory": "packages/dsh-adapter"
+  },
+  "homepage": "https://github.com/funkdog/domain-eval-weave#readme",
+  "bugs": {
+    "url": "https://github.com/funkdog/domain-eval-weave/issues"
+  },
   "engines": {
     "node": ">=24 <25"
   },
@@ -29,7 +38,7 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@dsh-eval/lab": "workspace:*",
+    "@domaineval/weave": "workspace:*",
     "zod": "4.4.3"
   }
 }

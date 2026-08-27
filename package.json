@@ -49,8 +49,8 @@
   },
   "scripts": {
     "build": "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
-    "build:packages": "pnpm --filter @dsh-eval/lab build && pnpm --filter @dsh-eval/dsh-adapter build",
-    "build:lab": "pnpm --filter @dsh-eval/lab build",
+    "build:packages": "pnpm --filter @domaineval/weave build && pnpm --filter @domaineval/dsh-adapter build",
+    "build:lab": "pnpm --filter @domaineval/weave build",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",

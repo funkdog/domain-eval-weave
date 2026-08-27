@@ -21,6 +21,13 @@ function capture() {
   };
 }
 
+test("public CLI help uses the DomainEval Weave identity", async () => {
+  const help = capture();
+  assert.equal(await runCapsuleCli(["--help"], help.io), 0);
+  assert.match(help.stdout(), /^DomainEval Weave/m);
+  assert.doesNotMatch(help.stdout(), /DSH Eval Capsule/);
+});
+
 test("a contributor initializes and understands one truth-empty Capsule draft", async () => {
   const parent = await mkdtemp(join(tmpdir(), "phase4b-capsule-init-"));
   const root = join(parent, "returns-policy");

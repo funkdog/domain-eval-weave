@@ -1,4 +1,4 @@
-# DSH Eval Lab Agent Guide
+# DomainEval Weave Agent Guide
 
 ## Truth sources
 

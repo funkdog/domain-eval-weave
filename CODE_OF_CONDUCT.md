@@ -1,6 +1,6 @@
 # Community code of conduct
 
-DSH Eval Lab is a technical community for careful, evidence-bound evaluation. Participants are expected to
+DomainEval Weave is a technical community for careful, evidence-bound evaluation. Participants are expected to
 be respectful, specific and willing to distinguish facts, interpretations, uncertainty and measurement
 failure.
 

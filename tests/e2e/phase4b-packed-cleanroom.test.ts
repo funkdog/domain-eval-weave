@@ -36,7 +36,7 @@ test("packed Lab completes the contributor and replay journey without repository
           name: "phase4b-cleanroom-consumer",
           private: true,
           type: "module",
-          dependencies: { "@dsh-eval/lab": `file:${join(packRoot, archive)}` },
+          dependencies: { "@domaineval/weave": `file:${join(packRoot, archive)}` },
         },
         null,
         2,
@@ -47,14 +47,14 @@ test("packed Lab completes the contributor and replay journey without repository
       cwd: consumer,
       maxBuffer: 32 * 1024 * 1024,
     });
-    const installed = join(consumer, "node_modules/@dsh-eval/lab");
+    const installed = join(consumer, "node_modules/@domaineval/weave");
     const installedManifest = JSON.parse(
       await readFile(join(installed, "package.json"), "utf8"),
     ) as {
       readonly dependencies?: unknown;
     };
     assert.deepEqual(installedManifest.dependencies, { yaml: "2.9.0", zod: "4.4.3" });
-    const binary = join(installed, "bin/dsh-eval-capsule.mjs");
+    const binary = join(installed, "bin/domain-eval.mjs");
 
     const draft = join(consumer, "returns-policy");
     const initialized = await execFileAsync(

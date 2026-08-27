@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readdir, readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { relative, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import { z } from "zod";
 
@@ -95,13 +95,12 @@ if (JSON.stringify(actualEntries) !== JSON.stringify(manifest.entries)) {
   throw new Error("clean-room kit bytes drifted");
 }
 
-const repositoryRoot = new URL("..", import.meta.url);
-const capsuleApi = await import(
-  pathToFileURL(resolve(repositoryRoot.pathname, "packages/lab/dist/capsule.js")).href
-);
-const evaluatorApi = await import(
-  pathToFileURL(resolve(repositoryRoot.pathname, "packages/lab/dist/evaluator.js")).href
-);
+if (manifest.verifier_runtime !== "package/verifier-runtime.cjs") {
+  throw new Error("clean-room kit does not declare the supported verifier runtime");
+}
+const verifierRuntime = createRequire(import.meta.url)(resolve(kitRoot, manifest.verifier_runtime));
+const capsuleApi = verifierRuntime.capsule;
+const evaluatorApi = verifierRuntime.evaluator;
 const submission = resolve(submissionArg);
 const capsule = await capsuleApi.loadCapsule(submission);
 const readiness = await capsuleApi.inspectCapsuleReadiness(capsule);

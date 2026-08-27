@@ -1,10 +1,10 @@
 # Phase 4B independent Capsule contribution
 
-You are testing whether DSH Eval Lab can be used without repository source reading or oral help.
+You are testing whether DomainEval Weave can be used without repository source reading or oral help.
 
 ## Rules
 
-- Do not read the DSH Eval Lab repository source or tests.
+- Do not read the DomainEval Weave repository source or tests.
 - You may read this kit, CLI help, installed package documentation, public JSON Schemas and the installed
   Commerce reference Capsule.
 - Do not ask the project author how to structure or fix the Capsule. Record every blocker in the receipt.
@@ -39,13 +39,13 @@ Install the tarball from the materialized kit:
 mkdir workspace
 cd workspace
 pnpm init
-pnpm add ../package/dsh-eval-lab-*.tgz
+pnpm add ../package/domaineval-weave-*.tgz
 
-dsh-eval-capsule init \
+domain-eval init \
   ./returns-cleanroom returns-cleanroom commerce.returns returns-owner
 
-dsh-eval-capsule doctor ./returns-cleanroom
-dsh-eval-capsule show ./returns-cleanroom
+domain-eval doctor ./returns-cleanroom
+domain-eval show ./returns-cleanroom
 ```
 
 Use `FILE_SHAPES.md`, the installed public Schemas, and the installed Commerce reference only as format
