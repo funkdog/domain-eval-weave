@@ -14,6 +14,7 @@ import {
   evaluateCandidate,
   findCalibrationReports,
   replayEvaluationRun,
+  SandboxedCommandRunner,
 } from "../../src/evaluator/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
@@ -85,19 +86,58 @@ test("Evaluator comparison reports the repaired false reject per Claim", async (
     await cp(example, root, { recursive: true });
     const capsule = await loadCapsule(root);
     const release = await releaseCapsule(root);
+    const delegated = new SandboxedCommandRunner();
+    let candidateExecutions = 0;
+    const runner: CandidateRunner = {
+      run: async (input) => {
+        candidateExecutions += 1;
+        return delegated.run(input);
+      },
+    };
     const comparison = await compareEvaluators({
       capsule,
       release,
       requirementId: "self-service-cancellation",
       leftEvaluatorRef: "commerce-delivery@1.0.0",
       rightEvaluatorRef: "commerce-delivery@2.0.0",
+      runner,
     });
+    assert.equal(candidateExecutions, capsule.cases.length);
     assert.deepEqual(comparison.changed_cases, [
       {
         case_id: "equivalent-typed-result",
         claim_changes: [{ claim_id: "cancel-status", left: "fail", right: "pass" }],
       },
     ]);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("Evaluator comparison memoizes a synchronous Candidate runner failure per case", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "dsh-capsule-compare-sync-failure-"));
+  const root = join(parent, "capsule");
+  try {
+    await cp(example, root, { recursive: true });
+    const capsule = await loadCapsule(root);
+    const release = await releaseCapsule(root);
+    let candidateExecutions = 0;
+    const runner: CandidateRunner = {
+      run() {
+        candidateExecutions += 1;
+        throw new Error("synthetic synchronous runner failure");
+      },
+    };
+    const comparison = await compareEvaluators({
+      capsule,
+      release,
+      requirementId: "self-service-cancellation",
+      leftEvaluatorRef: "commerce-delivery@1.0.0",
+      rightEvaluatorRef: "commerce-delivery@2.0.0",
+      runner,
+    });
+    assert.equal(candidateExecutions, capsule.cases.length);
+    assert.deepEqual(comparison.changed_cases, []);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

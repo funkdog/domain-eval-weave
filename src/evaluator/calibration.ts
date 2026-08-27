@@ -8,7 +8,7 @@ import type { LoadedCapsule } from "../capsule/loader.js";
 import { CapsuleError, evaluatorReference, findEvaluator } from "../capsule/loader.js";
 import type { ReleasedCapsule } from "../capsule/release.js";
 import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
-import type { CandidateRunner } from "./command-runner.js";
+import { type CandidateRunner, SandboxedCommandRunner } from "./command-runner.js";
 import { evaluateCandidate } from "./engine.js";
 
 export interface CalibrationReport {
@@ -238,6 +238,14 @@ export async function compareEvaluators(input: {
 }): Promise<EvaluatorComparison> {
   const changedCases = [];
   for (const calibrationCase of input.capsule.cases) {
+    const delegate = input.runner ?? new SandboxedCommandRunner();
+    let sharedExecution: ReturnType<CandidateRunner["run"]> | undefined;
+    const sharedRunner: CandidateRunner = {
+      run(request) {
+        sharedExecution ??= Promise.resolve().then(() => delegate.run(request));
+        return sharedExecution;
+      },
+    };
     const [left, right] = await Promise.all(
       [input.leftEvaluatorRef, input.rightEvaluatorRef].map((evaluatorRef) =>
         evaluateCandidate({
@@ -246,7 +254,7 @@ export async function compareEvaluators(input: {
           evaluatorRef,
           requirementId: input.requirementId,
           candidateId: calibrationCase.candidate_id,
-          ...(input.runner === undefined ? {} : { runner: input.runner }),
+          runner: sharedRunner,
           persist: false,
         }),
       ),
