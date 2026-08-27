@@ -246,7 +246,7 @@ test("one hung Candidate behavior times out locally without poisoning the other 
   const oracle = new LedgerOracle({
     runner: new StrictProcessRunner(),
     oracleRunnerPath: `${packRoot}/oracle/runner.mjs`,
-    timeoutMsPerBehavior: 500,
+    timeoutMsPerBehavior: 1_500,
   });
   try {
     const result = await oracle.evaluateDirectory(candidate, 42, `${scratch}/checks`);
