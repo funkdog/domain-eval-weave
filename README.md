@@ -114,9 +114,9 @@ See the [platform support matrix](docs/support-matrix.md), [security policy](SEC
 
 ## Release status
 
-The implementation and license boundary are ready. Developer Preview remains blocked on the first
-green macOS/Ubuntu remote CI result. Public Alpha additionally requires an uninvolved human contributor
-to complete the label-free clean-room journey without oral help.
+The implementation, license boundary and first macOS/Ubuntu remote CI gate are complete for the private
+Developer Preview candidate. Formal review and merge remain pending. Public Alpha additionally requires an
+uninvolved human contributor to complete the label-free clean-room journey without oral help.
 
 Machine-readable status lives in [open-source-status.json](open-source-status.json). The Phase 4B
 [product contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md) and

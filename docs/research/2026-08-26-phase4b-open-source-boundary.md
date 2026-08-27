@@ -17,9 +17,9 @@ DSH/TDD evidence lives in optional `@domaineval/dsh-adapter`; the root `dsh-eval
 private historical compatibility.
 
 The implementation is not yet an open-source release. The operator approved Apache-2.0 code/docs plus
-CC0-1.0 repository-authored synthetic sources on 2026-08-27. Developer Preview is now blocked only on the
-first remote macOS/Ubuntu CI result; Public Alpha additionally requires an independent human clean-room
-contribution.
+CC0-1.0 repository-authored synthetic sources on 2026-08-27. The private Developer Preview candidate has
+passed its first branch-bound macOS/Ubuntu CI gate; Public Alpha additionally requires an independent human
+clean-room contribution.
 
 ## Package closures
 
@@ -105,8 +105,11 @@ plans use bubblewrap with `--unshare-all`, a read-only `/candidate`, writable `/
 and no Capsule-root bind. Unsupported platforms or missing sandbox executables fail with
 `CAPSULE_SANDBOX_UNAVAILABLE` before Candidate execution.
 
-Linux planning is contract-tested locally; actual Ubuntu bubblewrap execution remains pending the first
-GitHub-hosted CI run. Windows is explicitly unsupported for Phase 4B.
+Ubuntu ran the 38-test portable DomainEval suite with the installed bubblewrap adapter, including packed
+consumer calibration/replay and clean-room verification. macOS ran the complete 397-test historical plus
+DomainEval regression. Both jobs passed for exact candidate `96c204e30106a75ec4e4876bee7c03b0eca8c04d`
+in [GitHub Actions run 33057160390](https://github.com/funkdog/domain-eval-weave/actions/runs/33057160390).
+Windows is explicitly unsupported for Phase 4B.
 
 ## Governance and readiness
 
@@ -118,9 +121,9 @@ Machine-readable status is currently:
 
 ```text
 implementation_ready      true
-developer_preview_ready   false
+developer_preview_ready   true
 public_alpha_ready        false
-blockers                  REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
+blockers                  HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -129,7 +132,8 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 - TypeScript strict compile: pass;
 - Biome: pass with the pre-existing broken `cat-cafe-skills` symlink warning;
-- full historical + Phase 4B suite: 395/395 pass;
+- full historical + Phase 4B suite: 397/397 pass locally and on GitHub-hosted macOS;
+- portable DomainEval Linux suite: 38/38 pass with real bubblewrap;
 - root legacy build/pack/import: pass;
 - root legacy JavaScript and declarations contain no unresolved DomainEval workspace imports;
 - Lab and adapter build/pack closure: pass;
@@ -140,9 +144,7 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 ## Remaining external decisions
 
-1. Push the reviewed candidate to the private `funkdog/domain-eval-weave` repository and obtain the first
-   real macOS/Ubuntu CI result. A local Node 24 Linux container attempt could not pull the official image
-   because Docker Hub timed out; existing local Linux images contain only Node 20, so no Linux execution
-   claim was made.
+1. Obtain independent review and merge [PR #1](https://github.com/funkdog/domain-eval-weave/pull/1)
+   without self-approval.
 2. Run M5 with an uninvolved human contributor without oral help.
-3. Only after those gates change the main package from private and announce Developer Preview/Public Alpha.
+3. Only after Public Alpha evidence change the main package from private or announce a public release.
