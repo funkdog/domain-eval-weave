@@ -101,9 +101,9 @@ test("open-source governance and CI expose one portable public gate", async () =
     readonly blockers?: unknown;
   };
   assert.equal(report.implementation_ready, true);
-  assert.equal(report.developer_preview_ready, false);
+  assert.equal(report.developer_preview_ready, true);
   assert.equal(report.public_alpha_ready, false);
-  assert.deepEqual(report.blockers, ["REMOTE_CI_PENDING", "HUMAN_CLEANROOM_PENDING"]);
+  assert.deepEqual(report.blockers, ["HUMAN_CLEANROOM_PENDING"]);
 });
 
 test("DomainEval Weave is the public identity while the DSH root stays private legacy", async () => {

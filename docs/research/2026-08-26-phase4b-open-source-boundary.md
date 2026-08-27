@@ -117,17 +117,19 @@ The repository now includes contribution, security, conduct, governance, platfor
 The CI workflow uses Node 24 on macOS and Ubuntu, installs bubblewrap on Linux and runs static checks, all
 tests, all package builds and readiness reporting.
 
-The earlier `96c204e` candidate established the first remote platform evidence. A subsequent public-repository
-simplification removed the fixed maintainer runtime path and changed the workflow to the portable public gate,
-so remote CI is intentionally pending again until the current exact revision passes both hosts.
+The earlier `96c204e` candidate established the first remote platform evidence. Public-repository
+simplification candidate `8345fbb55264325a133301b561a6352a1e9bfa7b` then removed the fixed maintainer
+runtime path and changed the workflow to one portable public gate. Both jobs passed in
+[GitHub Actions run 33071721465](https://github.com/funkdog/domain-eval-weave/actions/runs/33071721465):
+macOS in 1m00s and Ubuntu with real bubblewrap in 1m05s.
 
 Machine-readable status for the current candidate is:
 
 ```text
 implementation_ready      true
-developer_preview_ready   false
+developer_preview_ready   true
 public_alpha_ready        false
-blockers                  REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
+blockers                  HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -136,8 +138,8 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 - TypeScript strict compile: pass;
 - Biome: pass without repository-internal symlink warnings;
-- full historical + Phase 4B suite: 399/399 pass locally; prior hosted evidence remains revision-bound;
-- public DomainEval suite: 40/40 pass locally; fresh hosted macOS/Ubuntu evidence pending;
+- full historical + Phase 4B suite: 399/399 pass locally;
+- public DomainEval suite: 40/40 pass locally and on hosted macOS/Ubuntu;
 - root legacy build/pack/import: pass;
 - root legacy JavaScript and declarations contain no unresolved DomainEval workspace imports;
 - Lab and adapter build/pack closure: pass;
