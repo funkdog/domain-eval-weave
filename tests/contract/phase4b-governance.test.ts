@@ -24,6 +24,7 @@ test("open-source governance and CI have one explicit license gate", async () =>
     "utf8",
   );
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
+  assert.match(workflow, /push:\s*\n\s*branches: \[main\]/);
   assert.match(workflow, /actions\/checkout@v6/);
   assert.match(workflow, /actions\/setup-node@v6/);
   assert.match(workflow, /node-version: 24/);
