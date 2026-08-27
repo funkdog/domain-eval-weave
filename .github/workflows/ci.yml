@@ -22,6 +22,12 @@ jobs:
           package-manager-cache: false
       - name: Enable pnpm
         run: corepack enable
+      - name: Initialize isolated legacy runtime
+        run: |
+          sudo install -d -m 755 /Users/slipshod/AIBuild
+          sudo install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime
+          sudo install -d -m 700 /Users/slipshod/AIBuild/dsh-eval-lab-runtime/dsh-home
+          sudo chown -R "$USER" /Users/slipshod/AIBuild/dsh-eval-lab-runtime
       - name: Install Linux sandbox
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y bubblewrap

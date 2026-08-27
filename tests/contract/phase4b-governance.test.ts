@@ -25,6 +25,9 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.match(workflow, /node-version: 24/);
   assert.match(workflow, /package-manager-cache: false/);
   assert.match(workflow, /bubblewrap/);
+  assert.match(workflow, /Initialize isolated legacy runtime/);
+  assert.match(workflow, /sudo install -d -m 700/);
+  assert.match(workflow, /dsh-eval-lab-runtime\/dsh-home/);
 
   const license = await readFile(`${repositoryRoot}/LICENSE`, "utf8");
   assert.match(license, /Apache License\s+Version 2\.0/);
