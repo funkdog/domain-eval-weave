@@ -30,13 +30,24 @@ jobs:
           sudo chown -R "$USER" /Users/slipshod/AIBuild/dsh-eval-lab-runtime
       - name: Install Linux sandbox
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Install
         run: pnpm install --frozen-lockfile
+      - name: Initialize legacy test layout
+        run: node --import tsx scripts/initialize-legacy-ci-runtime.mjs
       - name: Static checks
         run: pnpm check && pnpm lint
-      - name: Tests
+      - name: Full historical regression
+        if: runner.os != 'Linux'
         run: pnpm test
+      - name: Portable Linux regression
+        if: runner.os == 'Linux'
+        run: pnpm test:portable
       - name: Build package closures
         run: pnpm build
       - name: Report open-source readiness

@@ -8,6 +8,7 @@ const required = [
   "packages/lab/package.json",
   "packages/lab/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
+  "scripts/initialize-legacy-ci-runtime.mjs",
   "CONTRIBUTING.md",
   "SECURITY.md",
   "CODE_OF_CONDUCT.md",

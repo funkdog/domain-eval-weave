@@ -19,6 +19,10 @@ test("open-source governance and CI have one explicit license gate", async () =>
     assert.ok((await readFile(`${repositoryRoot}/${path}`, "utf8")).length > 100, path);
   }
   const workflow = await readFile(`${repositoryRoot}/.github/workflows/ci.yml`, "utf8");
+  const legacyInitializer = await readFile(
+    `${repositoryRoot}/scripts/initialize-legacy-ci-runtime.mjs`,
+    "utf8",
+  );
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
   assert.match(workflow, /actions\/checkout@v6/);
   assert.match(workflow, /actions\/setup-node@v6/);
@@ -28,6 +32,20 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.match(workflow, /Initialize isolated legacy runtime/);
   assert.match(workflow, /sudo install -d -m 700/);
   assert.match(workflow, /dsh-eval-lab-runtime\/dsh-home/);
+  assert.match(legacyInitializer, /ensurePhase2InstanceLayout/);
+  assert.match(workflow, /apparmor_restrict_unprivileged_userns/);
+  assert.match(workflow, /pnpm test:portable/);
+  assert.match(workflow, /runner\.os != 'Linux'[\s\S]*pnpm test/);
+  assert.match(workflow, /initialize-legacy-ci-runtime\.mjs/);
+  assert.match(workflow, /runner\.os == 'Linux'[\s\S]*pnpm test:portable/);
+  assert.equal(
+    (
+      JSON.parse(await readFile(`${repositoryRoot}/package.json`, "utf8")) as {
+        readonly scripts?: Readonly<Record<string, unknown>>;
+      }
+    ).scripts?.["test:portable"],
+    "node --import tsx --test --test-concurrency=1 tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts",
+  );
 
   const license = await readFile(`${repositoryRoot}/LICENSE`, "utf8");
   assert.match(license, /Apache License\s+Version 2\.0/);

@@ -64,6 +64,7 @@
     "lint": "tsc -p tsconfig.test.json",
     "prepare": "pnpm build",
     "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",
+    "test:portable": "node --import tsx --test --test-concurrency=1 tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts",
     "test:unit": "node --import tsx --test tests/unit/*.test.ts",
     "test:contract": "node --import tsx --test tests/contract/*.test.ts",
     "test:calibration": "node --import tsx --test --test-concurrency=1 tests/calibration/*.test.ts",
