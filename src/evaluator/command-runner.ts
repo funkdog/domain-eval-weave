@@ -58,6 +58,9 @@ function sandboxProfile(
     "(allow system-socket)",
     "(allow file-read-metadata)",
     "(allow file-read*)",
+    ...["/Users", "/Volumes", "/Network", "/tmp", "/private/tmp"].map(
+      (root) => `(deny file-read* (subpath ${literal(root)}))`,
+    ),
     ...readable.map((root) => `(allow file-read* (subpath ${literal(resolve(root))}))`),
     ...[
       "capsule.yaml",
@@ -114,16 +117,48 @@ export function buildCandidateSandboxPlan(input: {
     };
   }
   if (input.platform === "linux") {
-    const systemRoots = ["/usr", "/bin", "/lib", "/lib64", "/etc/alternatives", "/etc/ld.so.cache"]
-      .filter(existsSync)
-      .flatMap((root) => ["--ro-bind", root, root]);
+    const systemRootPaths = [
+      "/usr",
+      "/bin",
+      "/lib",
+      "/lib64",
+      "/etc/alternatives",
+      "/etc/ld.so.cache",
+    ].filter(existsSync);
+    const systemRoots = systemRootPaths.flatMap((root) => ["--ro-bind", root, root]);
     const executableRelation = relative(input.candidateRoot, input.command.executable);
-    const executable =
+    const containedExecutable =
       executableRelation !== "" &&
       !executableRelation.startsWith("..") &&
-      !executableRelation.startsWith("/")
-        ? `/candidate/${executableRelation.split("\\").join("/")}`
-        : input.command.executable;
+      !executableRelation.startsWith("/");
+    const executable = containedExecutable
+      ? `/candidate/${executableRelation.split("\\").join("/")}`
+      : input.command.executable;
+    const executableCovered = systemRootPaths.some((root) => {
+      const relation = relative(root, input.command.executable);
+      return relation === "" || (!relation.startsWith("..") && !relation.startsWith("/"));
+    });
+    const externalRuntimeRoot =
+      containedExecutable || executableCovered
+        ? undefined
+        : dirname(dirname(input.command.executable));
+    const externalRuntimeParents: string[] = [];
+    if (externalRuntimeRoot !== undefined) {
+      let current = dirname(externalRuntimeRoot);
+      while (current !== "/") {
+        externalRuntimeParents.unshift(current);
+        current = dirname(current);
+      }
+    }
+    const externalRuntime =
+      externalRuntimeRoot === undefined
+        ? []
+        : [
+            ...externalRuntimeParents.flatMap((root) => ["--dir", root]),
+            "--ro-bind",
+            externalRuntimeRoot,
+            externalRuntimeRoot,
+          ];
     return {
       executable: input.sandboxExecutable ?? "/usr/bin/bwrap",
       args: [
@@ -137,6 +172,7 @@ export function buildCandidateSandboxPlan(input: {
         "--tmpfs",
         "/tmp",
         ...systemRoots,
+        ...externalRuntime,
         "--ro-bind",
         input.candidateRoot,
         "/candidate",

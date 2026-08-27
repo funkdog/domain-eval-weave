@@ -37,8 +37,8 @@ function sandboxLiteral(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
-function sandboxProfile(input: StrictProcessInput): string {
-  const denied = ["/Users/slipshod", "/Volumes", "/Network"];
+export function buildStrictProcessSandboxProfile(input: StrictProcessInput): string {
+  const denied = ["/Users", "/Volumes", "/Network", "/tmp", "/private/tmp"];
   const readable = new Set([
     "/System",
     "/usr",
@@ -116,7 +116,7 @@ export class StrictProcessRunner {
     await mkdir(input.writableRoot, { recursive: true, mode: 0o700 });
     const child = spawn(
       this.#sandboxExecutable,
-      ["-p", sandboxProfile(input), input.executable, ...input.args],
+      ["-p", buildStrictProcessSandboxProfile(input), input.executable, ...input.args],
       {
         cwd: input.cwd,
         env: sanitizedEnvironment(input.writableRoot, input.env),
