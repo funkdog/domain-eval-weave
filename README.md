@@ -114,8 +114,8 @@ See the [platform support matrix](docs/support-matrix.md), [security policy](SEC
 
 ## Release status
 
-The implementation and license boundary are complete. The public install/type workflow is awaiting fresh
-macOS/Ubuntu evidence for the current candidate; formal review and merge also remain pending. Public Alpha
+The implementation, license boundary and isolated public install/type workflow have current macOS/Ubuntu
+evidence for the private Developer Preview candidate. Formal review and merge remain pending. Public Alpha
 additionally requires an uninvolved human contributor to complete the label-free clean-room journey without
 oral help.
 

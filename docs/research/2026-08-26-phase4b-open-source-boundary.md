@@ -126,15 +126,18 @@ macOS in 1m00s and Ubuntu with real bubblewrap in 1m05s.
 Formal review then found that root `pnpm install` still invoked the legacy `prepare` lifecycle and that
 `pnpm lint` still type-checked the full legacy tree. The current candidate skips root lifecycle scripts during
 public installation, explicitly rebuilds `esbuild`, builds only the two public packages and uses a dedicated
-public TypeScript project. Fresh hosted evidence for that exact workflow is pending.
+public TypeScript project. Exact candidate `2fef67e7ed0199b57212f27e30fedda349ecae94` passed
+[GitHub Actions run 33072952107](https://github.com/funkdog/domain-eval-weave/actions/runs/33072952107)
+on macOS and Ubuntu. Both Install logs contain `--ignore-scripts`; neither contains root `prepare`,
+`clean-dist`, `bundle-delivery` or `tsconfig.test` execution.
 
 Machine-readable status for the current candidate is:
 
 ```text
 implementation_ready      true
-developer_preview_ready   false
+developer_preview_ready   true
 public_alpha_ready        false
-blockers                  REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
+blockers                  HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -144,7 +147,7 @@ The automated packed consumer is implementation evidence, not a substitute for a
 - TypeScript strict compile: pass;
 - Biome: pass without repository-internal symlink warnings;
 - full historical + Phase 4B suite: 399/399 pass locally;
-- public DomainEval suite and independent public type gate: pass locally; fresh hosted evidence pending;
+- public DomainEval suite and independent public type gate: pass locally and on hosted macOS/Ubuntu;
 - root legacy build/pack/import: pass;
 - root legacy JavaScript and declarations contain no unresolved DomainEval workspace imports;
 - Lab and adapter build/pack closure: pass;
