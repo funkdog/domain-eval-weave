@@ -1,78 +1,32 @@
 # DomainEval Weave Agent Guide
 
-## Truth sources
+## Start here
 
-- Product boundary: `docs/plans/2026-08-17-dsh-eval-lab-product-plan.md`
-- Implementation contract: `docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md`
-- Phase 2 product contract: `docs/plans/2026-08-18-dsh-eval-lab-phase-2-product-plan.md`
-- Phase 2 implementation contract: `docs/plans/2026-08-18-dsh-eval-lab-phase-2-implementation-spec.md`
-- Phase 3 product contract: `docs/plans/2026-08-19-dsh-eval-lab-phase-3-product-plan.md`
-- Phase 3A implementation contract: `docs/plans/2026-08-19-dsh-eval-lab-phase-3a-implementation-spec.md`
-- Phase 3B implementation contract: `docs/plans/2026-08-21-dsh-eval-lab-phase-3b-implementation-spec.md`
-- Phase 3B.1 commerce contract: `docs/plans/2026-08-21-dsh-eval-lab-phase-3b1-commerce-implementation-spec.md`
-- Phase 3B.2 commerce withdrawal successor: `docs/plans/2026-08-22-dsh-eval-lab-phase-3b2-commerce-withdrawal-implementation-spec.md`
-- Phase 3C product contract: `docs/plans/2026-08-24-dsh-eval-lab-phase-3c-product-plan.md`
-- Phase 3C implementation contract: `docs/plans/2026-08-24-dsh-eval-lab-phase-3c-implementation-spec.md`
-- Phase 4A product contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-product-plan.md`
-- Phase 4A implementation contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4a-implementation-spec.md`
-- Phase 4B product contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md`
-- Phase 4B implementation contract: `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md`
+Read `README.md`, then the current product and implementation contracts:
 
-Read the product boundary and the implementation contract for the phase in scope before coding.
-Do not broaden either phase beyond its frozen contract.
+- `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md`
+- `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md`
 
-## Safety boundaries
+The public implementation lives in `src/capsule/`, `src/evaluator/`, `src/harness/`,
+`src/capsule-cli/`, and `packages/`. Historical DSH code remains for compatibility; do not
+extend it when a change belongs in the runner-neutral Capsule/Evaluator boundary.
 
-1. Use only synthetic fixture data. Never connect to production user data.
-2. Keep all runtime state under `/Users/slipshod/AIBuild/dsh-eval-lab-runtime`.
-3. Never read, print, copy, move, or hash OAuth credentials.
-4. Never read `~/.codex/auth.json`, `~/.dsh`, Clowder Redis/SQLite, Clowder API,
-   or Clowder localhost ports.
-5. Treat `/Users/slipshod/AIBuild/dsh-codex-oauth-lab` as a read-only acceptance
-   reference; do not build this product inside it.
-6. Persist Campaign and Session artifacts by default. Do not add automatic TTL
-   or cleanup behavior.
+## Safety and truth
 
-## Development discipline
+- Use only synthetic, licensed, or explicitly authorized fixture data.
+- Keep generated `.eval/`, runtime, credential, and Session data outside the source tree.
+- Never read, print, copy, move, hash, or commit credentials and OAuth material.
+- Candidate execution must remain fail-closed, offline, sandboxed, and unable to read Capsule truth.
+- LLM output and schema validity never confirm a Claim; only declared domain authority can do that.
+- Persisted releases, calibrations, and Runs remain content-addressed and replayable.
 
-- Work red-to-green in the milestone order frozen by the implementation spec.
-- Diagnose root causes before fixes and keep evidence bound to exact revisions.
-- Do not claim completion without proportional tests and a clean candidate.
-- Do not add Web UI, an open-ended domain registry, an LLM Judge, multi-user roles,
-  remote evaluators, or automatic promotion/rollback during Phase 1, Phase 2, or Phase 3A.
-- Keep Phase 3A authoring assets out of the Candidate runner surface. Domain Knowledge Packs
-  may suggest questions but never become product truth without provenance-bound owner confirmation.
-- Keep the source repository free of runtime artifacts and secrets even when a
-  matching ignore rule exists; physical separation is the actual boundary.
+## Development
 
-
-<!-- CAT-CAFE-GOVERNANCE-START -->
-> Pack version: 1.4.1 | Provider: codex
-
-## Clowder AI Governance Rules (Auto-managed)
-
-### Hard Constraints (immutable)
-- **Clowder AI runtime ports**: frontend 3003 and API 3004 are reserved by Clowder AI. Avoid using these ports for this project's dev servers.
-- **Redis port 6399** is Clowder AI's production Redis. Never connect to it from external projects. Use 6398 for dev/test.
-- **No self-review**: The same individual cannot review their own code. Cross-family review preferred.
-- **Identity is constant**: Never impersonate another cat. Identity is a hard constraint.
-
-### Collaboration Standards
-- A2A handoff uses five-tuple: What / Why / Tradeoff / Open Questions / Next Action
-- Vision Guardian: Read original requirements before starting. AC completion ≠ feature complete.
-- Review flow: quality-gate → [fresh-context-review] → request-review → receive-review → merge-gate
-- Skills are available via symlinked cat-cafe-skills/ — load the relevant skill before each workflow step
-- Shared rules: See cat-cafe-skills/refs/shared-rules.md for full collaboration contract
-
-### Quality Discipline (overrides "try simplest approach first")
-- **Bug: find root cause before fixing**. No guess-and-patch. Steps: reproduce → logs → call chain → confirm root cause → fix
-- **Uncertain direction: stop → search → ask → confirm → then act**. Never "just try it first"
-- **"Done" requires evidence** (tests pass / screenshot / logs). Bug fix = red test first, then green
-
-### Knowledge Engineering
-- Documents use YAML frontmatter (feature_ids, topics, doc_kind, created)
-- Three-layer info architecture: CLAUDE.md (≤100 lines) → Skills (on-demand) → refs/
-- Backlog: BACKLOG.md (hot) → Feature files (warm) → raw docs (cold)
-- Feature lifecycle: kickoff → discussion → implementation → review → completion
-- SOP: See docs/SOP.md for the 6-step workflow
-<!-- CAT-CAFE-GOVERNANCE-END -->
+- Reproduce bugs before fixing them and work red-to-green.
+- Run `pnpm check`, `pnpm lint`, `pnpm test:public`, and `pnpm build:packages` for public changes.
+- Run the historical `pnpm test` suite only when changing legacy compatibility surfaces on a
+  supported maintainer environment.
+- Keep changes within the frozen phase contract. Do not add a Web UI, remote registry, automatic
+  truth confirmation, arbitrary remote execution, or a production LLM Judge.
+- Do not claim completion without tests bound to the exact revision and a clean worktree.
+- Authors cannot approve their own implementation.

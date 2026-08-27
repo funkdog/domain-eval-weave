@@ -1,10 +1,6 @@
 import { lstat, readdir, readFile, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-import {
-  canonicalJson,
-  canonicalJsonDigest,
-  sha256Hex,
-} from "@domaineval/weave/internal/canonical-json";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "@domaineval/weave/canonical-json";
 import { z } from "zod";
 
 const HARNESS_BUCKETS = ["TDD-suitable", "borderline", "non-trigger", "holdout"] as const;

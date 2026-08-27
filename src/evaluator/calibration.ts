@@ -1,8 +1,9 @@
-import { mkdir, open, readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { z } from "zod";
 
+import { writeExclusiveOrVerify } from "../capsule/artifact-store.js";
 import type { EvaluationRun } from "../capsule/contracts.js";
 import type { LoadedCapsule } from "../capsule/loader.js";
 import { CapsuleError, evaluatorReference, findEvaluator } from "../capsule/loader.js";
@@ -127,27 +128,6 @@ export async function calibrateEvaluator(input: {
   });
 }
 
-async function writeExclusiveOrVerify(path: string, bytes: Uint8Array): Promise<void> {
-  try {
-    const handle = await open(path, "wx", 0o600);
-    try {
-      await handle.writeFile(bytes);
-    } finally {
-      await handle.close();
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    const existing = await readFile(path);
-    if (!existing.equals(Buffer.from(bytes))) {
-      throw new CapsuleError(
-        "CAPSULE_CALIBRATION_COLLISION",
-        "Existing calibration path contains different bytes",
-        path,
-      );
-    }
-  }
-}
-
 export async function persistCalibrationReport(
   root: string,
   reportInput: CalibrationReport,
@@ -156,9 +136,16 @@ export async function persistCalibrationReport(
   const sha256 = canonicalJsonDigest(report);
   const ref = `.eval/calibrations/${sha256}.json`;
   await mkdir(resolve(root, ".eval/calibrations"), { recursive: true, mode: 0o700 });
+  const path = resolve(root, ref);
   await writeExclusiveOrVerify(
-    resolve(root, ref),
+    path,
     Buffer.from(`${canonicalJson(report)}\n`, "utf8"),
+    () =>
+      new CapsuleError(
+        "CAPSULE_CALIBRATION_COLLISION",
+        "Existing calibration path contains different bytes",
+        path,
+      ),
   );
   return { report, sha256, ref };
 }
@@ -194,14 +181,7 @@ export async function findCalibrationReports(input: {
     throw error;
   });
   const reports: PersistedCalibrationReport[] = [];
-  for (const name of names.sort()) {
-    if (!/^[0-9a-f]{64}\.json$/.test(name)) {
-      throw new CapsuleError(
-        "CAPSULE_CALIBRATION_REF_INVALID",
-        "Calibration directory contains an invalid entry",
-        `.eval/calibrations/${name}`,
-      );
-    }
+  for (const name of names.filter((entry) => /^[0-9a-f]{64}\.json$/.test(entry)).sort()) {
     const ref = `.eval/calibrations/${name}`;
     const report = await readCalibrationReport(input.capsule.root, ref);
     if (

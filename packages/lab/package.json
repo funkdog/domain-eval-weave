@@ -47,9 +47,9 @@
       "types": "./dist/types/packages/lab/src/cli.d.ts",
       "import": "./dist/cli.js"
     },
-    "./internal/canonical-json": {
+    "./canonical-json": {
       "types": "./dist/types/packages/lab/src/canonical-json.d.ts",
-      "import": "./dist/internal/canonical-json.js"
+      "import": "./dist/canonical-json.js"
     },
     "./schemas/*": "./dist/contracts/*.schema.json",
     "./examples/*": "./dist/examples/*"

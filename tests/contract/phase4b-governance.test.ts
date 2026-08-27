@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 
-test("open-source governance and CI have one explicit license gate", async () => {
+test("open-source governance and CI expose one portable public gate", async () => {
   for (const path of [
     "CONTRIBUTING.md",
     "SECURITY.md",
@@ -19,34 +19,47 @@ test("open-source governance and CI have one explicit license gate", async () =>
     assert.ok((await readFile(`${repositoryRoot}/${path}`, "utf8")).length > 100, path);
   }
   const workflow = await readFile(`${repositoryRoot}/.github/workflows/ci.yml`, "utf8");
-  const legacyInitializer = await readFile(
-    `${repositoryRoot}/scripts/initialize-legacy-ci-runtime.mjs`,
-    "utf8",
-  );
   assert.match(workflow, /permissions:\s*\n\s*contents: read/);
   assert.match(workflow, /push:\s*\n\s*branches: \[main\]/);
-  assert.match(workflow, /actions\/checkout@v6/);
-  assert.match(workflow, /actions\/setup-node@v6/);
   assert.match(workflow, /node-version: 24/);
-  assert.match(workflow, /package-manager-cache: false/);
   assert.match(workflow, /bubblewrap/);
-  assert.match(workflow, /Initialize isolated legacy runtime/);
-  assert.match(workflow, /sudo install -d -m 700/);
-  assert.match(workflow, /dsh-eval-lab-runtime\/dsh-home/);
-  assert.match(legacyInitializer, /ensurePhase2InstanceLayout/);
   assert.match(workflow, /apparmor_restrict_unprivileged_userns/);
-  assert.match(workflow, /pnpm test:portable/);
-  assert.match(workflow, /runner\.os != 'Linux'[\s\S]*pnpm test/);
-  assert.match(workflow, /initialize-legacy-ci-runtime\.mjs/);
-  assert.match(workflow, /runner\.os == 'Linux'[\s\S]*pnpm test:portable/);
+  assert.match(workflow, /pnpm test:public/);
+  assert.match(workflow, /pnpm build:packages/);
+  assert.doesNotMatch(workflow, /\/Users\/slipshod|Initialize isolated legacy runtime/);
+
+  const rootManifest = JSON.parse(await readFile(`${repositoryRoot}/package.json`, "utf8")) as {
+    readonly scripts?: Readonly<Record<string, unknown>>;
+  };
+  assert.equal(typeof rootManifest.scripts?.["test:public"], "string");
+
+  const contributing = await readFile(`${repositoryRoot}/CONTRIBUTING.md`, "utf8");
+  assert.match(contributing, /pnpm test:public/);
+  assert.doesNotMatch(contributing, /\npnpm test\n/);
+
+  for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
+    const source = await readFile(`${repositoryRoot}/${path}`, "utf8");
+    assert.doesNotMatch(source, /Clowder AI|cat-cafe|\/Users\/slipshod|Redis port 6399/, path);
+  }
   assert.equal(
-    (
-      JSON.parse(await readFile(`${repositoryRoot}/package.json`, "utf8")) as {
-        readonly scripts?: Readonly<Record<string, unknown>>;
-      }
-    ).scripts?.["test:portable"],
-    "node --import tsx --test --test-concurrency=1 tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts",
+    await lstat(`${repositoryRoot}/cat-cafe-skills`).catch(
+      (error: NodeJS.ErrnoException) => error.code,
+    ),
+    "ENOENT",
   );
+
+  for (const path of [
+    "tests/contract/phase4b-lab-package.test.ts",
+    "tests/contract/phase4b-dsh-adapter-package.test.ts",
+    "tests/contract/phase4b-human-cleanroom-kit.test.ts",
+    "tests/e2e/phase4b-packed-cleanroom.test.ts",
+  ]) {
+    assert.doesNotMatch(
+      await readFile(`${repositoryRoot}/${path}`, "utf8"),
+      /DEDICATED_RUNTIME_ROOT|\/Users\/slipshod/,
+      path,
+    );
+  }
 
   const license = await readFile(`${repositoryRoot}/LICENSE`, "utf8");
   assert.match(license, /Apache License\s+Version 2\.0/);
@@ -88,9 +101,9 @@ test("open-source governance and CI have one explicit license gate", async () =>
     readonly blockers?: unknown;
   };
   assert.equal(report.implementation_ready, true);
-  assert.equal(report.developer_preview_ready, true);
+  assert.equal(report.developer_preview_ready, false);
   assert.equal(report.public_alpha_ready, false);
-  assert.deepEqual(report.blockers, ["HUMAN_CLEANROOM_PENDING"]);
+  assert.deepEqual(report.blockers, ["REMOTE_CI_PENDING", "HUMAN_CLEANROOM_PENDING"]);
 });
 
 test("DomainEval Weave is the public identity while the DSH root stays private legacy", async () => {

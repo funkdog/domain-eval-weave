@@ -117,13 +117,17 @@ The repository now includes contribution, security, conduct, governance, platfor
 The CI workflow uses Node 24 on macOS and Ubuntu, installs bubblewrap on Linux and runs static checks, all
 tests, all package builds and readiness reporting.
 
-Machine-readable status is currently:
+The earlier `96c204e` candidate established the first remote platform evidence. A subsequent public-repository
+simplification removed the fixed maintainer runtime path and changed the workflow to the portable public gate,
+so remote CI is intentionally pending again until the current exact revision passes both hosts.
+
+Machine-readable status for the current candidate is:
 
 ```text
 implementation_ready      true
-developer_preview_ready   true
+developer_preview_ready   false
 public_alpha_ready        false
-blockers                  HUMAN_CLEANROOM_PENDING
+blockers                  REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -131,9 +135,9 @@ The automated packed consumer is implementation evidence, not a substitute for a
 ## Verification
 
 - TypeScript strict compile: pass;
-- Biome: pass with the pre-existing broken `cat-cafe-skills` symlink warning;
-- full historical + Phase 4B suite: 397/397 pass locally and on GitHub-hosted macOS;
-- portable DomainEval Linux suite: 38/38 pass with real bubblewrap;
+- Biome: pass without repository-internal symlink warnings;
+- full historical + Phase 4B suite: 399/399 pass locally; prior hosted evidence remains revision-bound;
+- public DomainEval suite: 40/40 pass locally; fresh hosted macOS/Ubuntu evidence pending;
 - root legacy build/pack/import: pass;
 - root legacy JavaScript and declarations contain no unresolved DomainEval workspace imports;
 - Lab and adapter build/pack closure: pass;

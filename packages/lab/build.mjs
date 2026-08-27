@@ -33,7 +33,7 @@ await build({
     evaluator: "src/evaluator.ts",
     harness: "src/harness.ts",
     cli: "src/cli.ts",
-    "internal/canonical-json": "src/canonical-json.ts",
+    "canonical-json": "src/canonical-json.ts",
   },
   outdir: distRoot,
   bundle: true,

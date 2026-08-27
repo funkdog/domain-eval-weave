@@ -20,7 +20,7 @@ The runner never falls back to an unsandboxed process. Missing sandbox binaries 
 read-only Candidate bind and writable scratch bind. macOS denies network and explicitly hides Capsule truth,
 labels, releases, calibrations and Runs.
 
-The Developer Preview workflow targets Node 24 on current GitHub-hosted macOS and Ubuntu runners. macOS runs
-the complete historical regression plus the public package journey. Ubuntu runs the runner-neutral Capsule,
-Evaluator, adapter, package and clean-room suites against a real bubblewrap installation; macOS-only legacy
-`sandbox-exec` tests are not projected onto Linux. Windows support is not a Phase 4B commitment.
+The Developer Preview workflow targets Node 24 on current GitHub-hosted macOS and Ubuntu runners. Both run
+the runner-neutral Capsule, Evaluator, adapter, package and clean-room suites; Ubuntu uses a real bubblewrap
+installation. The complete historical DSH regression remains a separate maintainer compatibility gate and is
+not a prerequisite for a public Capsule/Evaluator contribution. Windows support is not a Phase 4B commitment.

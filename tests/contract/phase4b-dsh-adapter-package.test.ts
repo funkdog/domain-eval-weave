@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -40,17 +39,13 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
 
   const pnpmCli = process.env.npm_execpath;
   assert.ok(pnpmCli);
-  await execFileAsync(process.execPath, [pnpmCli, "--filter", "@domaineval/dsh-adapter", "build"], {
-    cwd: repositoryRoot,
-  });
+  await execFileAsync(process.execPath, [pnpmCli, "build:packages"], { cwd: repositoryRoot });
   const adapter = await import(pathToFileURL(join(adapterRoot, "dist/index.js")).href);
   assert.equal(typeof adapter.projectRawDshTddEvents, "function");
   assert.equal(typeof adapter.projectTddMechanism, "function");
   assert.equal(typeof adapter.evaluateAndProjectDshTddHarnessExperiment, "function");
 
-  const parent = join(DEDICATED_RUNTIME_ROOT, "test-tmp");
-  await mkdir(parent, { recursive: true, mode: 0o700 });
-  const scratch = await mkdtemp(join(parent, "phase4b-adapter-pack-"));
+  const scratch = await mkdtemp(join(tmpdir(), "phase4b-adapter-pack-"));
   try {
     await execFileAsync(process.execPath, [pnpmCli, "pack", "--pack-destination", scratch], {
       cwd: adapterRoot,

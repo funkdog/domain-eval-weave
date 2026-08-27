@@ -32,10 +32,13 @@ corepack enable
 pnpm install --frozen-lockfile
 pnpm check
 pnpm lint
-pnpm test
-pnpm build
+pnpm test:public
+pnpm build:packages
 pnpm readiness:open-source
 ```
+
+The historical `pnpm test` suite is a maintainer compatibility gate for supported legacy DSH
+environments. It is not required for a runner-neutral Capsule or Evaluator contribution.
 
 Bug fixes require a reproducing test before the implementation change. Evaluator changes must identify the
 affected Claim, false-accept/false-reject risk and calibration case. One pair or one Judge run never supports

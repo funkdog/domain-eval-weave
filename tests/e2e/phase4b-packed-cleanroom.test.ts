@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -15,9 +14,7 @@ const labRoot = join(repositoryRoot, "packages/lab");
 test("packed Lab completes the contributor and replay journey without repository imports", async () => {
   const pnpmCli = process.env.npm_execpath;
   assert.ok(pnpmCli);
-  const parent = join(DEDICATED_RUNTIME_ROOT, "test-tmp");
-  await mkdir(parent, { recursive: true, mode: 0o700 });
-  const scratch = await mkdtemp(join(parent, "phase4b-cleanroom-"));
+  const scratch = await mkdtemp(join(tmpdir(), "phase4b-cleanroom-"));
   try {
     const packRoot = join(scratch, "pack");
     await mkdir(packRoot, { mode: 0o700 });

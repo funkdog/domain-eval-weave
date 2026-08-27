@@ -166,6 +166,17 @@ test("calibration readiness is bound to one exact Capsule release", async () => 
       ).length,
       1,
     );
+    await writeFile(join(root, ".eval", "calibrations", ".DS_Store"), "synthetic", "utf8");
+    assert.equal(
+      (
+        await findCalibrationReports({
+          capsule,
+          releaseSha256: release.sha256,
+          evaluatorRef: "commerce-delivery@2.0.0",
+        })
+      ).length,
+      1,
+    );
 
     const policy = join(root, "sources", "product-policy.md");
     await writeFile(policy, `${await readFile(policy, "utf8")}\nClarified source.\n`, "utf8");

@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { access, lstat, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +8,10 @@ const required = [
   "packages/lab/package.json",
   "packages/lab/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
-  "scripts/initialize-legacy-ci-runtime.mjs",
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  "KIMI.md",
   "CONTRIBUTING.md",
   "SECURITY.md",
   "CODE_OF_CONDUCT.md",
@@ -32,6 +35,7 @@ const adapterManifest = JSON.parse(
   await readFile(resolve(repositoryRoot, "packages/dsh-adapter/package.json"), "utf8"),
 );
 const rootReadme = await readFile(resolve(repositoryRoot, "README.md"), "utf8");
+const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
 if (weaveManifest.name !== "@domaineval/weave") {
   publicIdentityMismatches.push("packages/lab/package.json#name");
 }
@@ -84,15 +88,45 @@ if (status.license !== "unselected") {
     if (manifest.license !== expected) missingLicenseFiles.push(`${path}#license`);
   }
 }
+const publicRepositoryHygiene = [];
+const forbiddenInternalText = /Clowder AI|cat-cafe|\/Users\/slipshod|Redis port 6399/;
+for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
+  if (forbiddenInternalText.test(await readFile(resolve(repositoryRoot, path), "utf8"))) {
+    publicRepositoryHygiene.push(`${path}#internal-environment`);
+  }
+}
+const workflow = await readFile(resolve(repositoryRoot, ".github/workflows/ci.yml"), "utf8");
+if (/\/Users\/slipshod|Initialize isolated legacy runtime/.test(workflow)) {
+  publicRepositoryHygiene.push(".github/workflows/ci.yml#internal-environment");
+}
+if (!workflow.includes("pnpm test:public") || !workflow.includes("pnpm build:packages")) {
+  publicRepositoryHygiene.push(".github/workflows/ci.yml#public-gate");
+}
+const contributing = await readFile(resolve(repositoryRoot, "CONTRIBUTING.md"), "utf8");
+if (!contributing.includes("pnpm test:public")) {
+  publicRepositoryHygiene.push("CONTRIBUTING.md#public-gate");
+}
+if (typeof rootManifest.scripts?.["test:public"] !== "string") {
+  publicRepositoryHygiene.push("package.json#public-gate");
+}
+if (
+  (await lstat(resolve(repositoryRoot, "cat-cafe-skills")).catch(() => undefined)) !== undefined
+) {
+  publicRepositoryHygiene.push("cat-cafe-skills#internal-link");
+}
 const blockers = [
   ...missing.map((path) => `IMPLEMENTATION_FILE_MISSING:${path}`),
   ...publicIdentityMismatches.map((path) => `PUBLIC_IDENTITY_MISMATCH:${path}`),
   ...(status.license === "unselected" ? ["LICENSE_UNSELECTED"] : []),
   ...missingLicenseFiles.map((path) => `LICENSE_EVIDENCE_MISSING:${path}`),
+  ...publicRepositoryHygiene.map((path) => `PUBLIC_REPOSITORY_HYGIENE:${path}`),
   ...(status.remote_ci === "pending" ? ["REMOTE_CI_PENDING"] : []),
   ...(status.human_cleanroom === "pending" ? ["HUMAN_CLEANROOM_PENDING"] : []),
 ];
-const implementationReady = missing.length === 0 && publicIdentityMismatches.length === 0;
+const implementationReady =
+  missing.length === 0 &&
+  publicIdentityMismatches.length === 0 &&
+  publicRepositoryHygiene.length === 0;
 const developerPreviewReady =
   implementationReady &&
   status.license !== "unselected" &&

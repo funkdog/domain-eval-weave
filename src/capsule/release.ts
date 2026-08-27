@@ -1,7 +1,8 @@
-import { lstat, mkdir, open, readdir, readFile, realpath } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
 import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
+import { writeExclusiveOrVerify } from "./artifact-store.js";
 import { type CapsuleRelease, capsuleReleaseSchema, parseCapsuleRelease } from "./contracts.js";
 import { CapsuleError, type LoadedCapsule, loadCapsule } from "./loader.js";
 
@@ -106,34 +107,21 @@ async function buildRelease(capsule: LoadedCapsule): Promise<CapsuleRelease> {
   });
 }
 
-async function writeExclusiveOrVerify(path: string, bytes: Uint8Array): Promise<void> {
-  try {
-    const handle = await open(path, "wx", 0o600);
-    try {
-      await handle.writeFile(bytes);
-    } finally {
-      await handle.close();
-    }
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== "EEXIST") throw error;
-    const existing = await readFile(path);
-    if (!existing.equals(Buffer.from(bytes))) {
-      throw new CapsuleError(
-        "CAPSULE_RELEASE_COLLISION",
-        "Existing release path contains different bytes",
-        path,
-      );
-    }
-  }
-}
-
 export async function releaseCapsule(root: string): Promise<ReleasedCapsule> {
   const capsule = await loadCapsule(root);
   const released = await previewCapsuleRelease(capsule);
   const output = resolve(capsule.root, released.ref);
   await mkdir(resolve(capsule.root, ".eval/releases"), { recursive: true, mode: 0o700 });
-  await writeExclusiveOrVerify(output, Buffer.from(`${canonicalJson(released.release)}\n`, "utf8"));
+  await writeExclusiveOrVerify(
+    output,
+    Buffer.from(`${canonicalJson(released.release)}\n`, "utf8"),
+    () =>
+      new CapsuleError(
+        "CAPSULE_RELEASE_COLLISION",
+        "Existing release path contains different bytes",
+        output,
+      ),
+  );
   return released;
 }
 
@@ -157,29 +145,11 @@ export async function readCapsuleRelease(rootInput: string, ref: string): Promis
   if (canonicalJsonDigest(release) !== expectedDigest) {
     throw new CapsuleError("CAPSULE_RELEASE_DRIFT", "Release digest drifted", ref);
   }
-  for (const entry of release.entries) {
-    const absolute = resolve(root, entry.path);
-    if (!contained(root, absolute)) {
-      throw new CapsuleError(
-        "CAPSULE_PATH_ESCAPE",
-        "Release entry escapes Capsule root",
-        entry.path,
-      );
-    }
-    const stat = await lstat(absolute).catch(() => undefined);
-    if (stat === undefined || !stat.isFile() || stat.isSymbolicLink()) {
-      throw new CapsuleError("CAPSULE_RELEASE_DRIFT", "Release entry is missing", entry.path);
-    }
-    const bytes = await readFile(absolute);
-    if (bytes.byteLength !== entry.size || sha256Hex(bytes) !== entry.sha256) {
-      throw new CapsuleError("CAPSULE_RELEASE_DRIFT", "Release entry bytes drifted", entry.path);
-    }
-  }
   const rebuilt = await buildRelease(await loadCapsule(root));
   if (canonicalJson(rebuilt) !== canonicalJson(release)) {
     throw new CapsuleError(
       "CAPSULE_RELEASE_DRIFT",
-      "Capsule closure contains missing, extra, or changed release inputs",
+      "Capsule release drift: closure contains missing, extra, or changed inputs",
       ref,
     );
   }

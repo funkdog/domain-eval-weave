@@ -1,6 +1,7 @@
-import { mkdir, open, readFile } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { writeExclusiveOrVerify } from "../capsule/artifact-store.js";
 import {
   type CapsuleRelease,
   type EvaluationRun,
@@ -158,20 +159,11 @@ async function persistRun(root: string, run: EvaluationRun): Promise<PersistedEv
   const ref = `.eval/runs/${sha256}.json`;
   await mkdir(resolve(root, ".eval/runs"), { recursive: true, mode: 0o700 });
   const bytes = Buffer.from(`${canonicalJson(run)}\n`, "utf8");
-  try {
-    const handle = await open(resolve(root, ref), "wx", 0o600);
-    try {
-      await handle.writeFile(bytes);
-    } finally {
-      await handle.close();
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    const existing = await readFile(resolve(root, ref));
-    if (!existing.equals(bytes)) {
-      throw new CapsuleError("CAPSULE_RUN_COLLISION", "Existing Run contains different bytes", ref);
-    }
-  }
+  await writeExclusiveOrVerify(
+    resolve(root, ref),
+    bytes,
+    () => new CapsuleError("CAPSULE_RUN_COLLISION", "Existing Run contains different bytes", ref),
+  );
   return { run, sha256, ref };
 }
 
@@ -186,7 +178,6 @@ async function evaluateExecution(input: {
   readonly initialDiagnostics?: EvaluationRun["diagnostics"];
   readonly persist?: boolean;
 }): Promise<PersistedEvaluationRun> {
-  assertRelease(input.capsule, input.release);
   const requirement = findRequirement(input.capsule, input.requirementId);
   const evaluator = findEvaluator(input.capsule, input.evaluatorRef);
   if (evaluator.requirement_id !== requirement.requirement_id) {
@@ -310,9 +301,9 @@ async function evaluateExecution(input: {
     ...provisional,
     run_id: `run-${canonicalJsonDigest(body).slice(0, 24)}`,
   });
-  return input.persist === false
-    ? { run, sha256: canonicalJsonDigest(run), ref: `.eval/runs/${canonicalJsonDigest(run)}.json` }
-    : persistRun(input.capsule.root, run);
+  if (input.persist !== false) return persistRun(input.capsule.root, run);
+  const sha256 = canonicalJsonDigest(run);
+  return { run, sha256, ref: `.eval/runs/${sha256}.json` };
 }
 
 export async function evaluateCandidate(input: {
@@ -380,6 +371,7 @@ export async function evaluateObservedCandidate(input: {
   readonly observation: unknown;
   readonly persist?: boolean;
 }): Promise<PersistedEvaluationRun> {
+  assertRelease(input.capsule, input.release);
   let stdout: string;
   try {
     stdout = canonicalJson(input.observation);
@@ -417,11 +409,8 @@ export async function replayEvaluationRun(root: string, ref: string): Promise<Ev
   if (canonicalJsonDigest(run) !== expectedDigest) {
     throw new CapsuleError("CAPSULE_RUN_DRIFT", "Run digest drifted", ref);
   }
-  const releases = await readCapsuleRelease(
-    root,
-    `.eval/releases/${run.capsule_release_sha256}.json`,
-  );
-  if (releases.capsule_id.length === 0 || canonicalJson(rebuildRun(run)) !== canonicalJson(run)) {
+  await readCapsuleRelease(root, `.eval/releases/${run.capsule_release_sha256}.json`);
+  if (canonicalJson(rebuildRun(run)) !== canonicalJson(run)) {
     throw new CapsuleError("CAPSULE_RUN_DRIFT", "Run cannot be mechanically rebuilt", ref);
   }
   return run;

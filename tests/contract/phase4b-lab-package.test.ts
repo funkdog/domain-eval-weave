@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
@@ -18,15 +17,16 @@ test("@domaineval/weave packs one importable no-DSH public closure", async () =>
     readonly bin?: unknown;
     readonly dependencies?: unknown;
     readonly license?: unknown;
+    readonly exports?: Readonly<Record<string, unknown>>;
   };
   assert.equal(manifest.name, "@domaineval/weave");
   assert.deepEqual(manifest.bin, { "domain-eval": "./bin/domain-eval.mjs" });
   assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.dependencies, { yaml: "2.9.0", zod: "4.4.3" });
+  assert.ok(manifest.exports?.["./canonical-json"]);
+  assert.equal(manifest.exports?.["./internal/canonical-json"], undefined);
 
-  const parent = join(DEDICATED_RUNTIME_ROOT, "test-tmp");
-  await mkdir(parent, { recursive: true, mode: 0o700 });
-  const scratch = await mkdtemp(join(parent, "phase4b-lab-pack-"));
+  const scratch = await mkdtemp(join(tmpdir(), "phase4b-lab-pack-"));
   try {
     const pnpmCli = process.env.npm_execpath;
     assert.ok(pnpmCli);

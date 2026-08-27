@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
 import { buildSyntheticCleanroomSubmission } from "../helpers/phase4b-cleanroom-fixture.js";
 
 const execFileAsync = promisify(execFile);
@@ -28,9 +28,7 @@ test("human clean-room kit is label-free and materializes one immutable package 
     assert.doesNotMatch(source, /gold|equivalent|mutant|expected_claims|target_claim_ids/i);
   }
 
-  const parent = join(DEDICATED_RUNTIME_ROOT, "test-tmp");
-  await mkdir(parent, { recursive: true, mode: 0o700 });
-  const scratch = await mkdtemp(join(parent, "phase4b-human-kit-"));
+  const scratch = await mkdtemp(join(tmpdir(), "phase4b-human-kit-"));
   const materialized = join(scratch, "kit");
   try {
     const output = await execFileAsync(
