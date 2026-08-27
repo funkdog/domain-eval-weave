@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": [
+    "src/capsule/**/*.ts",
+    "src/evaluator/**/*.ts",
+    "src/harness/**/*.ts",
+    "src/capsule-cli/**/*.ts",
+    "src/contracts/canonical-json.ts",
+    "src/adapters/**/*.ts",
+    "packages/lab/src/**/*.ts",
+    "packages/dsh-adapter/src/**/*.ts",
+    "tests/unit/canonical-json.test.ts",
+    "tests/unit/capsule-*.test.ts",
+    "tests/contract/capsule-*.test.ts",
+    "tests/contract/phase4b-*.test.ts",
+    "tests/e2e/capsule-cli.test.ts",
+    "tests/e2e/phase4b-*.test.ts",
+    "tests/helpers/phase4b-cleanroom-fixture.ts"
+  ]
+}

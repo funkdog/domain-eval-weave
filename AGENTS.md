@@ -23,7 +23,8 @@ extend it when a change belongs in the runner-neutral Capsule/Evaluator boundary
 ## Development
 
 - Reproduce bugs before fixing them and work red-to-green.
-- Run `pnpm check`, `pnpm lint`, `pnpm test:public`, and `pnpm build:packages` for public changes.
+- Run `pnpm build:packages`, `pnpm check:public`, `pnpm lint:public`, and `pnpm test:public`
+  for public changes.
 - Run the historical `pnpm test` suite only when changing legacy compatibility surfaces on a
   supported maintainer environment.
 - Keep changes within the frozen phase contract. Do not add a Web UI, remote registry, automatic

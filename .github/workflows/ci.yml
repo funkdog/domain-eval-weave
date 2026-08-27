@@ -32,12 +32,14 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           fi
       - name: Install
-        run: pnpm install --frozen-lockfile
-      - name: Static checks
-        run: pnpm check && pnpm lint
-      - name: Public regression
-        run: pnpm test:public
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Enable public build dependency
+        run: pnpm rebuild esbuild
       - name: Build package closures
         run: pnpm build:packages
+      - name: Static checks
+        run: pnpm check:public && pnpm lint:public
+      - name: Public regression
+        run: pnpm test:public
       - name: Report open-source readiness
         run: pnpm readiness:open-source

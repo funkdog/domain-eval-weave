@@ -12,6 +12,7 @@ const required = [
   "CLAUDE.md",
   "GEMINI.md",
   "KIMI.md",
+  "tsconfig.public.json",
   "CONTRIBUTING.md",
   "SECURITY.md",
   "CODE_OF_CONDUCT.md",
@@ -99,14 +100,23 @@ const workflow = await readFile(resolve(repositoryRoot, ".github/workflows/ci.ym
 if (/\/Users\/slipshod|Initialize isolated legacy runtime/.test(workflow)) {
   publicRepositoryHygiene.push(".github/workflows/ci.yml#internal-environment");
 }
-if (!workflow.includes("pnpm test:public") || !workflow.includes("pnpm build:packages")) {
+if (
+  !workflow.includes("pnpm install --frozen-lockfile --ignore-scripts") ||
+  !workflow.includes("pnpm check:public && pnpm lint:public") ||
+  !workflow.includes("pnpm test:public") ||
+  !workflow.includes("pnpm build:packages")
+) {
   publicRepositoryHygiene.push(".github/workflows/ci.yml#public-gate");
 }
 const contributing = await readFile(resolve(repositoryRoot, "CONTRIBUTING.md"), "utf8");
 if (!contributing.includes("pnpm test:public")) {
   publicRepositoryHygiene.push("CONTRIBUTING.md#public-gate");
 }
-if (typeof rootManifest.scripts?.["test:public"] !== "string") {
+if (
+  typeof rootManifest.scripts?.["check:public"] !== "string" ||
+  typeof rootManifest.scripts?.["lint:public"] !== "string" ||
+  typeof rootManifest.scripts?.["test:public"] !== "string"
+) {
   publicRepositoryHygiene.push("package.json#public-gate");
 }
 if (

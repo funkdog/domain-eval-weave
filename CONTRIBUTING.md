@@ -29,11 +29,12 @@ Run:
 
 ```sh
 corepack enable
-pnpm install --frozen-lockfile
-pnpm check
-pnpm lint
-pnpm test:public
+pnpm install --frozen-lockfile --ignore-scripts
+pnpm rebuild esbuild
 pnpm build:packages
+pnpm check:public
+pnpm lint:public
+pnpm test:public
 pnpm readiness:open-source
 ```
 

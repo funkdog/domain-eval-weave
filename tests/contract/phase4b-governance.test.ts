@@ -24,16 +24,26 @@ test("open-source governance and CI expose one portable public gate", async () =
   assert.match(workflow, /node-version: 24/);
   assert.match(workflow, /bubblewrap/);
   assert.match(workflow, /apparmor_restrict_unprivileged_userns/);
+  assert.match(workflow, /pnpm install --frozen-lockfile --ignore-scripts/);
+  assert.match(workflow, /pnpm rebuild esbuild/);
+  assert.match(workflow, /pnpm check:public && pnpm lint:public/);
   assert.match(workflow, /pnpm test:public/);
   assert.match(workflow, /pnpm build:packages/);
   assert.doesNotMatch(workflow, /\/Users\/slipshod|Initialize isolated legacy runtime/);
+  assert.doesNotMatch(workflow, /^\s*run: pnpm (?:build|check|lint)\s*$/m);
 
   const rootManifest = JSON.parse(await readFile(`${repositoryRoot}/package.json`, "utf8")) as {
     readonly scripts?: Readonly<Record<string, unknown>>;
   };
+  assert.equal(typeof rootManifest.scripts?.["check:public"], "string");
+  assert.equal(typeof rootManifest.scripts?.["lint:public"], "string");
   assert.equal(typeof rootManifest.scripts?.["test:public"], "string");
 
   const contributing = await readFile(`${repositoryRoot}/CONTRIBUTING.md`, "utf8");
+  assert.match(contributing, /pnpm install --frozen-lockfile --ignore-scripts/);
+  assert.match(contributing, /pnpm rebuild esbuild/);
+  assert.match(contributing, /pnpm check:public/);
+  assert.match(contributing, /pnpm lint:public/);
   assert.match(contributing, /pnpm test:public/);
   assert.doesNotMatch(contributing, /\npnpm test\n/);
 
@@ -101,9 +111,9 @@ test("open-source governance and CI expose one portable public gate", async () =
     readonly blockers?: unknown;
   };
   assert.equal(report.implementation_ready, true);
-  assert.equal(report.developer_preview_ready, true);
+  assert.equal(report.developer_preview_ready, false);
   assert.equal(report.public_alpha_ready, false);
-  assert.deepEqual(report.blockers, ["HUMAN_CLEANROOM_PENDING"]);
+  assert.deepEqual(report.blockers, ["REMOTE_CI_PENDING", "HUMAN_CLEANROOM_PENDING"]);
 });
 
 test("DomainEval Weave is the public identity while the DSH root stays private legacy", async () => {
