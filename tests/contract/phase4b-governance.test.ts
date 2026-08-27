@@ -26,6 +26,34 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.match(workflow, /package-manager-cache: false/);
   assert.match(workflow, /bubblewrap/);
 
+  const license = await readFile(`${repositoryRoot}/LICENSE`, "utf8");
+  assert.match(license, /Apache License\s+Version 2\.0/);
+  assert.match(license, /3\. Grant of Patent License/);
+  assert.equal(await readFile(`${repositoryRoot}/packages/lab/LICENSE`, "utf8"), license);
+  assert.equal(await readFile(`${repositoryRoot}/packages/dsh-adapter/LICENSE`, "utf8"), license);
+  assert.match(
+    await readFile(
+      `${repositoryRoot}/examples/capsules/commerce-cancellation/sources/LICENSE`,
+      "utf8",
+    ),
+    /CC0-1\.0/,
+  );
+  for (const path of [
+    "package.json",
+    "packages/lab/package.json",
+    "packages/dsh-adapter/package.json",
+  ]) {
+    assert.equal(
+      (
+        JSON.parse(await readFile(`${repositoryRoot}/${path}`, "utf8")) as {
+          readonly license?: unknown;
+        }
+      ).license,
+      "Apache-2.0",
+      path,
+    );
+  }
+
   const readiness = await execFileAsync(
     process.execPath,
     [`${repositoryRoot}/scripts/open-source-readiness.mjs`],
@@ -40,9 +68,5 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.equal(report.implementation_ready, true);
   assert.equal(report.developer_preview_ready, false);
   assert.equal(report.public_alpha_ready, false);
-  assert.deepEqual(report.blockers, [
-    "LICENSE_UNSELECTED",
-    "REMOTE_CI_PENDING",
-    "HUMAN_CLEANROOM_PENDING",
-  ]);
+  assert.deepEqual(report.blockers, ["REMOTE_CI_PENDING", "HUMAN_CLEANROOM_PENDING"]);
 });

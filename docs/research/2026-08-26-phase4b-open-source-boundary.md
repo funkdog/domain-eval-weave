@@ -15,9 +15,10 @@ Phase 4B implementation evidence is complete on top of Phase 4A `a92f559`. The d
 physically independent `@dsh-eval/lab` package; DSH/TDD evidence lives in optional
 `@dsh-eval/dsh-adapter`; the root `dsh-eval-lab` package remains private historical compatibility.
 
-The implementation is not yet an open-source release. Developer Preview is blocked on operator license
-selection and the first remote macOS/Ubuntu CI result. Public Alpha additionally requires an independent
-human clean-room contribution.
+The implementation is not yet an open-source release. The operator approved Apache-2.0 code/docs plus
+CC0-1.0 repository-authored synthetic sources on 2026-08-27. Developer Preview is now blocked only on the
+first remote macOS/Ubuntu CI result; Public Alpha additionally requires an independent human clean-room
+contribution.
 
 ## Package closures
 
@@ -69,15 +70,16 @@ calibration, accepted Run replay, all supplied sources/Candidates and distinct p
 The verifier reports only `mechanically_valid`; it cannot edit `open-source-status.json`. A synthetic positive
 fixture tests the verifier in temporary runtime storage and is never accepted as human evidence. The actual
 kit is materialized at `/Users/slipshod/AIBuild/dsh-eval-lab-runtime/phase4b-human-cleanroom-v1` with Lab
-package SHA-256 `b39646bf6d7520b334c78951e13d3db9d711ce6c30804fa7e6573550ee53e6c5`.
+package SHA-256 `4ee5ab6ac5aac8d88ed15054d36fafeb7091a8b773d5002788052fd55fcb4f16`.
 
 ## License decision evidence
 
 Primary-source Apache/OSI/Creative Commons research is stored under
 `project-research/2026-08-27-open-source-license-boundary/`. The recommendation is Apache-2.0 for code,
 generated schemas and repository-authored docs; CC0-1.0 only for explicitly marked repository-authored
-synthetic sources; community sources retain their declared license. This remains an operator decision and no
-LICENSE file has been applied.
+synthetic sources; community sources retain their declared license. The operator approved this boundary on
+2026-08-27. Exact ASF license text is now present at the repository, Lab package and adapter package roots;
+package metadata matches, and the Commerce synthetic source directory is explicitly marked CC0-1.0.
 
 ## Adapter ownership and compatibility
 
@@ -110,7 +112,7 @@ Machine-readable status is currently:
 implementation_ready      true
 developer_preview_ready   false
 public_alpha_ready        false
-blockers                  LICENSE_UNSELECTED, REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
+blockers                  REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -129,9 +131,8 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 ## Remaining external decisions
 
-1. Select code and Capsule-data licenses, then add LICENSE files and update package metadata.
-2. Configure a repository remote, push the branch and obtain the first real macOS/Ubuntu CI result. A local
+1. Configure a repository remote, push the branch and obtain the first real macOS/Ubuntu CI result. A local
    Node 24 Linux container attempt could not pull the official image because Docker Hub timed out; existing
    local Linux images contain only Node 20, so no Linux execution claim was made.
-3. Run M5 with an uninvolved human contributor without oral help.
-4. Only after those gates change the main package from private and announce Developer Preview/Public Alpha.
+2. Run M5 with an uninvolved human contributor without oral help.
+3. Only after those gates change the main package from private and announce Developer Preview/Public Alpha.

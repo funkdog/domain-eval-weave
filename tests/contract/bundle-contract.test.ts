@@ -50,6 +50,7 @@ test("package preserves the DSH bundle and exposes the standalone Capsule surfac
   ) as Record<string, unknown>;
 
   assert.equal(manifest.name, "dsh-eval-lab");
+  assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.bin, {
     "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs",
   });

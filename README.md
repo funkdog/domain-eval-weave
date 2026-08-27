@@ -3,6 +3,10 @@
 DSH Eval Lab turns provenance-bound domain truth into versioned evaluators and can use the same
 evaluation asset to measure how one Harness intervention changes delivery under controlled conditions.
 
+Code, generated Schemas and repository-authored documentation are licensed under Apache-2.0. Explicitly
+marked repository-authored synthetic source fixtures use CC0-1.0; community Capsule sources retain their
+declared licenses.
+
 Phase 4B turns the runner-neutral baseline into one physically independent main package:
 
 ```text
@@ -228,8 +232,8 @@ Phase 3C re-exports it for historical compatibility. Truth-empty `init`, non-mut
 `show` and content-addressed calibration records implement the draft→runnable→qualified→publishable journey.
 The Candidate runner supports macOS sandbox-exec and Linux bubblewrap plans and fails closed elsewhere.
 A packed clean consumer completes init, calibration, comparison, Candidate Run and replay without repository
-source imports, DSH, OAuth or model calls. Open-source implementation readiness is green; Developer Preview
-remains blocked on operator license selection and the first remote macOS/Ubuntu CI result. Public Alpha
+source imports, DSH, OAuth or model calls. Open-source implementation and license readiness are green;
+Developer Preview remains blocked on the first remote macOS/Ubuntu CI result. Public Alpha
 additionally requires an independent human clean-room contributor. A label-free kit can be materialized with
 `pnpm cleanroom:materialize <runtime-path>`; its verifier never edits release status.
 

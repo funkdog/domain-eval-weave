@@ -18,4 +18,6 @@ dsh-eval-capsule run ./capsule requirement evaluator@1.0.0 candidate
 Readiness progresses from `draft` to `runnable`, `qualified` and `publishable`. Calibration records bind the
 exact release and Evaluator; they become stale rather than silently surviving source or evaluator changes.
 
-This package remains private until the repository's code and Capsule-data licenses are selected.
+The package is licensed Apache-2.0. Explicitly marked repository-authored synthetic source fixtures use
+CC0-1.0; contributed Capsule sources retain their declared licenses. The package remains private until the
+remote CI and release workflow are accepted.

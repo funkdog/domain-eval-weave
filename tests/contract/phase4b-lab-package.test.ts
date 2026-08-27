@@ -16,8 +16,10 @@ test("@dsh-eval/lab packs one importable no-DSH public closure", async () => {
   const manifest = JSON.parse(await readFile(join(labRoot, "package.json"), "utf8")) as {
     readonly name?: unknown;
     readonly dependencies?: unknown;
+    readonly license?: unknown;
   };
   assert.equal(manifest.name, "@dsh-eval/lab");
+  assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.dependencies, { yaml: "2.9.0", zod: "4.4.3" });
 
   const parent = join(DEDICATED_RUNTIME_ROOT, "test-tmp");
@@ -40,6 +42,7 @@ test("@dsh-eval/lab packs one importable no-DSH public closure", async () => {
       .split("\n")
       .filter(Boolean);
     assert.ok(listing.some((entry) => entry.endsWith("dist/index.js")));
+    assert.ok(listing.includes("package/LICENSE"));
     assert.ok(listing.some((entry) => entry.includes("contracts/capsule-manifest.schema.json")));
     assert.ok(
       listing.some((entry) => entry.includes("examples/commerce-cancellation/capsule.yaml")),
@@ -55,6 +58,14 @@ test("@dsh-eval/lab packs one importable no-DSH public closure", async () => {
     await mkdir(unpacked, { mode: 0o700 });
     await execFileAsync("/usr/bin/tar", ["-xzf", join(scratch, archive), "-C", unpacked]);
     const packageRoot = join(unpacked, "package");
+    assert.equal(
+      (
+        JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as {
+          readonly license?: unknown;
+        }
+      ).license,
+      "Apache-2.0",
+    );
     await execFileAsync(process.execPath, [pnpmCli, "install", "--ignore-scripts"], {
       cwd: packageRoot,
       maxBuffer: 32 * 1024 * 1024,

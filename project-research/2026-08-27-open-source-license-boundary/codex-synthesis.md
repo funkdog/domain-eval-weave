@@ -94,3 +94,10 @@ retroactively withdrawn.
 
 **Recommended answer:** `Approve A: Apache-2.0 code/docs + CC0-1.0 repository-authored synthetic sources;
 community sources retain declared licenses.`
+
+## Operator decision
+
+Approved directly by the operator on 2026-08-27. Implementation scope is the local Phase 4B branch only:
+Apache-2.0 LICENSE files and package metadata, CC0-1.0 markers for repository-authored synthetic sources,
+and the corresponding readiness transition. The approval does not authorize remote creation, push, package
+publication or repository visibility changes.

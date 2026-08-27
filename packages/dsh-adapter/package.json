@@ -2,6 +2,7 @@
   "name": "@dsh-eval/dsh-adapter",
   "version": "0.1.0-alpha.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "Optional DSH Session and TDD mechanism adapter for @dsh-eval/lab",
   "engines": {

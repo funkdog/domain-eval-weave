@@ -4,6 +4,11 @@ DSH Eval Lab accepts engine changes and provenance-bound Capsule assets. Use onl
 explicitly authorized source material. Never commit production user data, credentials, OAuth material,
 runtime Sessions or generated `.eval/` state.
 
+Code, generated Schemas and repository-authored documentation are licensed Apache-2.0. Unless explicitly
+marked otherwise, an intentional contribution is submitted under the same license. Repository-authored
+synthetic source fixtures marked CC0-1.0 are separate; every community Capsule source retains its declared
+license and the contributor must have authority to redistribute it.
+
 ## Capsule contributions
 
 1. Initialize a truth-empty draft with `dsh-eval-capsule init`.

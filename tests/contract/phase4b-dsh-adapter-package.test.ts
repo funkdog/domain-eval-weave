@@ -16,8 +16,10 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
   const manifest = JSON.parse(await readFile(join(adapterRoot, "package.json"), "utf8")) as {
     readonly name?: unknown;
     readonly dependencies?: unknown;
+    readonly license?: unknown;
   };
   assert.equal(manifest.name, "@dsh-eval/dsh-adapter");
+  assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.dependencies, {
     "@dsh-eval/lab": "workspace:*",
     zod: "4.4.3",
@@ -62,13 +64,15 @@ test("DSH adapter owns TDD projection without importing Phase 3C", async () => {
       })
     ).stdout;
     assert.match(listing, /package\/dist\/tdd\.js/);
+    assert.match(listing, /package\/LICENSE/);
     assert.doesNotMatch(listing, /phase3c|task-packs|runtime-profile|contracts\//i);
     const unpacked = join(scratch, "unpacked");
     await mkdir(unpacked, { mode: 0o700 });
     await execFileAsync("/usr/bin/tar", ["-xzf", join(scratch, archive), "-C", unpacked]);
     const packedManifest = JSON.parse(
       await readFile(join(unpacked, "package/package.json"), "utf8"),
-    ) as { readonly dependencies?: unknown };
+    ) as { readonly dependencies?: unknown; readonly license?: unknown };
+    assert.equal(packedManifest.license, "Apache-2.0");
     assert.deepEqual(packedManifest.dependencies, {
       "@dsh-eval/lab": "0.1.0-alpha.0",
       zod: "4.4.3",
