@@ -107,5 +107,5 @@ Phase 4B 不建设：
 ## 9. 完成定义
 
 Phase 4B implementation candidate 只有在独立 Lab/adapter tarballs、contributor UX、cross-platform fail-closed contract、治理骨架、
-clean packed consumer 和全部历史回归同时通过时完成。许可证选择和独立人类 clean-room 分别作为 Developer Preview 与 Public
-Alpha 的外部门禁，不得由本地测试伪造。
+clean packed consumer 和全部历史回归同时通过时完成。许可证选择与首次 remote CI 是 Developer Preview 外部门禁；独立人类
+clean-room 是 Public Alpha 的额外门禁，均不得由本地测试伪造。

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Phase 4B human clean-room receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kit_id",
+    "participant_id",
+    "observer_id",
+    "participant_prior_experience",
+    "oral_help_received",
+    "repository_source_read",
+    "compare_completed",
+    "started_at",
+    "completed_at",
+    "lab_package_sha256",
+    "capsule_release_sha256",
+    "calibration_ref",
+    "run_ref",
+    "observer_attestation",
+    "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "kit_id": { "const": "phase4b-contributor-v1" },
+    "participant_id": { "type": "string", "minLength": 1 },
+    "observer_id": { "type": "string", "minLength": 1 },
+    "participant_prior_experience": { "const": "none" },
+    "oral_help_received": { "const": false },
+    "repository_source_read": { "const": false },
+    "compare_completed": { "const": true },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "lab_package_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "capsule_release_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "calibration_ref": {
+      "type": "string",
+      "pattern": "^\\.eval/calibrations/[0-9a-f]{64}\\.json$"
+    },
+    "run_ref": {
+      "type": "string",
+      "pattern": "^\\.eval/runs/[0-9a-f]{64}\\.json$"
+    },
+    "observer_attestation": { "const": "observed_no_oral_help" },
+    "notes": { "type": "string" }
+  }
+}

@@ -16,7 +16,8 @@ physically independent `@dsh-eval/lab` package; DSH/TDD evidence lives in option
 `@dsh-eval/dsh-adapter`; the root `dsh-eval-lab` package remains private historical compatibility.
 
 The implementation is not yet an open-source release. Developer Preview is blocked on operator license
-selection, and Public Alpha additionally requires an independent human clean-room contribution.
+selection and the first remote macOS/Ubuntu CI result. Public Alpha additionally requires an independent
+human clean-room contribution.
 
 ## Package closures
 
@@ -57,6 +58,27 @@ A packed Lab tar was installed into a fresh temporary consumer. Only the install
 
 No repository source API, DSH, OAuth, model call or network call was used after package installation.
 
+## Human clean-room handoff
+
+A separate label-free returns-policy kit now contains three CC0 synthetic sources, five opaque Candidate
+programs, public file-shape guidance and a strict participant/observer receipt. It contains no Capsule,
+Claims, Requirement, Evaluator, calibration expectations or Candidate labels. Materialization freezes the
+exact Lab tar and every kit byte; verification requires a publishable submission, current qualified
+calibration, accepted Run replay, all supplied sources/Candidates and distinct participant/observer ids.
+
+The verifier reports only `mechanically_valid`; it cannot edit `open-source-status.json`. A synthetic positive
+fixture tests the verifier in temporary runtime storage and is never accepted as human evidence. The actual
+kit is materialized at `/Users/slipshod/AIBuild/dsh-eval-lab-runtime/phase4b-human-cleanroom-v1` with Lab
+package SHA-256 `b39646bf6d7520b334c78951e13d3db9d711ce6c30804fa7e6573550ee53e6c5`.
+
+## License decision evidence
+
+Primary-source Apache/OSI/Creative Commons research is stored under
+`project-research/2026-08-27-open-source-license-boundary/`. The recommendation is Apache-2.0 for code,
+generated schemas and repository-authored docs; CC0-1.0 only for explicitly marked repository-authored
+synthetic sources; community sources retain their declared license. This remains an operator decision and no
+LICENSE file has been applied.
+
 ## Adapter ownership and compatibility
 
 Raw DSH JSONL, Commerce normal-form conversion, TDD task/event schemas, frozen Skill binding and mechanism
@@ -88,7 +110,7 @@ Machine-readable status is currently:
 implementation_ready      true
 developer_preview_ready   false
 public_alpha_ready        false
-blockers                  LICENSE_UNSELECTED, HUMAN_CLEANROOM_PENDING
+blockers                  LICENSE_UNSELECTED, REMOTE_CI_PENDING, HUMAN_CLEANROOM_PENDING
 ```
 
 The automated packed consumer is implementation evidence, not a substitute for an uninvolved person.
@@ -97,7 +119,7 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 - TypeScript strict compile: pass;
 - Biome: pass with the pre-existing broken `cat-cafe-skills` symlink warning;
-- full historical + Phase 4B suite: 392/392 pass;
+- full historical + Phase 4B suite: 393/393 pass;
 - root legacy build/pack/import: pass;
 - Lab and adapter build/pack closure: pass;
 - packed Lab clean consumer: pass;
@@ -108,6 +130,8 @@ The automated packed consumer is implementation evidence, not a substitute for a
 ## Remaining external decisions
 
 1. Select code and Capsule-data licenses, then add LICENSE files and update package metadata.
-2. Push the branch and obtain the first real macOS/Ubuntu CI result.
+2. Configure a repository remote, push the branch and obtain the first real macOS/Ubuntu CI result. A local
+   Node 24 Linux container attempt could not pull the official image because Docker Hub timed out; existing
+   local Linux images contain only Node 20, so no Linux execution claim was made.
 3. Run M5 with an uninvolved human contributor without oral help.
 4. Only after those gates change the main package from private and announce Developer Preview/Public Alpha.

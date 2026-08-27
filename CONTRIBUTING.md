@@ -40,3 +40,10 @@ a general uplift claim.
 
 Authors cannot approve their own code. Capsule review checks provenance and domain authority separately from
 Evaluator calibration and runtime safety. A passing schema is necessary but does not make a Claim true.
+
+## Independent clean-room
+
+Maintainers materialize the label-free kit with `pnpm cleanroom:materialize <runtime-path>`. The participant
+uses only the kit and installed Lab package; a different observer completes the receipt. The verifier checks
+immutable inputs, publishable readiness, current calibration and accepted Run replay, but cannot change
+`open-source-status.json` or replace maintainer review.

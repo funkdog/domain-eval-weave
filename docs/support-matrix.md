@@ -20,5 +20,5 @@ The runner never falls back to an unsandboxed process. Missing sandbox binaries 
 read-only Candidate bind and writable scratch bind. macOS denies network and explicitly hides Capsule truth,
 labels, releases, calibrations and Runs.
 
-Developer Preview CI covers Node 24 on current GitHub-hosted macOS and Ubuntu runners. Windows support is not
-a Phase 4B commitment.
+The Developer Preview workflow targets Node 24 on current GitHub-hosted macOS and Ubuntu runners. Its first
+remote result remains pending until a repository remote exists. Windows support is not a Phase 4B commitment.

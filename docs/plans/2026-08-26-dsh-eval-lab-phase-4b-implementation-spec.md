@@ -155,4 +155,4 @@ replays without repository source imports, DSH, OAuth, model calls or network.
 - root legacy regression remains green;
 - Lab/adapter package closures are disjoint from legacy/research;
 - package/source trees are clean;
-- license selection and human clean-room remain honestly reported external gates where unresolved.
+- license selection, first remote CI and human clean-room remain honestly reported external gates where unresolved.

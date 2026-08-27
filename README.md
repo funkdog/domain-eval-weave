@@ -229,8 +229,9 @@ Phase 3C re-exports it for historical compatibility. Truth-empty `init`, non-mut
 The Candidate runner supports macOS sandbox-exec and Linux bubblewrap plans and fails closed elsewhere.
 A packed clean consumer completes init, calibration, comparison, Candidate Run and replay without repository
 source imports, DSH, OAuth or model calls. Open-source implementation readiness is green; Developer Preview
-remains blocked on operator license selection, and Public Alpha additionally requires an independent human
-clean-room contributor.
+remains blocked on operator license selection and the first remote macOS/Ubuntu CI result. Public Alpha
+additionally requires an independent human clean-room contributor. A label-free kit can be materialized with
+`pnpm cleanroom:materialize <runtime-path>`; its verifier never edits release status.
 
 Phase 1 and Phase 2 Milestones 0–4 are complete. The Phase 3A Author forward slice and the
 Reservation Phase 3B production vertical have completed isolated acceptance and independent replay;

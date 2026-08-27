@@ -58,6 +58,8 @@
     "freeze:phase3c-judges": "node --import tsx scripts/freeze-phase3c-judges.ts",
     "run:phase3c-judge-cohort": "node --import tsx scripts/run-phase3c-judge-cohort.ts",
     "readiness:open-source": "node scripts/open-source-readiness.mjs",
+    "cleanroom:materialize": "node scripts/materialize-phase4b-cleanroom.mjs",
+    "cleanroom:verify": "node scripts/verify-phase4b-cleanroom.mjs",
     "lint": "tsc -p tsconfig.test.json",
     "prepare": "pnpm build",
     "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",

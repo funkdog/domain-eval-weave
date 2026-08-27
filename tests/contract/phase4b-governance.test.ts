@@ -40,5 +40,9 @@ test("open-source governance and CI have one explicit license gate", async () =>
   assert.equal(report.implementation_ready, true);
   assert.equal(report.developer_preview_ready, false);
   assert.equal(report.public_alpha_ready, false);
-  assert.deepEqual(report.blockers, ["LICENSE_UNSELECTED", "HUMAN_CLEANROOM_PENDING"]);
+  assert.deepEqual(report.blockers, [
+    "LICENSE_UNSELECTED",
+    "REMOTE_CI_PENDING",
+    "HUMAN_CLEANROOM_PENDING",
+  ]);
 });
