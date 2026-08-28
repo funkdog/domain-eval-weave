@@ -1,0 +1,51 @@
+schema_version: 1
+capsule_id: commerce-cancellation
+version: 1.0.0
+title: Self-service commerce cancellation
+domain: domain.yaml
+sources:
+  - source_id: product-policy
+    kind: product_doc
+    path: sources/product-policy.md
+    description: Synthetic product policy for the reference Capsule.
+    license: CC0-1.0
+  - source_id: owner-interview
+    kind: owner_statement
+    path: sources/owner-interview.md
+    description: Synthetic case-led owner interview.
+    license: CC0-1.0
+requirements:
+  - requirements/self-service-cancellation.yaml
+evaluators:
+  - evaluators/commerce-delivery-v1.yaml
+  - evaluators/commerce-delivery-v2.yaml
+candidates:
+  - candidate_id: gold
+    path: candidates/gold
+    command: [node, candidate.mjs]
+  - candidate_id: equivalent-typed-result
+    path: candidates/equivalent-typed-result
+    command: [node, candidate.mjs]
+  - candidate_id: equivalent-reordered
+    path: candidates/equivalent-reordered
+    command: [node, candidate.mjs]
+  - candidate_id: mutant-status
+    path: candidates/mutant-status
+    command: [node, candidate.mjs]
+  - candidate_id: mutant-double-refund
+    path: candidates/mutant-double-refund
+    command: [node, candidate.mjs]
+  - candidate_id: mutant-repeat-refund
+    path: candidates/mutant-repeat-refund
+    command: [node, candidate.mjs]
+  - candidate_id: mutant-replay-unavailable
+    path: candidates/mutant-replay-unavailable
+    command: [node, candidate.mjs]
+cases:
+  - cases/gold.yaml
+  - cases/equivalent-typed-result.yaml
+  - cases/equivalent-reordered.yaml
+  - cases/mutant-status.yaml
+  - cases/mutant-double-refund.yaml
+  - cases/mutant-repeat-refund.yaml
+  - cases/mutant-replay-unavailable.yaml

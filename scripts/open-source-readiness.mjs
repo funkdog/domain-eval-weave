@@ -8,7 +8,9 @@ const required = [
   "packages/weave/package.json",
   "packages/weave/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
+  "legacy/dsh-eval-lab/package.json",
   "AGENTS.md",
+  "tsconfig.base.json",
   "tsconfig.public.json",
   "CONTRIBUTING.md",
   "SECURITY.md",
@@ -32,6 +34,9 @@ const weaveManifest = JSON.parse(
 const adapterManifest = JSON.parse(
   await readFile(resolve(repositoryRoot, "packages/dsh-adapter/package.json"), "utf8"),
 );
+const legacyManifest = JSON.parse(
+  await readFile(resolve(repositoryRoot, "legacy/dsh-eval-lab/package.json"), "utf8"),
+);
 const rootReadme = await readFile(resolve(repositoryRoot, "README.md"), "utf8");
 const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
 if (weaveManifest.name !== "@domaineval/weave") {
@@ -46,6 +51,15 @@ if (adapterManifest.name !== "@domaineval/dsh-adapter") {
 if (adapterManifest.dependencies?.["@domaineval/weave"] !== "workspace:*") {
   publicIdentityMismatches.push("packages/dsh-adapter/package.json#dependencies");
 }
+if (rootManifest.name !== "domain-eval-weave-workspace" || rootManifest.private !== true) {
+  publicIdentityMismatches.push("package.json#workspace-identity");
+}
+if (
+  legacyManifest.name !== "dsh-eval-lab" ||
+  legacyManifest.repository?.directory !== "legacy/dsh-eval-lab"
+) {
+  publicIdentityMismatches.push("legacy/dsh-eval-lab/package.json#identity");
+}
 if (
   !rootReadme.startsWith("# DomainEval Weave\n") ||
   !rootReadme.includes("Make domain truth executable.")
@@ -53,7 +67,7 @@ if (
   publicIdentityMismatches.push("README.md#public-identity");
 }
 const status = JSON.parse(
-  await readFile(resolve(repositoryRoot, "open-source-status.json"), "utf8"),
+  await readFile(resolve(repositoryRoot, ".github/open-source-status.json"), "utf8"),
 );
 if (
   status.schema_version !== 1 ||
@@ -69,7 +83,7 @@ const licenseFiles = [
   "LICENSE",
   "packages/weave/LICENSE",
   "packages/dsh-adapter/LICENSE",
-  "examples/capsules/commerce-cancellation/sources/LICENSE",
+  "packages/weave/examples/commerce-cancellation/sources/LICENSE",
 ];
 const missingLicenseFiles = [];
 if (status.license !== "unselected") {
@@ -80,7 +94,11 @@ if (status.license !== "unselected") {
       missingLicenseFiles.push(path);
     }
   }
-  for (const path of ["packages/weave/package.json", "packages/dsh-adapter/package.json"]) {
+  for (const path of [
+    "packages/weave/package.json",
+    "packages/dsh-adapter/package.json",
+    "legacy/dsh-eval-lab/package.json",
+  ]) {
     const manifest = JSON.parse(await readFile(resolve(repositoryRoot, path), "utf8"));
     const expected = status.license.startsWith("apache") ? "Apache-2.0" : "MIT";
     if (manifest.license !== expected) missingLicenseFiles.push(`${path}#license`);
@@ -94,6 +112,26 @@ if (forbiddenInternalText.test(await readFile(resolve(repositoryRoot, "AGENTS.md
 for (const path of ["CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
   if ((await lstat(resolve(repositoryRoot, path)).catch(() => undefined)) !== undefined) {
     publicRepositoryHygiene.push(`${path}#provider-shim`);
+  }
+}
+for (const path of [
+  "bin",
+  "contracts",
+  "cordis.patch.yml",
+  "eval-packs",
+  "examples",
+  "harnesses",
+  "registry",
+  "runtime-profile",
+  "skills",
+  "src",
+  "task-packs",
+  "variants",
+  "tsconfig.json",
+  "tsconfig.test.json",
+]) {
+  if ((await lstat(resolve(repositoryRoot, path)).catch(() => undefined)) !== undefined) {
+    publicRepositoryHygiene.push(`${path}#legacy-root-leak`);
   }
 }
 const workflow = await readFile(resolve(repositoryRoot, ".github/workflows/ci.yml"), "utf8");

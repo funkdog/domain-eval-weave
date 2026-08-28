@@ -68,7 +68,7 @@ Claims, Requirement, Evaluator, calibration expectations or Candidate labels. Ma
 exact Lab tar and every kit byte; verification requires a publishable submission, current qualified
 calibration, accepted Run replay, all supplied sources/Candidates and distinct participant/observer ids.
 
-The verifier reports only `mechanically_valid`; it cannot edit `open-source-status.json`. A synthetic positive
+The verifier reports only `mechanically_valid`; it cannot edit `.github/open-source-status.json`. A synthetic positive
 fixture tests the verifier in temporary runtime storage and is never accepted as human evidence. The
 DomainEval Weave kit is materialized at
 `/Users/slipshod/AIBuild/dsh-eval-lab-runtime/phase4b-human-cleanroom-domain-eval-weave-v1` with package

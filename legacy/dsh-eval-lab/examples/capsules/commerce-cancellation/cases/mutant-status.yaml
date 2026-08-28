@@ -1,0 +1,9 @@
+schema_version: 1
+case_id: mutant-status
+kind: mutant
+candidate_id: mutant-status
+target_claim_ids: [cancel-status]
+expected_claims:
+  - { claim_id: cancel-status, status: fail }
+  - { claim_id: refund-exactly-once, status: pass }
+  - { claim_id: cancellation-idempotent, status: pass }

@@ -32,13 +32,12 @@ contracts
 ```text
 packages/weave/                 @domaineval/weave implementation/build/Schemas/examples
 packages/dsh-adapter/         @domaineval/dsh-adapter package facade/build
-src/                          private legacy/research compatibility implementation
-src/adapters/                 compatibility re-exports only after extraction
-src/phase3c/                  legacy/research compatibility
+legacy/dsh-eval-lab/          private DSH package, runtime assets, tests and compatibility implementation
 ```
 
-Phase 4B may bundle canonical root source into independent package artifacts to avoid duplicating implementation. The packed closure, dependency
-graph and public exports—not source folder aesthetics—are the release boundary. Root `dsh-eval-lab` remains private legacy compatibility.
+Phase 4B bundles the shared canonical JSON primitive and public Weave source into independent package artifacts without duplicating runtime
+implementation. The packed closure, dependency graph and public exports remain the release boundary. `legacy/dsh-eval-lab` preserves the
+private historical package and exact internal asset paths.
 
 ## 3. `@domaineval/weave` artifact contract
 
@@ -99,7 +98,7 @@ case outcomes and qualified boolean. Replay/doctor reject digest drift and stale
 ## 8. DSH adapter extraction
 
 `@domaineval/dsh-adapter` owns raw JSONL projection, Commerce observation normalization and TDD task/event/mechanism projection. Phase 3C may
-re-export the same implementation for compatibility; the adapter must not import `src/phase3c`. Weave must not import the adapter.
+re-export the same implementation for compatibility; the adapter must not import legacy Phase 3C. Weave must not import the adapter.
 
 ## 9. Runner adapters
 
@@ -155,7 +154,7 @@ replays without repository source imports, DSH, OAuth, model calls or network.
 ## 13. Completion gate
 
 - M0–M5 implementation evidence complete;
-- root legacy regression remains green;
+- legacy package regression remains green;
 - Weave/adapter package closures are disjoint from legacy/research;
 - package/source trees are clean;
 - license selection, first remote CI and human clean-room remain honestly reported external gates where unresolved.

@@ -1,0 +1,85 @@
+{
+  "name": "dsh-eval-lab",
+  "version": "0.4.0-alpha.1",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "DSH-native controlled harness evaluation plugin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/funkdog/domain-eval-weave.git",
+    "directory": "legacy/dsh-eval-lab"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "exports": {
+    "./app": "./dist/app/index.js",
+    "./adapters": "./dist/adapters/index.js",
+    "./author-bridge": "./dist/author-bridge/index.js",
+    "./author-evidence": "./dist/author-evidence/index.js",
+    "./author-forward-carrier": "./dist/carrier/author-forward.js",
+    "./bridge": "./dist/bridge/index.js",
+    "./domain-skill": "./dist/domain/skill-provider.js",
+    "./delivery": "./dist/delivery/index.js",
+    "./phase3c": "./dist/phase3c/index.js",
+    "./capsule": "./dist/capsule/index.js",
+    "./capsule-cli": "./dist/capsule-cli/index.js",
+    "./evaluator": "./dist/evaluator/index.js",
+    "./harness": "./dist/harness/index.js"
+  },
+  "bin": {
+    "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "contracts",
+    "examples/capsules",
+    "cordis.patch.yml",
+    "runtime-profile",
+    "variants",
+    "task-packs",
+    "harnesses",
+    "registry",
+    "eval-packs",
+    "skills",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "build": "pnpm --workspace-root build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "check": "biome check src tests contracts bin package.json tsconfig.json tsconfig.test.json scripts/bundle-delivery.mjs scripts/clean-dist.mjs",
+    "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
+    "generate:phase3c-task-pack": "node --import tsx scripts/generate-phase3c-task-pack.ts",
+    "freeze:phase3c-judges": "node --import tsx scripts/freeze-phase3c-judges.ts",
+    "run:phase3c-judge-cohort": "node --import tsx scripts/run-phase3c-judge-cohort.ts",
+    "lint": "tsc -p tsconfig.test.json",
+    "prepare": "pnpm build",
+    "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",
+    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
+    "test:contract": "node --import tsx --test tests/contract/*.test.ts",
+    "test:calibration": "node --import tsx --test --test-concurrency=1 tests/calibration/*.test.ts",
+    "test:e2e": "node --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-session": "0.1.0-rc.6",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@types/node": "24.13.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.12",
+    "typescript": "7.0.2"
+  }
+}

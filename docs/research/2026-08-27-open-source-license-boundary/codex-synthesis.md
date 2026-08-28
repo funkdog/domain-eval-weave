@@ -59,13 +59,13 @@ CC-BY-4.0 remains an allowed per-source choice where attribution is desired.
 
 1. Add the unmodified Apache-2.0 text to root `LICENSE`, `packages/weave/LICENSE` and
    `packages/dsh-adapter/LICENSE`.
-2. Set public package `license` fields to `Apache-2.0`; keep root legacy `private: true`.
+2. Set public package `license` fields to `Apache-2.0`; keep `legacy/dsh-eval-lab` private.
 3. Change Lab/adapter `private` only at the release step, not in the licensing commit.
-4. Add `examples/capsules/commerce-cancellation/sources/LICENSE` identifying those synthetic source files
+4. Add `packages/weave/examples/commerce-cancellation/sources/LICENSE` identifying those synthetic source files
    as CC0-1.0 with the canonical URL.
 5. Update CONTRIBUTING to state inbound=outbound Apache-2.0 for code and to require per-source Capsule
    license/provenance authority.
-6. Update `open-source-status.json` from `unselected` to an explicit structured policy.
+6. Update `.github/open-source-status.json` from `unselected` to an explicit structured policy.
 7. Extend readiness checks so a selected policy requires physical LICENSE files and matching package
    metadata.
 8. Rebuild both tarballs and verify each includes the intended LICENSE.

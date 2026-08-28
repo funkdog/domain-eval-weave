@@ -8,8 +8,8 @@ Read `README.md`, then the current product and implementation contracts:
 - `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md`
 
 The public implementation and Schemas live in `packages/weave/`; the optional DSH integration lives in
-`packages/dsh-adapter/`. Root `src/` and the historical evaluation assets remain private compatibility
-surfaces; do not extend them when a change belongs in the runner-neutral Capsule/Evaluator boundary.
+`packages/dsh-adapter/`; `legacy/dsh-eval-lab/` is the complete private compatibility package. Do not extend
+legacy surfaces when a change belongs in the runner-neutral Capsule/Evaluator boundary.
 
 ## Safety and truth
 

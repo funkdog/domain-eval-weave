@@ -1,0 +1,9 @@
+schema_version: 1
+case_id: mutant-repeat-refund
+kind: mutant
+candidate_id: mutant-repeat-refund
+target_claim_ids: [cancellation-idempotent]
+expected_claims:
+  - { claim_id: cancel-status, status: pass }
+  - { claim_id: refund-exactly-once, status: pass }
+  - { claim_id: cancellation-idempotent, status: fail }
