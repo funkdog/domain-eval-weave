@@ -166,4 +166,6 @@ The automated packed consumer is implementation evidence, not a substitute for a
 The current candidate moves the actual Weave implementation and six public Schemas into `packages/weave`,
 renames the former `packages/lab` facade, and folds license research into `docs/research`. Root legacy package
 compatibility is produced from Weave source at build time and remains covered by the complete historical
-regression. Hosted evidence is pending for the exact migrated tree.
+regression. Exact candidate `30bdac1531a8e11f887516e9c4290500aababf47` passed
+[GitHub Actions run 33138395432](https://github.com/funkdog/domain-eval-weave/actions/runs/33138395432)
+on macOS and Ubuntu; the public suite contains 41 tests and the complete historical suite contains 400.
