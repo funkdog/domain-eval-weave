@@ -114,10 +114,10 @@ See the [platform support matrix](docs/support-matrix.md), [security policy](SEC
 
 ## Release status
 
-The implementation, license boundary and isolated public install/type workflow have current macOS/Ubuntu
-evidence for the private Developer Preview candidate. Formal review and merge remain pending. Public Alpha
-additionally requires an uninvolved human contributor to complete the label-free clean-room journey without
-oral help.
+The repository is public as a **Developer Preview**. Its implementation, license boundary, formal review,
+protected `main` branch and isolated macOS/Ubuntu public workflow are complete. Public Alpha additionally
+requires an uninvolved human contributor to complete the label-free clean-room journey without oral help.
+The npm packages remain private until that evidence is accepted.
 
 Machine-readable status lives in [open-source-status.json](open-source-status.json). The Phase 4B
 [product contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md) and

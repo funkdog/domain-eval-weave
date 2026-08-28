@@ -16,10 +16,10 @@ Phase 4B implementation evidence is complete on top of Phase 4A `a92f559`. After
 DSH/TDD evidence lives in optional `@domaineval/dsh-adapter`; the root `dsh-eval-lab` package remains
 private historical compatibility.
 
-The implementation is not yet an open-source release. The operator approved Apache-2.0 code/docs plus
-CC0-1.0 repository-authored synthetic sources on 2026-08-27. The private Developer Preview candidate has
-passed its first branch-bound macOS/Ubuntu CI gate; Public Alpha additionally requires an independent human
-clean-room contribution.
+The operator approved Apache-2.0 code/docs plus CC0-1.0 repository-authored synthetic sources on 2026-08-27.
+After formal review, merge and protected-main CI, the repository became a public Developer Preview on
+2026-08-28. Public Alpha additionally requires an independent human clean-room contribution; npm packages
+remain private until that evidence is accepted.
 
 ## Package closures
 
@@ -158,7 +158,5 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 ## Remaining external decisions
 
-1. Obtain independent review and merge [PR #1](https://github.com/funkdog/domain-eval-weave/pull/1)
-   without self-approval.
-2. Run M5 with an uninvolved human contributor without oral help.
-3. Only after Public Alpha evidence change the main package from private or announce a public release.
+1. Run M5 with an uninvolved human contributor without oral help, using the public Developer Preview.
+2. After Public Alpha evidence, decide whether to remove `private: true` and publish the npm packages.
