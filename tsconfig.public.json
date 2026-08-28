@@ -1,20 +1,14 @@
 {
-  "extends": "./tsconfig.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
     "rootDir": "."
   },
   "include": [
-    "src/contracts/canonical-json.ts",
-    "src/adapters/**/*.ts",
     "packages/weave/src/**/*.ts",
+    "packages/weave/tests/**/*.ts",
     "packages/dsh-adapter/src/**/*.ts",
-    "tests/unit/canonical-json.test.ts",
-    "tests/unit/capsule-*.test.ts",
-    "tests/contract/capsule-*.test.ts",
-    "tests/contract/phase4b-*.test.ts",
-    "tests/e2e/capsule-cli.test.ts",
-    "tests/e2e/phase4b-*.test.ts",
-    "tests/helpers/phase4b-cleanroom-fixture.ts"
+    "packages/dsh-adapter/tests/**/*.ts",
+    "tests/acceptance/**/*.ts"
   ]
 }

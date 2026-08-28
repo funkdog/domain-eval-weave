@@ -58,13 +58,18 @@ await execFileAsync(
 );
 
 await Promise.all([
+  cp(
+    resolve(distRoot, "types/packages/weave/src/canonical-json.d.ts"),
+    resolve(distRoot, "canonical-json.d.ts"),
+    { force: false, errorOnExist: true },
+  ),
   cp(resolve(packageRoot, "schemas"), resolve(distRoot, "contracts"), {
     recursive: true,
     force: false,
     errorOnExist: true,
   }),
   cp(
-    resolve(repositoryRoot, "examples/capsules/commerce-cancellation"),
+    resolve(packageRoot, "examples/commerce-cancellation"),
     resolve(distRoot, "examples/commerce-cancellation"),
     { recursive: true, force: false, errorOnExist: true },
   ),

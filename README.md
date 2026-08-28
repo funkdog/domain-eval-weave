@@ -119,7 +119,7 @@ protected `main` branch and isolated macOS/Ubuntu public workflow are complete. 
 requires an uninvolved human contributor to complete the label-free clean-room journey without oral help.
 The npm packages remain private until that evidence is accepted.
 
-Machine-readable status lives in [open-source-status.json](open-source-status.json). The Phase 4B
+Machine-readable status lives in [.github/open-source-status.json](.github/open-source-status.json). The Phase 4B
 [product contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md) and
 [implementation contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md) define the
 current acceptance boundary.
