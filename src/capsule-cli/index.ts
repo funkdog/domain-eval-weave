@@ -1,12 +1,15 @@
 import {
   CapsuleError,
   confirmCapsuleClaim,
+  initializeCapsule,
+  inspectCapsuleReadiness,
   loadCapsule,
   readCapsuleRelease,
   releaseCapsule,
+  renderCapsuleSummary,
 } from "../capsule/index.js";
 import {
-  calibrateEvaluator,
+  calibrateAndPersistEvaluator,
   compareEvaluators,
   evaluateCandidate,
   replayEvaluationRun,
@@ -17,8 +20,11 @@ export interface CapsuleCliIo {
   readonly stderr?: (text: string) => void;
 }
 
-const HELP = `DSH Eval Capsule
+const HELP = `DomainEval Weave
 
+init <capsule-root> <capsule-id> <domain-id> <owner-id>
+doctor <capsule-root> [evaluator-id@version]
+show <capsule-root> [--json]
 validate <capsule-root>
 confirm <capsule-root> <claim-id> <owner-id>
 release <capsule-root>
@@ -45,6 +51,53 @@ export async function runCapsuleCli(
       case undefined:
         (io.stdout ?? process.stdout.write.bind(process.stdout))(HELP);
         return 0;
+      case "init": {
+        const [root, capsuleId, domainId, ownerId, ...extra] = args;
+        if (
+          root === undefined ||
+          capsuleId === undefined ||
+          domainId === undefined ||
+          ownerId === undefined ||
+          extra.length > 0
+        ) {
+          throw new Error("init requires <capsule-root> <capsule-id> <domain-id> <owner-id>");
+        }
+        const capsule = await initializeCapsule({ root, capsuleId, domainId, ownerId });
+        const readiness = await inspectCapsuleReadiness(capsule);
+        output(io, {
+          capsule_id: capsule.manifest.capsule_id,
+          root: capsule.root,
+          stage: readiness.stage,
+        });
+        return 0;
+      }
+      case "doctor": {
+        const [root, evaluatorRef, ...extra] = args;
+        if (root === undefined || extra.length > 0) {
+          throw new Error("doctor requires <capsule-root> [evaluator-id@version]");
+        }
+        const capsule = await loadCapsule(root);
+        output(io, await inspectCapsuleReadiness(capsule, evaluatorRef));
+        return 0;
+      }
+      case "show": {
+        const [root, option, ...extra] = args;
+        if (
+          root === undefined ||
+          extra.length > 0 ||
+          (option !== undefined && option !== "--json")
+        ) {
+          throw new Error("show requires <capsule-root> [--json]");
+        }
+        const capsule = await loadCapsule(root);
+        const readiness = await inspectCapsuleReadiness(capsule);
+        if (option === "--json") output(io, { capsule: capsule.manifest, readiness });
+        else
+          (io.stdout ?? process.stdout.write.bind(process.stdout))(
+            renderCapsuleSummary(capsule, readiness),
+          );
+        return 0;
+      }
       case "validate": {
         const [root, ...extra] = args;
         if (root === undefined || extra.length > 0)
@@ -120,9 +173,9 @@ export async function runCapsuleCli(
         }
         const capsule = await loadCapsule(root);
         const release = await releaseCapsule(root);
-        const report = await calibrateEvaluator({ capsule, release, evaluatorRef });
-        output(io, report);
-        return report.qualified ? 0 : 3;
+        const persisted = await calibrateAndPersistEvaluator({ capsule, release, evaluatorRef });
+        output(io, { ...persisted.report, sha256: persisted.sha256, ref: persisted.ref });
+        return persisted.report.qualified ? 0 : 3;
       }
       case "compare": {
         const [root, requirementId, leftEvaluatorRef, rightEvaluatorRef, ...extra] = args;

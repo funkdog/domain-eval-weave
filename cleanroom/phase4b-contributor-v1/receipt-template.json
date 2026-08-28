@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kit_id": "phase4b-contributor-v1",
+  "participant_id": "",
+  "observer_id": "",
+  "participant_prior_experience": "none",
+  "oral_help_received": false,
+  "repository_source_read": false,
+  "compare_completed": false,
+  "started_at": "",
+  "completed_at": "",
+  "lab_package_sha256": "",
+  "capsule_release_sha256": "",
+  "calibration_ref": "",
+  "run_ref": "",
+  "observer_attestation": "observed_no_oral_help",
+  "notes": ""
+}

@@ -12,7 +12,7 @@ test("Capsule thin waist has no DSH, Judge, auth or domain-template dependency",
       const source = await readFile(new URL(name, root), "utf8");
       assert.doesNotMatch(
         source,
-        /from ["'][^"']*(?:@deepseek-ai|phase3c|commerce|auth|runtime-profile|carrier)[^"']*["']/,
+        /from ["'][^"']*(?:@deepseek-ai|\/(?:phase3c|commerce|auth|runtime-profile|carrier)(?:\/|[.]))[^"']*["']/,
         `${directory}/${name}`,
       );
     }

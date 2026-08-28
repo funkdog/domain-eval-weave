@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { constants, existsSync } from "node:fs";
+import { access, lstat, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import type { CapsuleManifest } from "../capsule/contracts.js";
 import { CapsuleError, type LoadedCapsule } from "../capsule/loader.js";
@@ -40,7 +41,6 @@ function sandboxProfile(
     "/dev",
     "/Library",
     "/private/etc",
-    "/private/var",
     dirname(executable),
     dirname(dirname(executable)),
     candidateRoot,
@@ -57,6 +57,9 @@ function sandboxProfile(
     "(allow system-socket)",
     "(allow file-read-metadata)",
     "(allow file-read*)",
+    ...["/Users", "/Volumes", "/Network", "/tmp", "/private/tmp", "/private/var"].map(
+      (root) => `(deny file-read* (subpath ${literal(root)}))`,
+    ),
     ...readable.map((root) => `(allow file-read* (subpath ${literal(resolve(root))}))`),
     ...[
       "capsule.yaml",
@@ -67,6 +70,7 @@ function sandboxProfile(
       "cases",
       ".eval/releases",
       ".eval/runs",
+      ".eval/calibrations",
     ].map((path) => `(deny file-read* (subpath ${literal(resolve(capsuleRoot, path))}))`),
     ...[".codex", ".dsh", ".ssh", ".config/gh", "Library/Keychains"].map(
       (path) => `(deny file-read* (subpath ${literal(resolve(homedir(), path))}))`,
@@ -75,6 +79,132 @@ function sandboxProfile(
     '(allow file-write* (subpath "/dev"))',
     "(deny network*)",
   ].join("\n");
+}
+
+export interface CandidateSandboxPlan {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+}
+
+export function buildCandidateSandboxPlan(input: {
+  readonly platform: NodeJS.Platform;
+  readonly capsuleRoot: string;
+  readonly candidateRoot: string;
+  readonly scratchRoot: string;
+  readonly command: { readonly executable: string; readonly args: readonly string[] };
+  readonly sandboxExecutable?: string;
+}): CandidateSandboxPlan {
+  const env = { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", LANG: "C", LC_ALL: "C" };
+  if (input.platform === "darwin") {
+    return {
+      executable: input.sandboxExecutable ?? "/usr/bin/sandbox-exec",
+      args: [
+        "-p",
+        sandboxProfile(
+          input.capsuleRoot,
+          input.candidateRoot,
+          input.scratchRoot,
+          input.command.executable,
+        ),
+        input.command.executable,
+        ...input.command.args,
+      ],
+      cwd: input.candidateRoot,
+      env: { ...env, TMPDIR: input.scratchRoot },
+    };
+  }
+  if (input.platform === "linux") {
+    const systemRootPaths = [
+      "/usr",
+      "/bin",
+      "/lib",
+      "/lib64",
+      "/etc/alternatives",
+      "/etc/ld.so.cache",
+    ].filter(existsSync);
+    const systemRoots = systemRootPaths.flatMap((root) => ["--ro-bind", root, root]);
+    const executableRelation = relative(input.candidateRoot, input.command.executable);
+    const containedExecutable =
+      executableRelation !== "" &&
+      !executableRelation.startsWith("..") &&
+      !executableRelation.startsWith("/");
+    const executable = containedExecutable
+      ? `/candidate/${executableRelation.split("\\").join("/")}`
+      : input.command.executable;
+    const executableCovered = systemRootPaths.some((root) => {
+      const relation = relative(root, input.command.executable);
+      return relation === "" || (!relation.startsWith("..") && !relation.startsWith("/"));
+    });
+    const externalRuntimeRoot =
+      containedExecutable || executableCovered
+        ? undefined
+        : dirname(dirname(input.command.executable));
+    const externalRuntimeParents: string[] = [];
+    if (externalRuntimeRoot !== undefined) {
+      let current = dirname(externalRuntimeRoot);
+      while (current !== "/") {
+        externalRuntimeParents.unshift(current);
+        current = dirname(current);
+      }
+    }
+    const externalRuntime =
+      externalRuntimeRoot === undefined
+        ? []
+        : [
+            ...externalRuntimeParents.flatMap((root) => ["--dir", root]),
+            "--ro-bind",
+            externalRuntimeRoot,
+            externalRuntimeRoot,
+          ];
+    return {
+      executable: input.sandboxExecutable ?? "/usr/bin/bwrap",
+      args: [
+        "--die-with-parent",
+        "--unshare-all",
+        "--new-session",
+        "--proc",
+        "/proc",
+        "--dev",
+        "/dev",
+        "--tmpfs",
+        "/tmp",
+        ...systemRoots,
+        ...externalRuntime,
+        "--ro-bind",
+        input.candidateRoot,
+        "/candidate",
+        "--bind",
+        input.scratchRoot,
+        "/scratch",
+        "--chdir",
+        "/candidate",
+        "--clearenv",
+        "--setenv",
+        "PATH",
+        env.PATH,
+        "--setenv",
+        "LANG",
+        env.LANG,
+        "--setenv",
+        "LC_ALL",
+        env.LC_ALL,
+        "--setenv",
+        "TMPDIR",
+        "/scratch",
+        "--",
+        executable,
+        ...input.command.args,
+      ],
+      cwd: input.candidateRoot,
+      env,
+    };
+  }
+  throw new CapsuleError(
+    "CAPSULE_SANDBOX_UNAVAILABLE",
+    `Unsupported Candidate sandbox platform: ${input.platform}`,
+  );
 }
 
 function resolveCommand(candidateRoot: string, command: readonly string[]) {
@@ -97,89 +227,132 @@ function resolveCommand(candidateRoot: string, command: readonly string[]) {
   return { executable: resolve(candidateRoot, rawExecutable), args };
 }
 
+async function ensurePhysicalDirectory(path: string, locator: string): Promise<void> {
+  try {
+    await mkdir(path, { mode: 0o700 });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  }
+  const entry = await lstat(path).catch(() => undefined);
+  if (entry === undefined || entry.isSymbolicLink() || !entry.isDirectory()) {
+    throw new CapsuleError(
+      "CAPSULE_SCRATCH_INVALID",
+      "Candidate scratch parent must be a physical directory",
+      locator,
+    );
+  }
+  if ((await realpath(path)) !== path) {
+    throw new CapsuleError(
+      "CAPSULE_SCRATCH_INVALID",
+      "Candidate scratch parent must not resolve outside the Capsule",
+      locator,
+    );
+  }
+}
+
+async function createScratchRoot(capsuleRoot: string, candidateId: string): Promise<string> {
+  const evaluationRoot = resolve(capsuleRoot, ".eval");
+  await ensurePhysicalDirectory(evaluationRoot, ".eval");
+  const temporaryRoot = resolve(evaluationRoot, "tmp");
+  await ensurePhysicalDirectory(temporaryRoot, ".eval/tmp");
+  return mkdtemp(join(temporaryRoot, `${candidateId}-${process.pid}-`));
+}
+
 export class SandboxedCommandRunner implements CandidateRunner {
-  constructor(readonly sandboxExecutable = "/usr/bin/sandbox-exec") {}
+  readonly #platform: NodeJS.Platform;
+  readonly #sandboxExecutable: string | undefined;
+
+  constructor(
+    options:
+      | string
+      | { readonly platform?: NodeJS.Platform; readonly sandboxExecutable?: string } = {},
+  ) {
+    if (typeof options === "string") {
+      this.#platform = process.platform;
+      this.#sandboxExecutable = options;
+    } else {
+      this.#platform = options.platform ?? process.platform;
+      this.#sandboxExecutable = options.sandboxExecutable;
+    }
+  }
 
   async run(input: {
     readonly capsule: LoadedCapsule;
     readonly candidate: CapsuleManifest["candidates"][number];
   }): Promise<CandidateExecution> {
-    if (process.platform !== "darwin") {
-      throw new CapsuleError(
-        "CAPSULE_SANDBOX_UNAVAILABLE",
-        "The default command adapter currently requires the macOS sandbox adapter",
-      );
-    }
     const candidateRoot = resolve(input.capsule.root, input.candidate.path);
-    const scratchRoot = resolve(
-      input.capsule.root,
-      ".eval/tmp",
-      `${input.candidate.candidate_id}-${process.pid}`,
-    );
-    await mkdir(scratchRoot, { recursive: true, mode: 0o700 });
     const command = resolveCommand(candidateRoot, input.candidate.command);
-    const child = spawn(
-      this.sandboxExecutable,
-      [
-        "-p",
-        sandboxProfile(input.capsule.root, candidateRoot, scratchRoot, command.executable),
-        command.executable,
-        ...command.args,
-      ],
-      {
-        cwd: candidateRoot,
-        env: {
-          PATH: "/usr/bin:/bin:/usr/sbin:/sbin",
-          LANG: "C",
-          LC_ALL: "C",
-          TMPDIR: scratchRoot,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
-    if (child.stdout === null || child.stderr === null) {
-      child.kill("SIGKILL");
-      throw new CapsuleError("CAPSULE_PROCESS_INVALID", "Candidate output pipes are unavailable");
-    }
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    let outputBytes = 0;
-    let timedOut = false;
-    let outputLimitExceeded = false;
-    const capture = (target: Buffer[]) => (chunk: Buffer) => {
-      if (outputLimitExceeded) return;
-      outputBytes += chunk.byteLength;
-      if (outputBytes > input.candidate.max_output_bytes) {
-        outputLimitExceeded = true;
-        child.kill("SIGTERM");
-        return;
-      }
-      target.push(Buffer.from(chunk));
-    };
-    child.stdout.on("data", capture(stdout));
-    child.stderr.on("data", capture(stderr));
-    const timeout = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGTERM");
-      setTimeout(() => child.kill("SIGKILL"), 500).unref();
-    }, input.candidate.timeout_ms);
-    timeout.unref();
-    return new Promise<CandidateExecution>((resolveExecution, reject) => {
-      child.once("error", (error) => {
-        clearTimeout(timeout);
-        reject(new CapsuleError("CAPSULE_PROCESS_SPAWN_FAILED", error.message));
+    const scratchRoot = await createScratchRoot(input.capsule.root, input.candidate.candidate_id);
+    try {
+      const plan = buildCandidateSandboxPlan({
+        platform: this.#platform,
+        capsuleRoot: input.capsule.root,
+        candidateRoot,
+        scratchRoot,
+        command,
+        ...(this.#sandboxExecutable === undefined
+          ? {}
+          : { sandboxExecutable: this.#sandboxExecutable }),
       });
-      child.once("close", (exitCode, signal) => {
-        clearTimeout(timeout);
-        resolveExecution({
-          exitCode,
-          signal,
-          stdout: Buffer.concat(stdout).toString("utf8"),
-          stderr: Buffer.concat(stderr).toString("utf8"),
-          timedOut,
-          outputLimitExceeded,
+      try {
+        await access(plan.executable, constants.X_OK);
+      } catch {
+        throw new CapsuleError(
+          "CAPSULE_SANDBOX_UNAVAILABLE",
+          `Candidate sandbox executable is unavailable: ${plan.executable}`,
+        );
+      }
+      const child = spawn(plan.executable, [...plan.args], {
+        cwd: plan.cwd,
+        env: plan.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      if (child.stdout === null || child.stderr === null) {
+        child.kill("SIGKILL");
+        throw new CapsuleError("CAPSULE_PROCESS_INVALID", "Candidate output pipes are unavailable");
+      }
+      const stdout: Buffer[] = [];
+      const stderr: Buffer[] = [];
+      let outputBytes = 0;
+      let timedOut = false;
+      let outputLimitExceeded = false;
+      const capture = (target: Buffer[]) => (chunk: Buffer) => {
+        if (outputLimitExceeded) return;
+        outputBytes += chunk.byteLength;
+        if (outputBytes > input.candidate.max_output_bytes) {
+          outputLimitExceeded = true;
+          child.kill("SIGTERM");
+          return;
+        }
+        target.push(Buffer.from(chunk));
+      };
+      child.stdout.on("data", capture(stdout));
+      child.stderr.on("data", capture(stderr));
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 500).unref();
+      }, input.candidate.timeout_ms);
+      timeout.unref();
+      return await new Promise<CandidateExecution>((resolveExecution, reject) => {
+        child.once("error", (error) => {
+          clearTimeout(timeout);
+          reject(new CapsuleError("CAPSULE_PROCESS_SPAWN_FAILED", error.message));
+        });
+        child.once("close", (exitCode, signal) => {
+          clearTimeout(timeout);
+          resolveExecution({
+            exitCode,
+            signal,
+            stdout: Buffer.concat(stdout).toString("utf8"),
+            stderr: Buffer.concat(stderr).toString("utf8"),
+            timedOut,
+            outputLimitExceeded,
+          });
         });
       });
-    });
+    } finally {
+      await rm(scratchRoot, { recursive: true, force: true });
+    }
   }
 }

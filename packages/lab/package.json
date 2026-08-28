@@ -1,0 +1,73 @@
+{
+  "name": "@domaineval/weave",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "description": "Make domain truth executable with provenance-bound Capsules and replayable evaluations",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/funkdog/domain-eval-weave.git",
+    "directory": "packages/lab"
+  },
+  "homepage": "https://github.com/funkdog/domain-eval-weave#readme",
+  "bugs": {
+    "url": "https://github.com/funkdog/domain-eval-weave/issues"
+  },
+  "keywords": [
+    "ai-evaluation",
+    "domain-evaluation",
+    "agent-evaluation",
+    "provenance",
+    "replay"
+  ],
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/types/packages/lab/src/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./capsule": {
+      "types": "./dist/types/packages/lab/src/capsule.d.ts",
+      "import": "./dist/capsule.js"
+    },
+    "./evaluator": {
+      "types": "./dist/types/packages/lab/src/evaluator.d.ts",
+      "import": "./dist/evaluator.js"
+    },
+    "./harness": {
+      "types": "./dist/types/packages/lab/src/harness.d.ts",
+      "import": "./dist/harness.js"
+    },
+    "./cli": {
+      "types": "./dist/types/packages/lab/src/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./canonical-json": {
+      "types": "./dist/types/packages/lab/src/canonical-json.d.ts",
+      "import": "./dist/canonical-json.js"
+    },
+    "./schemas/*": "./dist/contracts/*.schema.json",
+    "./examples/*": "./dist/examples/*"
+  },
+  "bin": {
+    "domain-eval": "./bin/domain-eval.mjs"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  }
+}

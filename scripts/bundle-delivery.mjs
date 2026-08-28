@@ -1,8 +1,25 @@
-import { lstat, realpath, rm } from "node:fs/promises";
+import { lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { build } from "esbuild";
+
+const workspacePackages = ["@domaineval/weave", "@domaineval/dsh-adapter"];
+
+function isWorkspaceImport(specifier) {
+  return workspacePackages.some(
+    (packageName) => specifier === packageName || specifier.startsWith(`${packageName}/`),
+  );
+}
+
+const bundleWorkspacePackages = {
+  name: "bundle-domain-eval-workspaces",
+  setup(context) {
+    context.onResolve({ filter: /^[^./]/ }, (args) =>
+      isWorkspaceImport(args.path) ? undefined : { path: args.path, external: true },
+    );
+  },
+};
 
 const repositoryRoot = await realpath(fileURLToPath(new URL("..", import.meta.url)));
 const source = resolve(repositoryRoot, "src/delivery/production.ts");
@@ -34,7 +51,7 @@ await build({
   platform: "node",
   format: "esm",
   target: "node24",
-  packages: "external",
+  plugins: [bundleWorkspacePackages],
   legalComments: "none",
   sourcemap: false,
 });
@@ -71,6 +88,42 @@ for (const moduleName of [
     await rm(resolve(commerceRoot, `${moduleName}.${extension}`), { force: true });
   }
 }
+
+await build({
+  entryPoints: {
+    "adapters/index": resolve(repositoryRoot, "src/adapters/index.ts"),
+    "adapters/commerce-observation": resolve(
+      repositoryRoot,
+      "src/adapters/commerce-observation.ts",
+    ),
+    "adapters/dsh-harness": resolve(repositoryRoot, "src/adapters/dsh-harness.ts"),
+    "adapters/raw-dsh-events": resolve(repositoryRoot, "src/adapters/raw-dsh-events.ts"),
+    "phase3c/tdd-binding": resolve(repositoryRoot, "src/phase3c/tdd-binding.ts"),
+  },
+  outdir: resolve(repositoryRoot, "dist"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node24",
+  plugins: [bundleWorkspacePackages],
+  legalComments: "none",
+  sourcemap: false,
+});
+
+const adapterDeclarationRoot = resolve(repositoryRoot, "packages/dsh-adapter/dist");
+const legacyAdapterDeclarationRoot = resolve(repositoryRoot, "dist/adapters");
+for (const moduleName of ["commerce-observation", "dsh-harness", "index", "raw-dsh-events", "tdd"]) {
+  const source = await readFile(resolve(adapterDeclarationRoot, `${moduleName}.d.ts`), "utf8");
+  const rewritten = source
+    .replaceAll('"@domaineval/weave/capsule"', '"../capsule/index.js"')
+    .replaceAll('"@domaineval/weave/harness"', '"../harness/index.js"');
+  await writeFile(resolve(legacyAdapterDeclarationRoot, `${moduleName}.d.ts`), rewritten, "utf8");
+}
+await writeFile(
+  resolve(repositoryRoot, "dist/phase3c/tdd-binding.d.ts"),
+  await readFile(resolve(adapterDeclarationRoot, "tdd.d.ts"), "utf8"),
+  "utf8",
+);
 
 const commerceWithdrawalRoot = resolve(repositoryRoot, "dist/commerce-withdrawal");
 if (

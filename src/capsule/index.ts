@@ -1,3 +1,4 @@
+export { initializeCapsule } from "./authoring.js";
 export type {
   CalibrationCase,
   CapsuleDomain,
@@ -31,5 +32,11 @@ export {
   findRequirement,
   loadCapsule,
 } from "./loader.js";
+export type {
+  CapsuleReadiness,
+  CapsuleReadinessAction,
+  CapsuleReadinessStage,
+} from "./readiness.js";
+export { inspectCapsuleReadiness, renderCapsuleSummary } from "./readiness.js";
 export type { ReleasedCapsule } from "./release.js";
-export { readCapsuleRelease, releaseCapsule } from "./release.js";
+export { previewCapsuleRelease, readCapsuleRelease, releaseCapsule } from "./release.js";

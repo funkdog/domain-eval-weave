@@ -2,8 +2,26 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
 
-import { StrictProcessRunner } from "../../src/process/strict-runner.js";
+import {
+  buildStrictProcessSandboxProfile,
+  StrictProcessRunner,
+} from "../../src/process/strict-runner.js";
 import { DEDICATED_RUNTIME_ROOT } from "../../src/runtime-root.js";
+
+test("strict process sandbox uses portable user-data boundaries", () => {
+  const profile = buildStrictProcessSandboxProfile({
+    executable: process.execPath,
+    args: [],
+    cwd: "/allowed/candidate",
+    readableRoots: ["/allowed/candidate"],
+    writableRoot: "/allowed/scratch",
+    timeoutMs: 1_000,
+    maxOutputBytes: 1_024,
+  });
+  assert.match(profile, /\(deny file-read\* \(subpath "\/Users"\)\)/);
+  assert.doesNotMatch(profile, /\(deny file-read\* .*Users\/slipshod/);
+  assert.match(profile, /allowed\/candidate/);
+});
 
 test("strict process runner sanitizes inherited credential, DSH, and proxy environment", async () => {
   const scratchParent = `${DEDICATED_RUNTIME_ROOT}/test-tmp`;

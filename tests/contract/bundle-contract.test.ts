@@ -50,6 +50,7 @@ test("package preserves the DSH bundle and exposes the standalone Capsule surfac
   ) as Record<string, unknown>;
 
   assert.equal(manifest.name, "dsh-eval-lab");
+  assert.equal(manifest.license, "Apache-2.0");
   assert.deepEqual(manifest.bin, {
     "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs",
   });
@@ -76,7 +77,7 @@ test("package preserves the DSH bundle and exposes the standalone Capsule surfac
   );
   assert.equal(
     (manifest.scripts as Record<string, unknown>).build,
-    "node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
     "every package build must clean output and hide trusted Delivery builders in one facade bundle",
   );
 });
@@ -197,6 +198,23 @@ test("clean packed artifact contains importable DSH entrypoints", async () => {
     assert.deepEqual(packedManifest.bin, {
       "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs",
     });
+    for (const path of [
+      "dist/adapters/index.js",
+      "dist/adapters/index.d.ts",
+      "dist/adapters/dsh-harness.d.ts",
+      "dist/delivery/production.js",
+      "dist/phase3c/tdd-binding.js",
+      "dist/phase3c/tdd-binding.d.ts",
+    ]) {
+      const source = await readFile(join(packageRoot, path), "utf8");
+      assert.doesNotMatch(
+        source,
+        path.endsWith(".d.ts")
+          ? /@domaineval\/|packages\/dsh-adapter/
+          : /(?:from|import)\s*[(']?["']@domaineval\//,
+        `${path} must inline workspace packages in the private legacy tar`,
+      );
+    }
     const packedCommercePack = JSON.parse(
       await readFile(
         join(packageRoot, "task-packs/open-coding-ts-commerce-order-v1/pack.json"),

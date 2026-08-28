@@ -1,0 +1,45 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Enable pnpm
+        run: corepack enable
+      - name: Install Linux sandbox
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+      - name: Install
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Enable public build dependency
+        run: pnpm rebuild esbuild
+      - name: Build package closures
+        run: pnpm build:packages
+      - name: Static checks
+        run: pnpm check:public && pnpm lint:public
+      - name: Public regression
+        run: pnpm test:public
+      - name: Report open-source readiness
+        run: pnpm readiness:open-source

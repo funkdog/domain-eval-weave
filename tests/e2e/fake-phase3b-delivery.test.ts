@@ -60,6 +60,9 @@ test("domain truth compiles, admits, evaluates a synthetic Agent delivery, and r
     const oracle = new LedgerOracle({
       runner: new StrictProcessRunner(),
       oracleRunnerPath: `${taskPackRoot}/oracle/runner.mjs`,
+      // This test exercises the complete compile/admit/evaluate/replay vertical, not timeout
+      // calibration. Hosted macOS runners need extra margin for the concurrent sandbox cohort.
+      timeoutMsPerBehavior: 15_000,
     });
     const detailedCalibration = await calibrateLedgerPackDetailed({
       oracle,
