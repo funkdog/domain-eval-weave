@@ -26,4 +26,5 @@ domains use Capsules rather than copying legacy template stacks.
 
 Developer Preview requires an explicit code/data license decision, clean package closures, supported-platform
 CI and no unresolved security blocker. Public Alpha additionally requires an independent human clean-room
-Capsule contribution. Automated tests cannot self-certify either external gate.
+Capsule contribution. The source repository may be public as a Developer Preview before that human exercise;
+npm publication remains a separate release decision. Automated tests cannot self-certify either external gate.

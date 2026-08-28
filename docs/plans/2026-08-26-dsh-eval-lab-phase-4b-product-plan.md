@@ -98,6 +98,12 @@ Developer Preview 必须满足：
 
 Public Alpha 还需要独立 clean-room contributor 完整产生一个 publishable Capsule。
 
+### 7.1 公开顺序修订（2026-08-28）
+
+Operator 决定先公开源码仓库，再进行 human clean-room：通过正式 review、合并和 `main` 双平台 CI 后，仓库可以
+以 **Developer Preview** 身份公开；随后由未参与实现的人仅依靠公开材料完成 clean-room，成功后升级为 Public Alpha。
+公开仓库不等于发布 npm 包，主包和 adapter 在 clean-room 通过前继续保持 `private: true`。
+
 ## 8. 非目标
 
 Phase 4B 不建设：

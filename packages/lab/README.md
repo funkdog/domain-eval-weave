@@ -19,5 +19,6 @@ Readiness progresses from `draft` to `runnable`, `qualified` and `publishable`. 
 exact release and Evaluator; they become stale rather than silently surviving source or evaluator changes.
 
 The package is licensed Apache-2.0. Explicitly marked repository-authored synthetic source fixtures use
-CC0-1.0; contributed Capsule sources retain their declared licenses. The package remains private until the
-remote CI and release workflow are accepted.
+CC0-1.0; contributed Capsule sources retain their declared licenses. The source repository is available as a
+public Developer Preview, while this npm package remains private until independent human clean-room evidence
+supports Public Alpha.
