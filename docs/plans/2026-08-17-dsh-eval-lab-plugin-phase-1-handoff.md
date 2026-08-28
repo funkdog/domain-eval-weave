@@ -11,8 +11,7 @@ description: "交给独立 DSH Agent 的 Phase 1 完整实现派发说明；产�
 
 > 本文是派发入口，不是第三份产品规格。发生冲突时，依次以
 > [产品方案](./2026-08-17-dsh-eval-lab-product-plan.md)、
-> [Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md)、
-> `AGENTS.md` 为准。
+> [Phase 1 Implementation Spec](./2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md) 为准。
 
 ## 任务
 
@@ -41,10 +40,9 @@ management、runner process 都必须在启动前继承上面 exact dedicated `D
 
 ## 必须先读
 
-1. `AGENTS.md`：安全边界与开发纪律；
-2. `docs/plans/2026-08-17-dsh-eval-lab-product-plan.md`：产品目的、非目标与 AC；
-3. `docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md`：决策完备实现契约；
-4. [Assignment 内置 DSH primary evidence bundle](../evidence/dsh/README.md)，核对 DSH home、CLI/profile/plugin、
+1. `docs/plans/2026-08-17-dsh-eval-lab-product-plan.md`：产品目的、非目标与 AC；
+2. `docs/plans/2026-08-17-dsh-eval-lab-phase-1-implementation-spec.md`：决策完备实现契约与安全边界；
+3. [Assignment 内置 DSH primary evidence bundle](../evidence/dsh/README.md)，核对 DSH home、CLI/profile/plugin、
    app arguments/exit、headless Session、persistence、Goal、tool pipeline 与 sandbox 事实。
 
 读完前不要写实现。公开 DSH source snapshot 只提供结构证据；rc.6 安装物的 exports、dump-config 与 contract test

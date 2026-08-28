@@ -8,9 +8,9 @@ created: 2026-08-17
 
 ## Repository Contract
 
-Read `AGENTS.md` and the phase-specific product and implementation contracts
-before changing code. Its data-safety and persistence boundaries apply to every
-workflow below.
+Read `README.md`, `CONTRIBUTING.md`, and the phase-specific product and implementation
+contracts before changing code. Their data-safety and persistence boundaries apply
+to every workflow below.
 
 This repository currently has no Git remote. Use exact local commits as review
 and merge carriers; do not wait for or claim PR, cloud-review, push, or remote-main
@@ -20,7 +20,7 @@ evidence until a remote is configured.
 
 | Step | Action |
 |------|--------|
-| 1 | Ground the task in `AGENTS.md`, the applicable phase contract, and current Git state. |
+| 1 | Ground the task in the public contribution contract, the applicable phase contract, and current Git state. |
 | 2 | Use a feature worktree for code, execution-surface, high-risk, or conflicting work. Conflict-free, reversible documentation may land directly on local `main`. |
 | 3 | Run proportional quality gates and bind their evidence to the exact candidate commit. |
 | 4 | Obtain independent exact-commit review for code and governance changes; reuse an existing verdict only when continuity is mechanically provable. |

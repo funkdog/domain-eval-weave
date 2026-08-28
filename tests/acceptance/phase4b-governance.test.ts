@@ -47,11 +47,7 @@ test("open-source governance and CI expose one portable public gate", async () =
   assert.match(contributing, /pnpm test:public/);
   assert.doesNotMatch(contributing, /\npnpm test\n/);
 
-  assert.doesNotMatch(
-    await readFile(`${repositoryRoot}/AGENTS.md`, "utf8"),
-    /Clowder AI|cat-cafe|\/Users\/slipshod|Redis port 6399/,
-  );
-  for (const path of ["CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
+  for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
     assert.equal(
       await lstat(`${repositoryRoot}/${path}`).catch((error: NodeJS.ErrnoException) => error.code),
       "ENOENT",
@@ -162,7 +158,6 @@ test("DomainEval Weave is the workspace identity while DSH is an isolated legacy
   assert.equal(adapter.repository?.directory, "packages/dsh-adapter");
   assert.match(readme, /^# DomainEval Weave$/m);
   assert.match(readme, /Make domain truth executable\./);
-  assert.match(await readFile(`${repositoryRoot}/AGENTS.md`, "utf8"), /^# DomainEval Weave/m);
 });
 
 test("the public package physically owns its implementation and schemas", async () => {

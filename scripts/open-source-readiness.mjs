@@ -9,7 +9,6 @@ const required = [
   "packages/weave/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
   "legacy/dsh-eval-lab/package.json",
-  "AGENTS.md",
   "tsconfig.base.json",
   "tsconfig.public.json",
   "CONTRIBUTING.md",
@@ -105,11 +104,7 @@ if (status.license !== "unselected") {
   }
 }
 const publicRepositoryHygiene = [];
-const forbiddenInternalText = /Clowder AI|cat-cafe|\/Users\/slipshod|Redis port 6399/;
-if (forbiddenInternalText.test(await readFile(resolve(repositoryRoot, "AGENTS.md"), "utf8"))) {
-  publicRepositoryHygiene.push("AGENTS.md#internal-environment");
-}
-for (const path of ["CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
+for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
   if ((await lstat(resolve(repositoryRoot, path)).catch(() => undefined)) !== undefined) {
     publicRepositoryHygiene.push(`${path}#provider-shim`);
   }
