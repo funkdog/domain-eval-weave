@@ -24,3 +24,8 @@ campaigns/
 .codex/skills/
 .gemini/skills/
 .kimi/skills/
+
+# Provider-specific root shims are intentionally excluded; AGENTS.md is the single guide.
+CLAUDE.md
+GEMINI.md
+KIMI.md
