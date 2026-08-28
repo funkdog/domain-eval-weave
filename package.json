@@ -10,7 +10,7 @@
   },
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "build": "pnpm build:packages && pnpm build:legacy",
+    "build": "pnpm build:legacy",
     "build:packages": "pnpm --filter @domaineval/weave build && pnpm --filter @domaineval/dsh-adapter build",
     "build:weave": "pnpm --filter @domaineval/weave build",
     "build:legacy": "pnpm --filter dsh-eval-lab build",

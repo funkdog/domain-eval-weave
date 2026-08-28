@@ -148,6 +148,8 @@ test("DomainEval Weave is the workspace identity while DSH is an isolated legacy
   assert.equal(root.exports, undefined);
   assert.equal(root.dependencies, undefined);
   assert.equal(root.scripts?.prepare, undefined);
+  assert.equal(root.scripts?.build, "pnpm build:legacy");
+  assert.equal(root.scripts?.["build:legacy"], "pnpm --filter dsh-eval-lab build");
   assert.equal(legacy.name, "dsh-eval-lab");
   assert.equal(legacy.private, true);
   assert.deepEqual(legacy.bin, { "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs" });
