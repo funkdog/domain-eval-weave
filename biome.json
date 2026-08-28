@@ -8,6 +8,7 @@
       "packages/**/*.ts",
       "packages/**/*.mjs",
       "packages/**/package.json",
+      "packages/**/schemas/**/*.json",
       "!packages/**/dist",
       "scripts/materialize-phase4b-cleanroom.mjs",
       "scripts/verify-phase4b-cleanroom.mjs",

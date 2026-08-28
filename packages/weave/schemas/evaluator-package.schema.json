@@ -197,5 +197,5 @@
       ]
     }
   },
-  "$id": "https://dsh-eval-lab.local/contracts/capsule/evaluator-package.schema.json"
+  "$id": "https://github.com/funkdog/domain-eval-weave/schemas/evaluator-package.schema.json"
 }

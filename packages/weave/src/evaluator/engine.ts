@@ -1,6 +1,6 @@
 import { mkdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../canonical-json.js";
 import { writeExclusiveOrVerify } from "../capsule/artifact-store.js";
 import {
   type CapsuleRelease,
@@ -17,7 +17,6 @@ import {
 } from "../capsule/loader.js";
 import type { ReleasedCapsule } from "../capsule/release.js";
 import { readCapsuleRelease } from "../capsule/release.js";
-import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
 import {
   type CandidateExecution,
   type CandidateRunner,

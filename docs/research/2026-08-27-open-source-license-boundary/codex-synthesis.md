@@ -57,7 +57,7 @@ CC-BY-4.0 remains an allowed per-source choice where attribution is desired.
 
 ## Exact implementation after approval
 
-1. Add the unmodified Apache-2.0 text to root `LICENSE`, `packages/lab/LICENSE` and
+1. Add the unmodified Apache-2.0 text to root `LICENSE`, `packages/weave/LICENSE` and
    `packages/dsh-adapter/LICENSE`.
 2. Set public package `license` fields to `Apache-2.0`; keep root legacy `private: true`.
 3. Change Lab/adapter `private` only at the release step, not in the licensing commit.

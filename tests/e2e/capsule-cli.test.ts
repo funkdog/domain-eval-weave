@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { runCapsuleCli } from "../../src/capsule-cli/index.js";
+import { runCapsuleCli } from "../../packages/weave/src/cli/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

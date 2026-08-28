@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const repositoryRoot = fileURLToPath(new URL("..", import.meta.url));
 const required = [
   "README.md",
-  "packages/lab/package.json",
-  "packages/lab/bin/domain-eval.mjs",
+  "packages/weave/package.json",
+  "packages/weave/bin/domain-eval.mjs",
   "packages/dsh-adapter/package.json",
   "AGENTS.md",
   "CLAUDE.md",
@@ -30,7 +30,7 @@ for (const path of required) {
 }
 const publicIdentityMismatches = [];
 const weaveManifest = JSON.parse(
-  await readFile(resolve(repositoryRoot, "packages/lab/package.json"), "utf8"),
+  await readFile(resolve(repositoryRoot, "packages/weave/package.json"), "utf8"),
 );
 const adapterManifest = JSON.parse(
   await readFile(resolve(repositoryRoot, "packages/dsh-adapter/package.json"), "utf8"),
@@ -38,10 +38,10 @@ const adapterManifest = JSON.parse(
 const rootReadme = await readFile(resolve(repositoryRoot, "README.md"), "utf8");
 const rootManifest = JSON.parse(await readFile(resolve(repositoryRoot, "package.json"), "utf8"));
 if (weaveManifest.name !== "@domaineval/weave") {
-  publicIdentityMismatches.push("packages/lab/package.json#name");
+  publicIdentityMismatches.push("packages/weave/package.json#name");
 }
 if (weaveManifest.bin?.["domain-eval"] !== "./bin/domain-eval.mjs") {
-  publicIdentityMismatches.push("packages/lab/package.json#bin.domain-eval");
+  publicIdentityMismatches.push("packages/weave/package.json#bin.domain-eval");
 }
 if (adapterManifest.name !== "@domaineval/dsh-adapter") {
   publicIdentityMismatches.push("packages/dsh-adapter/package.json#name");
@@ -70,7 +70,7 @@ if (
 }
 const licenseFiles = [
   "LICENSE",
-  "packages/lab/LICENSE",
+  "packages/weave/LICENSE",
   "packages/dsh-adapter/LICENSE",
   "examples/capsules/commerce-cancellation/sources/LICENSE",
 ];
@@ -83,7 +83,7 @@ if (status.license !== "unselected") {
       missingLicenseFiles.push(path);
     }
   }
-  for (const path of ["packages/lab/package.json", "packages/dsh-adapter/package.json"]) {
+  for (const path of ["packages/weave/package.json", "packages/dsh-adapter/package.json"]) {
     const manifest = JSON.parse(await readFile(resolve(repositoryRoot, path), "utf8"));
     const expected = status.license.startsWith("apache") ? "Apache-2.0" : "MIT";
     if (manifest.license !== expected) missingLicenseFiles.push(`${path}#license`);

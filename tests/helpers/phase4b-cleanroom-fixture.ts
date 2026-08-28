@@ -8,12 +8,12 @@ import {
   initializeCapsule,
   loadCapsule,
   releaseCapsule,
-} from "../../src/capsule/index.js";
+} from "../../packages/weave/src/capsule/index.js";
 import {
   calibrateAndPersistEvaluator,
   compareEvaluators,
   evaluateCandidate,
-} from "../../src/evaluator/index.js";
+} from "../../packages/weave/src/evaluator/index.js";
 
 const expectedPass = [
   { claim_id: "return-status", status: "pass" },

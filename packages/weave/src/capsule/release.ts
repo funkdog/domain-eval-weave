@@ -1,7 +1,7 @@
 import { lstat, mkdir, readdir, readFile, realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 
-import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../contracts/canonical-json.js";
+import { canonicalJson, canonicalJsonDigest, sha256Hex } from "../canonical-json.js";
 import { writeExclusiveOrVerify } from "./artifact-store.js";
 import { type CapsuleRelease, capsuleReleaseSchema, parseCapsuleRelease } from "./contracts.js";
 import { CapsuleError, type LoadedCapsule, loadCapsule } from "./loader.js";

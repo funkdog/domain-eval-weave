@@ -5,7 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import { parse, stringify } from "yaml";
 
-import { loadCapsule, previewCapsuleRelease, releaseCapsule } from "../../src/capsule/index.js";
+import {
+  loadCapsule,
+  previewCapsuleRelease,
+  releaseCapsule,
+} from "../../packages/weave/src/capsule/index.js";
 import {
   type CandidateRunner,
   calibrateAndPersistEvaluator,
@@ -15,7 +19,7 @@ import {
   findCalibrationReports,
   replayEvaluationRun,
   SandboxedCommandRunner,
-} from "../../src/evaluator/index.js";
+} from "../../packages/weave/src/evaluator/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

@@ -3,8 +3,8 @@ import { cp, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { loadCapsule } from "../../src/capsule/index.js";
-import { runCapsuleCli } from "../../src/capsule-cli/index.js";
+import { loadCapsule } from "../../packages/weave/src/capsule/index.js";
+import { runCapsuleCli } from "../../packages/weave/src/cli/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

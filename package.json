@@ -50,9 +50,9 @@
   "scripts": {
     "build": "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
     "build:packages": "pnpm --filter @domaineval/weave build && pnpm --filter @domaineval/dsh-adapter build",
-    "build:lab": "pnpm --filter @domaineval/weave build",
+    "build:weave": "pnpm --filter @domaineval/weave build",
     "check": "biome check .",
-    "check:public": "biome check packages src/capsule src/evaluator src/harness src/capsule-cli src/contracts/canonical-json.ts scripts/materialize-phase4b-cleanroom.mjs scripts/verify-phase4b-cleanroom.mjs scripts/open-source-readiness.mjs tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts tests/helpers/phase4b-cleanroom-fixture.ts contracts/capsule cleanroom package.json tsconfig.public.json",
+    "check:public": "biome check packages src/contracts/canonical-json.ts src/adapters scripts/materialize-phase4b-cleanroom.mjs scripts/verify-phase4b-cleanroom.mjs scripts/open-source-readiness.mjs tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts tests/helpers/phase4b-cleanroom-fixture.ts cleanroom package.json tsconfig.public.json",
     "check:fix": "biome check --write .",
     "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
     "generate:capsule-schemas": "node --import tsx scripts/generate-capsule-schemas.ts",

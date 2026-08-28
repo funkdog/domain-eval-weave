@@ -190,5 +190,5 @@
     "diagnostics"
   ],
   "additionalProperties": false,
-  "$id": "https://dsh-eval-lab.local/contracts/capsule/evaluation-run.schema.json"
+  "$id": "https://github.com/funkdog/domain-eval-weave/schemas/evaluation-run.schema.json"
 }

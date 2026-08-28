@@ -80,11 +80,11 @@ try {
     throw new Error("materialization must run under pnpm so the frozen package manager is known");
   }
   await execFileAsync(process.execPath, [pnpmCli, "pack", "--pack-destination", packageRoot], {
-    cwd: resolve(repositoryRoot, "packages/lab"),
+    cwd: resolve(repositoryRoot, "packages/weave"),
     maxBuffer: 32 * 1024 * 1024,
   });
   const archives = (await readdir(packageRoot)).filter((name) => name.endsWith(".tgz"));
-  if (archives.length !== 1) throw new Error("Lab pack did not produce exactly one archive");
+  if (archives.length !== 1) throw new Error("Weave pack did not produce exactly one archive");
   const archive = resolve(packageRoot, archives[0]);
   const archiveBytes = await readFile(archive);
   const verifierWork = resolve(staging, ".verifier-work");

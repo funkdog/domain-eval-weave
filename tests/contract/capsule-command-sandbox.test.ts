@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { loadCapsule } from "../../src/capsule/index.js";
-import { SandboxedCommandRunner } from "../../src/evaluator/index.js";
+import { loadCapsule } from "../../packages/weave/src/capsule/index.js";
+import { SandboxedCommandRunner } from "../../packages/weave/src/evaluator/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

@@ -85,7 +85,7 @@ const kitRoot = resolve(kitArg);
 const manifest = JSON.parse(await readFile(resolve(kitRoot, "kit-manifest.json"), "utf8"));
 if (manifest.kit_id !== receipt.kit_id) throw new Error("receipt binds another clean-room kit");
 if (manifest.lab_package_sha256 !== receipt.lab_package_sha256) {
-  throw new Error("receipt Lab package digest does not match the kit");
+  throw new Error("receipt Weave package digest does not match the kit");
 }
 const actualEntries = [
   ...(await collect(resolve(kitRoot, "inputs"), "inputs")),

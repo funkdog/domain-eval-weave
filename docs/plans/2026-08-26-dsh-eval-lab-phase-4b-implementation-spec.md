@@ -20,7 +20,7 @@ Phase 4B 基于 Phase 4A candidate `a92f559`，固定实施顺序：
 
 ```text
 contracts
-→ independent Lab package
+→ independent Weave package
 → contribution UX
 → DSH adapter/TDD ownership
 → platform/governance gates
@@ -30,11 +30,9 @@ contracts
 ## 2. Repository layout
 
 ```text
-packages/lab/                 @domaineval/weave package facade/build/contracts/examples
+packages/weave/                 @domaineval/weave implementation/build/Schemas/examples
 packages/dsh-adapter/         @domaineval/dsh-adapter package facade/build
-src/capsule/                  canonical core implementation during 4B migration
-src/evaluator/
-src/harness/
+src/                          private legacy/research compatibility implementation
 src/adapters/                 compatibility re-exports only after extraction
 src/phase3c/                  legacy/research compatibility
 ```
@@ -101,7 +99,7 @@ case outcomes and qualified boolean. Replay/doctor reject digest drift and stale
 ## 8. DSH adapter extraction
 
 `@domaineval/dsh-adapter` owns raw JSONL projection, Commerce observation normalization and TDD task/event/mechanism projection. Phase 3C may
-re-export the same implementation for compatibility; the adapter must not import `src/phase3c`. Lab must not import the adapter.
+re-export the same implementation for compatibility; the adapter must not import `src/phase3c`. Weave must not import the adapter.
 
 ## 9. Runner adapters
 
@@ -116,8 +114,8 @@ until operator selects code/data licenses, open-source readiness remains blocked
 
 ## 11. Tests
 
-- Lab tar contains only allowlisted files/dependencies and imports from an empty consumer;
-- Lab JS/declarations contain no DSH/Phase3C/legacy source references;
+- Weave tar contains only allowlisted files/dependencies and imports from an empty consumer;
+- Weave JS/declarations contain no DSH/Phase3C/legacy source references;
 - draft init is exclusive, deterministic and contains no fake truth;
 - doctor stage transitions and action codes are exact;
 - show output is deterministic and human-readable;
@@ -133,7 +131,7 @@ until operator selects code/data licenses, open-source readiness remains blocked
 
 Freeze Phase 4B product/implementation plans and repository package ownership.
 
-### M1 — Independent Lab
+### M1 — Independent Weave
 
 Build and consume a no-DSH `@domaineval/weave` tarball.
 
@@ -151,13 +149,13 @@ macOS/Linux fail-closed runners, governance files, CI and explicit license gate.
 
 ### M5 — Acceptance
 
-Fresh temporary consumer installs only Lab, initializes a Capsule, advances it through the documented readiness path, calibrates, compares and
+Fresh temporary consumer installs only Weave, initializes a Capsule, advances it through the documented readiness path, calibrates, compares and
 replays without repository source imports, DSH, OAuth, model calls or network.
 
 ## 13. Completion gate
 
 - M0–M5 implementation evidence complete;
 - root legacy regression remains green;
-- Lab/adapter package closures are disjoint from legacy/research;
+- Weave/adapter package closures are disjoint from legacy/research;
 - package/source trees are clean;
 - license selection, first remote CI and human clean-room remain honestly reported external gates where unresolved.

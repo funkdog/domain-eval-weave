@@ -8,7 +8,7 @@ import {
   parseEvaluationRun,
   parseEvaluatorPackage,
   parseRequirementDelta,
-} from "../../src/capsule/index.js";
+} from "../../packages/weave/src/capsule/index.js";
 
 const source = {
   source_id: "policy",

@@ -14,7 +14,7 @@ const expected = [
 ] as const;
 
 test("Capsule generator exposes exactly six public JSON Schemas", async () => {
-  const root = new URL("../../contracts/capsule/", import.meta.url);
+  const root = new URL("../../packages/weave/schemas/", import.meta.url);
   assert.deepEqual((await readdir(root)).sort(), expected);
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   for (const name of expected) {
