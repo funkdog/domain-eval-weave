@@ -12,9 +12,9 @@ import {
   evaluationRunSchema,
   evaluatorPackageSchema,
   requirementDeltaSchema,
-} from "../src/capsule/contracts.js";
+} from "../packages/weave/src/capsule/contracts.js";
 
-const outputRoot = new URL("../contracts/capsule/", import.meta.url);
+const outputRoot = new URL("../packages/weave/schemas/", import.meta.url);
 const execFileAsync = promisify(execFile);
 const schemas = {
   "capsule-manifest": capsuleManifestSchema,
@@ -33,7 +33,7 @@ for (const [name, schema] of Object.entries(schemas)) {
     `${JSON.stringify(
       {
         ...generated,
-        $id: `https://dsh-eval-lab.local/contracts/capsule/${name}.schema.json`,
+        $id: `https://github.com/funkdog/domain-eval-weave/schemas/${name}.schema.json`,
       },
       null,
       2,

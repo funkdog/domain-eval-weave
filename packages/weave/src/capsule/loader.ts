@@ -3,7 +3,7 @@ import { relative, resolve } from "node:path";
 
 import { parse, stringify } from "yaml";
 
-import { canonicalJsonDigest } from "../contracts/canonical-json.js";
+import { canonicalJsonDigest } from "../canonical-json.js";
 import {
   type CalibrationCase,
   type CapsuleDomain,

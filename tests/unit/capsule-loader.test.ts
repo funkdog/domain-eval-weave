@@ -9,7 +9,7 @@ import {
   loadCapsule,
   readCapsuleRelease,
   releaseCapsule,
-} from "../../src/capsule/index.js";
+} from "../../packages/weave/src/capsule/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

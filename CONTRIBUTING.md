@@ -53,7 +53,7 @@ Evaluator calibration and runtime safety. A passing schema is necessary but does
 ## Independent clean-room
 
 After the repository becomes a public Developer Preview, maintainers materialize the label-free kit with
-`pnpm cleanroom:materialize <runtime-path>`. The participant uses only the kit and installed Lab package; a
+`pnpm cleanroom:materialize <runtime-path>`. The participant uses only the kit and installed Weave package; a
 different observer completes the receipt. The verifier checks immutable inputs, publishable readiness,
 current calibration and accepted Run replay, but cannot change `open-source-status.json` or replace maintainer
 review.

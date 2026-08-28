@@ -6,19 +6,20 @@
       "type": "number",
       "const": 1
     },
-    "case_id": {
+    "requirement_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
     },
-    "kind": {
+    "version": {
       "type": "string",
-      "enum": ["gold", "equivalent", "mutant"]
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
     },
-    "candidate_id": {
+    "title": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      "minLength": 1,
+      "maxLength": 256
     },
-    "target_claim_ids": {
+    "source_ids": {
       "minItems": 1,
       "type": "array",
       "items": {
@@ -26,7 +27,7 @@
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
       }
     },
-    "expected_claims": {
+    "edges": {
       "minItems": 1,
       "type": "array",
       "items": {
@@ -36,17 +37,20 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
           },
-          "status": {
+          "relation": {
             "type": "string",
-            "enum": ["pass", "fail", "inconclusive", "measurement_error"]
+            "enum": ["uses", "preserves", "introduces", "modifies", "deprecates", "conflicts_with"]
+          },
+          "required": {
+            "type": "boolean"
           }
         },
-        "required": ["claim_id", "status"],
+        "required": ["claim_id", "relation", "required"],
         "additionalProperties": false
       }
     }
   },
-  "required": ["schema_version", "case_id", "kind", "candidate_id", "expected_claims"],
+  "required": ["schema_version", "requirement_id", "version", "title", "source_ids", "edges"],
   "additionalProperties": false,
-  "$id": "https://dsh-eval-lab.local/contracts/capsule/calibration-case.schema.json"
+  "$id": "https://github.com/funkdog/domain-eval-weave/schemas/requirement-delta.schema.json"
 }

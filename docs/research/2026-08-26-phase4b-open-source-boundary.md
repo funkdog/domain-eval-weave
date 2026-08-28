@@ -83,7 +83,7 @@ cannot silently come from a newer or stale repository checkout. The pre-runtime 
 ## License decision evidence
 
 Primary-source Apache/OSI/Creative Commons research is stored under
-`project-research/2026-08-27-open-source-license-boundary/`. The recommendation is Apache-2.0 for code,
+`docs/research/2026-08-27-open-source-license-boundary/`. The recommendation is Apache-2.0 for code,
 generated schemas and repository-authored docs; CC0-1.0 only for explicitly marked repository-authored
 synthetic sources; community sources retain their declared license. The operator approved this boundary on
 2026-08-27. Exact ASF license text is now present at the repository, Lab package and adapter package roots;
@@ -160,3 +160,12 @@ The automated packed consumer is implementation evidence, not a substitute for a
 
 1. Run M5 with an uninvolved human contributor without oral help, using the public Developer Preview.
 2. After Public Alpha evidence, decide whether to remove `private: true` and publish the npm packages.
+
+## Repository ownership migration
+
+The current candidate moves the actual Weave implementation and six public Schemas into `packages/weave`,
+renames the former `packages/lab` facade, and folds license research into `docs/research`. Root legacy package
+compatibility is produced from Weave source at build time and remains covered by the complete historical
+regression. Exact candidate `30bdac1531a8e11f887516e9c4290500aababf47` passed
+[GitHub Actions run 33138395432](https://github.com/funkdog/domain-eval-weave/actions/runs/33138395432)
+on macOS and Ubuntu; the public suite contains 41 tests and the complete historical suite contains 400.

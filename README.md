@@ -57,10 +57,10 @@ pnpm install --frozen-lockfile
 pnpm --filter @domaineval/weave build
 
 CAPSULE_ROOT="$(mktemp -d)/returns-policy"
-node packages/lab/bin/domain-eval.mjs init \
+node packages/weave/bin/domain-eval.mjs init \
   "$CAPSULE_ROOT" returns-policy commerce.returns returns-owner
-node packages/lab/bin/domain-eval.mjs doctor "$CAPSULE_ROOT"
-node packages/lab/bin/domain-eval.mjs show "$CAPSULE_ROOT"
+node packages/weave/bin/domain-eval.mjs doctor "$CAPSULE_ROOT"
+node packages/weave/bin/domain-eval.mjs show "$CAPSULE_ROOT"
 ```
 
 `init` creates a valid truth-empty draft. It does not invent sources, Claims or expected answers.
@@ -72,12 +72,12 @@ generated `.eval/` artifacts stay outside the source tree.
 
 ```sh
 DEMO_ROOT="$(mktemp -d)"
-cp -R packages/lab/dist/examples/commerce-cancellation "$DEMO_ROOT/capsule"
+cp -R packages/weave/dist/examples/commerce-cancellation "$DEMO_ROOT/capsule"
 
-node packages/lab/bin/domain-eval.mjs validate "$DEMO_ROOT/capsule"
-node packages/lab/bin/domain-eval.mjs calibrate \
+node packages/weave/bin/domain-eval.mjs validate "$DEMO_ROOT/capsule"
+node packages/weave/bin/domain-eval.mjs calibrate \
   "$DEMO_ROOT/capsule" commerce-delivery@2.0.0
-node packages/lab/bin/domain-eval.mjs compare \
+node packages/weave/bin/domain-eval.mjs compare \
   "$DEMO_ROOT/capsule" self-service-cancellation \
   commerce-delivery@1.0.0 commerce-delivery@2.0.0
 ```
@@ -98,7 +98,7 @@ why an evaluator version needs calibration evidence, not merely plausible checks
 8. Reach `publishable`, persist an accepted Run and replay it artifact-only.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution contract and
-[the main package guide](packages/lab/README.md) for CLI commands.
+[the main package guide](packages/weave/README.md) for CLI commands.
 
 ## Trust boundaries
 

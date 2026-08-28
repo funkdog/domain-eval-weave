@@ -2,13 +2,12 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { z } from "zod";
-
+import { canonicalJson, canonicalJsonDigest } from "../canonical-json.js";
 import { writeExclusiveOrVerify } from "../capsule/artifact-store.js";
 import type { EvaluationRun } from "../capsule/contracts.js";
 import type { LoadedCapsule } from "../capsule/loader.js";
 import { CapsuleError, evaluatorReference, findEvaluator } from "../capsule/loader.js";
 import type { ReleasedCapsule } from "../capsule/release.js";
-import { canonicalJson, canonicalJsonDigest } from "../contracts/canonical-json.js";
 import { type CandidateRunner, SandboxedCommandRunner } from "./command-runner.js";
 import { evaluateCandidate } from "./engine.js";
 

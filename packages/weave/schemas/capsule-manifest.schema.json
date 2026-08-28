@@ -145,5 +145,5 @@
     "cases"
   ],
   "additionalProperties": false,
-  "$id": "https://dsh-eval-lab.local/contracts/capsule/capsule-manifest.schema.json"
+  "$id": "https://github.com/funkdog/domain-eval-weave/schemas/capsule-manifest.schema.json"
 }

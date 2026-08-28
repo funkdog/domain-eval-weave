@@ -110,5 +110,5 @@
   },
   "required": ["schema_version", "domain_id", "version", "owners", "claims"],
   "additionalProperties": false,
-  "$id": "https://dsh-eval-lab.local/contracts/capsule/domain-contract.schema.json"
+  "$id": "https://github.com/funkdog/domain-eval-weave/schemas/domain-contract.schema.json"
 }

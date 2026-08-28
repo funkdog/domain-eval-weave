@@ -5,13 +5,9 @@
     "rootDir": "."
   },
   "include": [
-    "src/capsule/**/*.ts",
-    "src/evaluator/**/*.ts",
-    "src/harness/**/*.ts",
-    "src/capsule-cli/**/*.ts",
     "src/contracts/canonical-json.ts",
     "src/adapters/**/*.ts",
-    "packages/lab/src/**/*.ts",
+    "packages/weave/src/**/*.ts",
     "packages/dsh-adapter/src/**/*.ts",
     "tests/unit/canonical-json.test.ts",
     "tests/unit/capsule-*.test.ts",

@@ -9,10 +9,10 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
-const labRoot = join(repositoryRoot, "packages/lab");
+const weaveRoot = join(repositoryRoot, "packages/weave");
 
 test("@domaineval/weave packs one importable no-DSH public closure", async () => {
-  const manifest = JSON.parse(await readFile(join(labRoot, "package.json"), "utf8")) as {
+  const manifest = JSON.parse(await readFile(join(weaveRoot, "package.json"), "utf8")) as {
     readonly name?: unknown;
     readonly bin?: unknown;
     readonly dependencies?: unknown;
@@ -31,7 +31,7 @@ test("@domaineval/weave packs one importable no-DSH public closure", async () =>
     const pnpmCli = process.env.npm_execpath;
     assert.ok(pnpmCli);
     await execFileAsync(process.execPath, [pnpmCli, "pack", "--pack-destination", scratch], {
-      cwd: labRoot,
+      cwd: weaveRoot,
       maxBuffer: 32 * 1024 * 1024,
     });
     const archive = (await readdir(scratch)).find((entry) => entry.endsWith(".tgz"));

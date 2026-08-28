@@ -9,9 +9,9 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
-const labRoot = join(repositoryRoot, "packages/lab");
+const weaveRoot = join(repositoryRoot, "packages/weave");
 
-test("packed Lab completes the contributor and replay journey without repository imports", async () => {
+test("packed Weave completes the contributor and replay journey without repository imports", async () => {
   const pnpmCli = process.env.npm_execpath;
   assert.ok(pnpmCli);
   const scratch = await mkdtemp(join(tmpdir(), "phase4b-cleanroom-"));
@@ -19,7 +19,7 @@ test("packed Lab completes the contributor and replay journey without repository
     const packRoot = join(scratch, "pack");
     await mkdir(packRoot, { mode: 0o700 });
     await execFileAsync(process.execPath, [pnpmCli, "pack", "--pack-destination", packRoot], {
-      cwd: labRoot,
+      cwd: weaveRoot,
       maxBuffer: 32 * 1024 * 1024,
     });
     const archive = (await readdir(packRoot)).find((entry) => entry.endsWith(".tgz"));

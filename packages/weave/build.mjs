@@ -12,12 +12,12 @@ const packageRoot = await realpath(fileURLToPath(new URL(".", import.meta.url)))
 const repositoryRoot = await realpath(resolve(packageRoot, "../.."));
 const distRoot = resolve(packageRoot, "dist");
 if (dirname(distRoot) !== packageRoot || basename(distRoot) !== "dist") {
-  throw new Error("refusing to build outside the Lab package dist directory");
+  throw new Error("refusing to build outside the Weave package dist directory");
 }
 try {
   const entry = await lstat(distRoot);
   if (entry.isSymbolicLink() || !entry.isDirectory()) {
-    throw new Error("Lab dist output must be one physical directory");
+    throw new Error("Weave dist output must be one physical directory");
   }
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
@@ -58,7 +58,7 @@ await execFileAsync(
 );
 
 await Promise.all([
-  cp(resolve(repositoryRoot, "contracts/capsule"), resolve(distRoot, "contracts"), {
+  cp(resolve(packageRoot, "schemas"), resolve(distRoot, "contracts"), {
     recursive: true,
     force: false,
     errorOnExist: true,

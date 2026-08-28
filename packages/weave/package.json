@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/funkdog/domain-eval-weave.git",
-    "directory": "packages/lab"
+    "directory": "packages/weave"
   },
   "homepage": "https://github.com/funkdog/domain-eval-weave#readme",
   "bugs": {
@@ -28,27 +28,27 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/types/packages/lab/src/index.d.ts",
+      "types": "./dist/types/packages/weave/src/index.d.ts",
       "import": "./dist/index.js"
     },
     "./capsule": {
-      "types": "./dist/types/packages/lab/src/capsule.d.ts",
+      "types": "./dist/types/packages/weave/src/capsule.d.ts",
       "import": "./dist/capsule.js"
     },
     "./evaluator": {
-      "types": "./dist/types/packages/lab/src/evaluator.d.ts",
+      "types": "./dist/types/packages/weave/src/evaluator.d.ts",
       "import": "./dist/evaluator.js"
     },
     "./harness": {
-      "types": "./dist/types/packages/lab/src/harness.d.ts",
+      "types": "./dist/types/packages/weave/src/harness.d.ts",
       "import": "./dist/harness.js"
     },
     "./cli": {
-      "types": "./dist/types/packages/lab/src/cli.d.ts",
+      "types": "./dist/types/packages/weave/src/cli.d.ts",
       "import": "./dist/cli.js"
     },
     "./canonical-json": {
-      "types": "./dist/types/packages/lab/src/canonical-json.d.ts",
+      "types": "./dist/types/packages/weave/src/canonical-json.d.ts",
       "import": "./dist/canonical-json.js"
     },
     "./schemas/*": "./dist/contracts/*.schema.json",

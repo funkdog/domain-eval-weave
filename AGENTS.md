@@ -7,9 +7,9 @@ Read `README.md`, then the current product and implementation contracts:
 - `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md`
 - `docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md`
 
-The public implementation lives in `src/capsule/`, `src/evaluator/`, `src/harness/`,
-`src/capsule-cli/`, and `packages/`. Historical DSH code remains for compatibility; do not
-extend it when a change belongs in the runner-neutral Capsule/Evaluator boundary.
+The public implementation and Schemas live in `packages/weave/`; the optional DSH integration lives in
+`packages/dsh-adapter/`. Root `src/` and the historical evaluation assets remain private compatibility
+surfaces; do not extend them when a change belongs in the runner-neutral Capsule/Evaluator boundary.
 
 ## Safety and truth
 

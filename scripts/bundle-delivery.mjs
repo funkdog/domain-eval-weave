@@ -1,4 +1,4 @@
-import { lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +22,7 @@ const bundleWorkspacePackages = {
 };
 
 const repositoryRoot = await realpath(fileURLToPath(new URL("..", import.meta.url)));
+const weaveRoot = resolve(repositoryRoot, "packages/weave");
 const source = resolve(repositoryRoot, "src/delivery/production.ts");
 const deliveryRoot = resolve(repositoryRoot, "dist/delivery");
 const output = resolve(deliveryRoot, "production.js");
@@ -55,6 +56,41 @@ await build({
   legalComments: "none",
   sourcemap: false,
 });
+
+await build({
+  entryPoints: {
+    "capsule/index": resolve(weaveRoot, "src/capsule/index.ts"),
+    "capsule-cli/index": resolve(weaveRoot, "src/cli/index.ts"),
+    "evaluator/index": resolve(weaveRoot, "src/evaluator/index.ts"),
+    "harness/index": resolve(weaveRoot, "src/harness/index.ts"),
+  },
+  outdir: resolve(repositoryRoot, "dist"),
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  target: "node24",
+  plugins: [bundleWorkspacePackages],
+  legalComments: "none",
+  sourcemap: false,
+});
+
+const weaveDeclarationRoot = resolve(weaveRoot, "dist/types/packages/weave/src");
+for (const [sourceName, targetName] of [
+  ["capsule", "capsule"],
+  ["cli", "capsule-cli"],
+  ["evaluator", "evaluator"],
+  ["harness", "harness"],
+]) {
+  await cp(resolve(weaveDeclarationRoot, sourceName), resolve(repositoryRoot, "dist", targetName), {
+    recursive: true,
+    force: true,
+  });
+}
+await cp(
+  resolve(weaveRoot, "dist/types/src/contracts/canonical-json.d.ts"),
+  resolve(repositoryRoot, "dist/canonical-json.d.ts"),
+  { force: true },
+);
 
 for (const moduleName of ["admission", "artifacts", "compiler", "report"]) {
   for (const extension of ["js", "js.map", "d.ts"]) {

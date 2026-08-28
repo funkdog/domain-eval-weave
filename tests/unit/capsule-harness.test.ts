@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { EvaluationRun } from "../../src/capsule/index.js";
-import { buildHarnessExperimentReport } from "../../src/harness/index.js";
+import type { EvaluationRun } from "../../packages/weave/src/capsule/index.js";
+import { buildHarnessExperimentReport } from "../../packages/weave/src/harness/index.js";
 
 function run(candidateId: string, verdict: "accept" | "reject"): EvaluationRun {
   return {

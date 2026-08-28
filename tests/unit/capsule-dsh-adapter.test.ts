@@ -3,13 +3,12 @@ import { cp, mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-
+import type { EvaluationRun } from "../../packages/weave/src/capsule/index.js";
+import { loadCapsule, releaseCapsule } from "../../packages/weave/src/capsule/index.js";
 import {
   evaluateAndProjectDshTddHarnessExperiment,
   projectDshTddHarnessExperiment,
 } from "../../src/adapters/index.js";
-import type { EvaluationRun } from "../../src/capsule/index.js";
-import { loadCapsule, releaseCapsule } from "../../src/capsule/index.js";
 
 const example = new URL("../../examples/capsules/commerce-cancellation/", import.meta.url);
 

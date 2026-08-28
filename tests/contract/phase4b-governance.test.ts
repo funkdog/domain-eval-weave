@@ -59,7 +59,7 @@ test("open-source governance and CI expose one portable public gate", async () =
   );
 
   for (const path of [
-    "tests/contract/phase4b-lab-package.test.ts",
+    "tests/contract/phase4b-weave-package.test.ts",
     "tests/contract/phase4b-dsh-adapter-package.test.ts",
     "tests/contract/phase4b-human-cleanroom-kit.test.ts",
     "tests/e2e/phase4b-packed-cleanroom.test.ts",
@@ -74,7 +74,7 @@ test("open-source governance and CI expose one portable public gate", async () =
   const license = await readFile(`${repositoryRoot}/LICENSE`, "utf8");
   assert.match(license, /Apache License\s+Version 2\.0/);
   assert.match(license, /3\. Grant of Patent License/);
-  assert.equal(await readFile(`${repositoryRoot}/packages/lab/LICENSE`, "utf8"), license);
+  assert.equal(await readFile(`${repositoryRoot}/packages/weave/LICENSE`, "utf8"), license);
   assert.equal(await readFile(`${repositoryRoot}/packages/dsh-adapter/LICENSE`, "utf8"), license);
   assert.match(
     await readFile(
@@ -85,7 +85,7 @@ test("open-source governance and CI expose one portable public gate", async () =
   );
   for (const path of [
     "package.json",
-    "packages/lab/package.json",
+    "packages/weave/package.json",
     "packages/dsh-adapter/package.json",
   ]) {
     assert.equal(
@@ -126,7 +126,7 @@ test("DomainEval Weave is the public identity while the DSH root stays private l
     };
 
   const root = await readManifest("package.json");
-  const weave = await readManifest("packages/lab/package.json");
+  const weave = await readManifest("packages/weave/package.json");
   const adapter = await readManifest("packages/dsh-adapter/package.json");
   const readme = await readFile(`${repositoryRoot}/README.md`, "utf8");
 
@@ -136,12 +136,41 @@ test("DomainEval Weave is the public identity while the DSH root stays private l
   assert.equal(weave.name, "@domaineval/weave");
   assert.deepEqual(weave.bin, { "domain-eval": "./bin/domain-eval.mjs" });
   assert.equal(weave.repository?.url, "git+https://github.com/funkdog/domain-eval-weave.git");
-  assert.equal(weave.repository?.directory, "packages/lab");
+  assert.equal(weave.repository?.directory, "packages/weave");
   assert.equal(adapter.name, "@domaineval/dsh-adapter");
   assert.equal(adapter.repository?.directory, "packages/dsh-adapter");
   assert.match(readme, /^# DomainEval Weave$/m);
   assert.match(readme, /Make domain truth executable\./);
   for (const path of ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "KIMI.md"]) {
     assert.match(await readFile(`${repositoryRoot}/${path}`, "utf8"), /^# DomainEval Weave/m, path);
+  }
+});
+
+test("the public package physically owns its implementation and schemas", async () => {
+  for (const path of [
+    "packages/weave/src/capsule/index.ts",
+    "packages/weave/src/evaluator/index.ts",
+    "packages/weave/src/harness/index.ts",
+    "packages/weave/src/cli/index.ts",
+    "packages/weave/schemas/capsule-manifest.schema.json",
+    "docs/research/2026-08-27-open-source-license-boundary/codex-synthesis.md",
+  ]) {
+    assert.ok((await lstat(`${repositoryRoot}/${path}`)).isFile(), path);
+  }
+  for (const path of [
+    "packages/lab",
+    "src/capsule",
+    "src/evaluator",
+    "src/harness",
+    "src/capsule-cli",
+    "contracts/capsule",
+    "project-research",
+    "BACKLOG.md",
+  ]) {
+    assert.equal(
+      await lstat(`${repositoryRoot}/${path}`).catch((error: NodeJS.ErrnoException) => error.code),
+      "ENOENT",
+      path,
+    );
   }
 });
