@@ -1,0 +1,71 @@
+{
+  "task_id": "purchase-timeout-recovery-decision-v0",
+  "purpose": "仅决定原 PURCHASE 的下一步，不执行支付。返回 decisions 数组；每项含 case_id、operation_ref、context_ref、action、evidence_refs、reason。REPLAY_ORIGINAL_REQUEST 另含 replay，与 original_request 的三个字段完全相同。所有数据均为合成数据，不含真实幂等键或凭据。",
+  "policy": "本实验显式采用 E3 候选恢复策略：证据冲突转核对；可靠成功则记录；有明确只读按 ID 方法则先查；满足全部原请求重放条件时按本实验的推进要求重放；有明确补证路径才等待，无路径则转核对。只处理原意图，不授权新扣款。固定在题目给定的决策时刻，不推断未给出的后续事实。",
+  "actions": {
+    "RECORD_ORIGINAL_SUCCESS": "记录已可靠关联、金额与币种一致的原支付成功结果，不表示已结算。",
+    "OBSERVE_ORIGINAL": "使用已确认只读的方法按可靠对象 ID 查询原支付。",
+    "WAIT_FOR_EVIDENCE": "按已给定的补证路径和等待条件等待，不无限推迟。",
+    "REPLAY_ORIGINAL_REQUEST": "在已给定的全部许可条件下重放原 Provider 请求，原键、参数和上下文不变。",
+    "RECONCILE_REQUIRED": "现有证据或能力不足以安全自动处理，交责任人核对原支付。",
+    "NEW_OPERATION_OUT_OF_SCOPE": "新支付必须转交独立流程；本决策不创建它。"
+  },
+  "cases": [
+    {
+      "case_id": "search-empty",
+      "operation_ref": "synthetic-purchase-A",
+      "context_ref": "synthetic-tenant-A/stripe-test",
+      "description": "原请求 100 CNY。core 曾 UNKNOWN，Stripe Plugin 8.0.4 因 Charge Search 空结果将本地状态改为 CANCELED，core 随之为 PLUGIN_FAILURE。只有 T/K，实际 J 和可靠 Provider 对象 ID 均未保存。",
+      "evidence": {
+        "A-local-search": "空搜索结果及本地失败不是原支付没有发生的完整证据。",
+        "A-wait-path": "本实验已安排原请求日志补录事件；当前仍在等待期限内，尚未到人工升级点。禁止以普通 PURCHASE 或新键重扣。"
+      },
+      "original_request": null
+    },
+    {
+      "case_id": "known-success",
+      "operation_ref": "synthetic-purchase-B",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "description": "core 仍是旧 UNKNOWN。原 Provider 对象已由原请求日志可靠关联，账号、模式、操作相同；新鲜且权威的处理结果为成功，实际处理金额 100 CNY 与原意图一致，无冲突记录。",
+      "evidence": {
+        "B-provider-result": "合成可信输入：成功、实际处理金额和币种、原对象关联与新鲜度均已核对；不是把请求金额当处理金额。"
+      },
+      "original_request": null
+    },
+    {
+      "case_id": "safe-replay",
+      "operation_ref": "synthetic-purchase-C",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "description": "原请求网络结果不明，未发现成功或需用户动作的结果，没有可先查询的可靠对象 ID。本例使用假设的能力完整适配器，不声称 Stripe Plugin 8.0.4 已具备这些能力。",
+      "evidence": {
+        "C-original-request": "保留第一次实际请求的原键、method/endpoint/参数指纹与相同账号/环境；下方原始请求字段是已固定的合成证据。",
+        "C-replay-permission": "本实验假定：适用 Provider/版本规则已核对，键仍在保证窗口内，当前错误可原键重放，适配器确实复用 J；无其他本地重放者；授权、预算、退避及截止条件均满足。此刻须选择已允许的推进动作。执行前仍须重新核对，不能拿本许可直接用于未来时刻。"
+      },
+      "original_request": {
+        "idempotency_key": "SYNTHETIC-J-C-NOT-A-CREDENTIAL",
+        "request_fingerprint": "synthetic-POST-purchase-C-100-CNY-v1",
+        "context_ref": "synthetic-tenant-A/provider-test"
+      }
+    },
+    {
+      "case_id": "read-before-replay",
+      "operation_ref": "synthetic-purchase-D",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "description": "原操作结果未定，已可靠关联原 Provider 对象 ID。当前没有新鲜结果；已确认的按 ID 查询方法只读，不会 confirm/cancel。本例是假设的能力完整查询适配器。",
+      "evidence": {
+        "D-read-capability": "对象绑定及只读语义已核对；此刻可以查一次并重新判定，不是 Stripe Plugin 8.0.4 getPaymentInfo 的泛化保证。"
+      },
+      "original_request": null
+    },
+    {
+      "case_id": "identity-conflict",
+      "operation_ref": "synthetic-purchase-E",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "description": "收到看似成功的结果，但 Provider 对象属于另一个账号，无法可靠关联原意图；没有其他可用的查询或重放路径。",
+      "evidence": {
+        "E-context-conflict": "原请求为账号 A，成功结果为账号 B；不是较早 PENDING 到较晚 SUCCESS 的正常演进。不能认领该成功，也不能由它授权原意图的新扣款。"
+      },
+      "original_request": null
+    }
+  ]
+}

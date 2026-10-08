@@ -1,0 +1,30 @@
+schema_version: 1
+evaluator_id: commerce-delivery
+version: 2.0.0
+requirement_id: self-service-cancellation
+description: Public-outcome evaluator that accepts equivalent transport shapes.
+checks:
+  - check_id: cancelled-status
+    claim_id: cancel-status
+    kind: json_path_equals
+    path: [state, status]
+    expected: cancelled
+  - check_id: refund-count
+    claim_id: refund-exactly-once
+    kind: json_array_count_equals
+    path: [effects]
+    where:
+      type: refund_requested
+    expected_count: 1
+  - check_id: repeat-refund-count
+    claim_id: cancellation-idempotent
+    kind: json_array_count_equals
+    path: [repeat, effects]
+    where:
+      type: refund_requested
+    expected_count: 0
+  - check_id: replay-observed
+    claim_id: cancellation-idempotent
+    kind: json_path_equals
+    path: [repeat, status]
+    expected: replayed

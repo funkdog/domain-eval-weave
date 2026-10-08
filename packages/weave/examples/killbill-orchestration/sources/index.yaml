@@ -1,0 +1,62 @@
+schema_version: domain-first-internal-v0
+sources:
+  - source_id: KB-CORE-0.24.21
+    kind: implementation_artifact
+    title: KB-CORE-0.24.21 — pinned source files
+    path: core.json
+    recorded_at: 2026-09-06T15:51:49.887Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill/tree/5da9650de60b2fa83dea556d7e95c70b79dabd39; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: a6848aa19ba4b8483f8798f65aa68bc11aae43949637a82a33a825ec8544bebf
+  - source_id: KB-API-0.54.0
+    kind: implementation_artifact
+    title: KB-API-0.54.0 — pinned source files
+    path: api.json
+    recorded_at: 2026-09-06T15:29:07.595Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill-api/tree/5c6081268eb1860902fc926c39437514350c3068; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: a8fbbf4e84a5b3a611fb2eea42d8ec5a8bd09832e952a83d0f763ca53265ff4b
+  - source_id: KB-PLUGIN-API-0.27.3
+    kind: implementation_artifact
+    title: KB-PLUGIN-API-0.27.3 — pinned source files
+    path: plugin-api.json
+    recorded_at: 2026-09-06T15:29:07.595Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill-plugin-api/tree/91946ce9d0f6bc0a4c5a37a2c58b2d87a5e69257; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: 0e405020b0c5ab82943e9c9cadfc810c9386cee0729c7cb681770438a6daa6be
+  - source_id: KB-DOC-9EF10C7
+    kind: implementation_artifact
+    title: KB-DOC-9EF10C7 — pinned source files
+    path: docs.json
+    recorded_at: 2026-09-06T15:29:07.595Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill-docs/tree/9ef10c7237c4300dbe10a4308bb3c24906e0c74e; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: a693615dfc35fa16cd1f4a557ff13be32e2687e39fa12097fefaa8aa9f88100c
+  - source_id: KB-COMMONS-0.26.15
+    kind: implementation_artifact
+    title: KB-COMMONS-0.26.15 — pinned source files
+    path: commons.json
+    recorded_at: 2026-09-06T15:29:07.595Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill-commons/tree/fbd602c19f662be6a6b7e524c4cba059ab8bff33; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: dd96a5201f61860e55e57afa91c5bd84095f37eddd4ed76067f34f40ff05e25f
+  - source_id: KB-PARENT-0.146.87
+    kind: implementation_artifact
+    title: KB-PARENT-0.146.87 — pinned source files
+    path: parent.json
+    recorded_at: 2026-09-06T15:29:07.595Z
+    license: Apache-2.0
+    provenance: https://github.com/killbill/killbill-oss-parent/tree/056243fc77fff8913a718507a22a9c509a7c12f9; verbatim file contents in JSON; same maintainer ecosystem.
+    authority_scopes:
+      - killbill.exact-implementation
+    content_sha256: b4bb9240ba25ff91fad511a3ccaaef81230e10bf6df128b07d10d3b790a47454

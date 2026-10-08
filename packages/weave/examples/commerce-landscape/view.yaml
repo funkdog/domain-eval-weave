@@ -1,0 +1,24 @@
+schema_version: domain-first-internal-v0
+view_id: cn-b2c-paid-unshipped
+version: 1.0.0
+landscape_ref: commerce-reference-cn@0.1.0
+scope_ref: paid-unshipped-order-cancellation@1.0.0
+context:
+  jurisdiction: CN
+  customer_type: consumer
+  channel: ecommerce
+  order_payment_state: paid
+  fulfillment_state: before_handoff
+  valid_at: 2026-08-31T00:00:00Z
+  knowledge_recorded_at: 2026-08-31T00:00:00Z
+selected_claim_refs:
+  - commerce.orders#pre-handoff-cancellation-eligibility
+  - commerce.orders#cancellation-reason-copy
+  - payments.refunds#cash-refund-original-tender
+  - payments.refunds#economic-refund-exactly-once
+  - promotions.coupons#restoration-retains-original-expiry
+  - promotions.coupons#restoration-rechecks-current-eligibility
+  - finance.ledger#settled-refund-reconciled
+  - consumer.remedies.cn#legal-refund-deadline
+preserve_epistemic_states: [unknown, contested]
+preserve_observability_states: [partially_observable, unobservable]

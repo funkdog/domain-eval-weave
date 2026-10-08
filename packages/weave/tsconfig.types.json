@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "../..",
     "outDir": "./dist/types",
@@ -7,5 +7,6 @@
     "emitDeclarationOnly": true,
     "sourceMap": false
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/domain/**/*.ts"]
 }

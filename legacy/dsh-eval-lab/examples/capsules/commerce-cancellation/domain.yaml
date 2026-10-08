@@ -1,0 +1,59 @@
+schema_version: 1
+domain_id: commerce.orders
+version: 1.0.0
+owners:
+  - owner_id: commerce-owner
+    display_name: Commerce product owner
+claims:
+  - claim_id: cancel-status
+    statement: Accepted cancellation exposes cancelled as the public order status.
+    applicability: Paid orders before fulfillment begins.
+    status: confirmed
+    source_ids: [product-policy, owner-interview]
+    false_accept_risk: critical
+    false_reject_risk: high
+    confirmation:
+      owner_id: commerce-owner
+      projection_sha256: 1ba89e942b83ecb140b9ef988da57b53a54d374499dd171deeba74c30c498356
+  - claim_id: refund-exactly-once
+    statement: Accepted cancellation requests exactly one refund.
+    applicability: Paid orders before fulfillment begins.
+    status: confirmed
+    source_ids: [product-policy, owner-interview]
+    false_accept_risk: critical
+    false_reject_risk: medium
+    confirmation:
+      owner_id: commerce-owner
+      projection_sha256: 492b5eb496097068f2c8dfa046d579e20af5d79607b19fbf0dfb27f59a005679
+  - claim_id: cancellation-idempotent
+    statement: Repeating an accepted cancellation requests no additional refund.
+    applicability: The same cancellation operation is retried for the same order.
+    status: confirmed
+    source_ids: [product-policy, owner-interview]
+    false_accept_risk: critical
+    false_reject_risk: medium
+    confirmation:
+      owner_id: commerce-owner
+      projection_sha256: b4d7176696fe5305d83f290890b887116859731f5858646720ecedb3cd9b32db
+  - claim_id: cancellation-reason-copy
+    statement: Cancellation uses one exact customer-facing reason string.
+    applicability: Any cancellation response shown to a customer.
+    status: proposed
+    source_ids: [owner-interview]
+    false_accept_risk: low
+    false_reject_risk: high
+  - claim_id: active-fulfillment-policy
+    statement: Active fulfillment must be withdrawn before cancellation.
+    applicability: Orders whose fulfillment has started.
+    status: conflicted
+    source_ids: [product-policy, owner-interview]
+    conflict_source_ids: [product-policy, owner-interview]
+    false_accept_risk: critical
+    false_reject_risk: high
+  - claim_id: audit-retention
+    statement: Cancellation audit evidence is retained for the mandated window.
+    applicability: Every cancellation attempt.
+    status: observability_gap
+    source_ids: [product-policy, owner-interview]
+    false_accept_risk: high
+    false_reject_risk: medium

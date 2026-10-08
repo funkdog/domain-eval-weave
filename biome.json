@@ -2,23 +2,24 @@
   "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
   "files": {
     "includes": [
-      "src/**/*.ts",
       "tests/**/*.ts",
-      "bin/**/*.mjs",
+      "legacy/**/*.ts",
+      "legacy/**/*.mjs",
+      "legacy/**/*.json",
+      "legacy/**/package.json",
       "packages/**/*.ts",
       "packages/**/*.mjs",
       "packages/**/package.json",
       "packages/**/schemas/**/*.json",
       "!packages/**/dist",
-      "scripts/materialize-phase4b-cleanroom.mjs",
-      "scripts/verify-phase4b-cleanroom.mjs",
-      "scripts/open-source-readiness.mjs",
+      "!packages/**/examples/**",
+      "scripts/**/*.mjs",
+      "scripts/**/*.ts",
       "cleanroom/**/*.json",
       "cleanroom/**/*.mjs",
-      "contracts/**/*.json",
       "package.json",
-      "tsconfig.json",
-      "tsconfig.test.json"
+      "tsconfig.base.json",
+      "tsconfig.public.json"
     ]
   },
   "formatter": {

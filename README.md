@@ -1,5 +1,10 @@
 # DomainEval Weave
 
+The [Kill Bill payment orchestration candidate](packages/weave/examples/killbill-orchestration/README.md)
+provides a Chinese reading guide, field and process definitions, qualified Claims, pinned upstream
+sources and an offline verification command. It uses the internal Domain-First compiler and is not a
+published or Provider-qualified release.
+
 **Make domain truth executable.**
 
 DomainEval Weave turns real-world sources and expert judgment into provenance-bound Claims,
@@ -13,7 +18,29 @@ evaluation engineers who need to answer three questions without relying on hidde
 The project is offline-first. Authoring, validation, calibration, comparison and replay do not
 require DSH, OAuth credentials, model calls or network access.
 
-## The evaluation asset
+## Product direction
+
+DomainEval Weave is moving from a Capsule-first preview to a Domain-First product:
+
+```text
+Reality and evidence
+  → Domain Representation
+  → Domain Landscape and View
+  → Product Contract when needed
+  → Eval Projection
+  → Evaluation Closure
+  → Grader / Capsule / Benchmark / Run
+```
+
+The domain is the long-lived asset. A benchmark is one downstream execution expression and cannot define
+the domain boundary, promote a Claim or hide knowledge that is disputed or difficult to observe.
+
+Read the current [product direction](docs/PRODUCT.md), [architecture baseline](docs/ARCHITECTURE.md) and
+[implemented boundary](docs/IMPLEMENTATION.md).
+
+## Current Developer Preview
+
+The implemented public surface remains Capsule-first:
 
 ```text
 Sources
@@ -25,7 +52,13 @@ Sources
   → artifact-only replay
 ```
 
-The contribution journey exposes five primary concepts:
+The repository also contains an unexported Commerce Domain-First reference compiler covering Modules,
+Landscapes, bitemporal Coverage, Views, Product Contracts, Evaluation Closures, validated Grade Atoms and
+an independent qualification protocol. A runtime-verified Curator reference Run is pending after the
+authority and observation-exclusion boundary was hardened.
+It is an internal proof surface, not yet a supported Schema, TypeScript API or CLI.
+
+The current contribution journey exposes five primary concepts:
 
 - **Capsule** — the versioned container for one domain evaluation.
 - **Claim** — a falsifiable statement bound to sources and explicit authority status.
@@ -119,16 +152,16 @@ protected `main` branch and isolated macOS/Ubuntu public workflow are complete. 
 requires an uninvolved human contributor to complete the label-free clean-room journey without oral help.
 The npm packages remain private until that evidence is accepted.
 
-Machine-readable status lives in [open-source-status.json](open-source-status.json). The Phase 4B
-[product contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-product-plan.md) and
-[implementation contract](docs/plans/2026-08-26-dsh-eval-lab-phase-4b-implementation-spec.md) define the
-current acceptance boundary.
+Machine-readable status lives in [.github/open-source-status.json](.github/open-source-status.json). The
+[implemented boundary](docs/IMPLEMENTATION.md) records the current acceptance surface and the explicit gap
+to the Domain-First product direction.
 
 ## Historical lineage
 
 DomainEval Weave grew from DSH Eval Lab's controlled Harness experiments and domain-delivery evaluation
-work. Phase 1–4A plans and artifacts retain their original names and identities for audit and replay.
-New users do not need the historical DSH runtime; the optional adapter preserves the integration boundary.
+work. Historical plans remain recoverable through Git, while persisted artifact identities retain their
+replay semantics. New users do not need the historical DSH runtime; the optional adapter preserves the
+integration boundary.
 
 ## License
 

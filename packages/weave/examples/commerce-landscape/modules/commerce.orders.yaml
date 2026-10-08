@@ -1,0 +1,64 @@
+schema_version: domain-first-internal-v0
+module_id: commerce.orders
+release:
+  version: 1.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: commerce-community
+scope:
+  statement: Order identity, lifecycle, cancellation and fulfillment handoff semantics.
+  includes: [order-lifecycle, cancellation, fulfillment-handoff]
+  excludes: [cash-execution, coupon-entitlement, ledger-accounting]
+concepts:
+  - concept_id: Order
+    kind: entity
+    definition: A commercial order with stable identity and value snapshot.
+  - concept_id: OrderCancellation
+    kind: event
+    definition: An accepted decision that ends or withdraws the order obligation.
+  - concept_id: FulfillmentHandoff
+    kind: event
+    definition: Transfer of fulfillment responsibility to the carrier boundary.
+  - concept_id: Return
+    kind: process
+    definition: Post-delivery merchandise return, distinct from pre-fulfillment cancellation.
+relations:
+  - relation_id: cancellation-distinct-from-return
+    subject_ref: OrderCancellation
+    predicate: distinct_from
+    object_ref: Return
+  - relation_id: cancellation-before-handoff
+    subject_ref: OrderCancellation
+    predicate: constrained_by
+    object_ref: FulfillmentHandoff
+claims:
+  - claim_id: pre-handoff-cancellation-eligibility
+    subject_ref: OrderCancellation
+    kind: industry_practice
+    epistemic_state: grounded
+    observability: observable
+    statement: A paid order may be cancelled before fulfillment handoff when no stronger policy prevents it.
+    applicability:
+      fulfillment_state: before_handoff
+    source_ids: [commerce-industry-notes]
+    authority_assertions:
+      - authority_id: commerce-practice-authority
+        kind: industry_expert
+        source_id: commerce-industry-notes
+        scope: commerce.order-cancellation-practice
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z
+  - claim_id: cancellation-reason-copy
+    subject_ref: OrderCancellation
+    kind: hypothesis
+    epistemic_state: unknown
+    observability: observable
+    statement: Every rejected cancellation should expose one standardized customer-facing reason.
+    applicability:
+      channel: ecommerce
+    source_ids: []
+    authority_assertions: []
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z

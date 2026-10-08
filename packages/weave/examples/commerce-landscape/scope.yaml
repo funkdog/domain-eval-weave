@@ -1,0 +1,29 @@
+schema_version: domain-first-internal-v0
+scope_id: paid-unshipped-order-cancellation
+version: 1.0.0
+landscape_ref: commerce-reference-cn@0.1.0
+statement: Cancellation of a paid, unshipped B2C order and restoration of original value.
+included:
+  - commerce.orders#Order
+  - commerce.orders#OrderCancellation
+  - commerce.orders#FulfillmentHandoff
+  - payments.refunds#RefundInstruction
+  - payments.refunds#RefundExecution
+  - payments.refunds#CashRefund
+  - payments.refunds#RefundReceipt
+  - promotions.coupons#CouponEntitlement
+  - promotions.coupons#CouponRestoration
+  - finance.ledger#LedgerReconciliation
+  - consumer.remedies.cn#ConsumerRefundRight
+adjacent:
+  - commerce.orders#Return
+  - payments.refunds#GoodwillCredit
+  - payments.disputes#Chargeback
+out_of_scope:
+  - fraud-investigation
+  - post-delivery-return-logistics
+  - cross-border-tax
+coverage_statuses: [missing, unknown, contested, unobservable, out_of_scope]
+anti_truncation:
+  concept_ref: promotions.coupons#CouponRestoration
+  remains_in_scope_when_unobservable: true

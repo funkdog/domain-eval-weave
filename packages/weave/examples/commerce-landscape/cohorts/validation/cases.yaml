@@ -1,0 +1,41 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-public-validation
+role: validation
+cases:
+  - case_id: qualification-equivalent-late-log
+    kind: equivalent
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 30
+      provider_attempts: 2
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: qualification-mutant-late-settlement
+    kind: mutant
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 30
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: qualification-mutant-goodwill-for-coupon
+    kind: mutant
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: false
+      goodwill_credit: 20
+      coupon_observation_complete: true
+      ledger_reconciled: true

@@ -1,0 +1,46 @@
+schema_version: domain-first-internal-v0
+product_contracts:
+  - contract_id: acme-cn-order-cancellation
+    version: 1.0.0
+    domain_view_ref: cn-b2c-paid-unshipped@1.0.0
+    product:
+      product_id: acme-storefront
+      jurisdiction: CN
+    authority:
+      kind: product_owner
+      authority_id: acme-commerce-owner
+      source_id: acme-policy
+      scope: acme-storefront.cn
+    commitments:
+      - commitment_id: acme-cash-refund-24h
+        target_ref: payments.refunds#CashRefund
+        statement: Cash tender is returned to the original payment method within 24 hours.
+        deadline:
+          value: 24
+          unit: hour
+      - commitment_id: acme-coupon-restoration
+        target_ref: promotions.coupons#CouponRestoration
+        statement: The consumed coupon entitlement is restored with its original expiry.
+        required: true
+  - contract_id: bravo-cn-order-cancellation
+    version: 1.0.0
+    domain_view_ref: cn-b2c-paid-unshipped@1.0.0
+    product:
+      product_id: bravo-storefront
+      jurisdiction: CN
+    authority:
+      kind: product_owner
+      authority_id: bravo-commerce-owner
+      source_id: bravo-policy
+      scope: bravo-storefront.cn
+    commitments:
+      - commitment_id: bravo-cash-refund-3bd
+        target_ref: payments.refunds#CashRefund
+        statement: Cash tender is returned to the original payment method within three business days.
+        deadline:
+          value: 3
+          unit: business_day
+      - commitment_id: bravo-coupon-restoration-unsupported
+        target_ref: promotions.coupons#CouponRestoration
+        statement: The product does not promise coupon restoration after cancellation.
+        required: false

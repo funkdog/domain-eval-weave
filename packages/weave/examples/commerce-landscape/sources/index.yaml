@@ -1,0 +1,92 @@
+schema_version: domain-first-internal-v0
+sources:
+  - source_id: commerce-industry-notes
+    kind: industry_guidance
+    title: Synthetic commerce cancellation practices
+    path: commerce-industry-notes.md
+    content_sha256: f77bbf9e8283f0e778fdf7fcfb8ecaecd5e610ab4d7e13bd9d5e28cb6b1c56f2
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [commerce.order-cancellation-practice]
+  - source_id: payments-standard
+    kind: industry_standard
+    title: Synthetic payment refund semantics
+    path: payments-standard.md
+    content_sha256: b2eaf8fee4a6aba59c60b86cff35fc4c36d3d50df9ef31575d7f531469cbd3db
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [payments.refund-semantics, payments.economic-effect]
+  - source_id: provider-x-contract
+    kind: provider_contract
+    title: Synthetic Provider X refund contract
+    path: provider-x-contract.md
+    content_sha256: a09c6e15aea4a19e0a72a9dd888286bcd8ba8ff6679ee75f6b0aae9f2cb2a8a8
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [provider-x.api-v3-execution]
+  - source_id: acme-policy
+    kind: product_policy
+    title: Synthetic Acme cancellation policy
+    path: acme-policy.md
+    content_sha256: 83318df264edfe3fd1c626d48ed7f0571c9a39a5628aa91d0d64746a5fd1e6ad
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [acme-storefront.cn]
+  - source_id: bravo-policy
+    kind: product_policy
+    title: Synthetic Bravo cancellation policy
+    path: bravo-policy.md
+    content_sha256: 2f35330bbe5da3868306b20845e432b41348b65166993f7c442ad7155495d81e
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [bravo-storefront.cn]
+  - source_id: finance-policy
+    kind: internal_contract
+    title: Synthetic merchant ledger policy
+    path: finance-policy.md
+    content_sha256: c86eb150d68fbd7307a66729c993d9769d49481b1861bf8c201e834ad41279de
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [merchant-primary-ledger]
+  - source_id: coupon-practice-original-expiry
+    kind: industry_guidance
+    title: Synthetic guidance favoring original-expiry coupon restoration
+    path: coupon-practice-original-expiry.md
+    content_sha256: 41a48e5cfed8a53b414b084d60b910734f53f605448e61e3afe0bac633d3710a
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [promotions.coupon-restoration-practice]
+  - source_id: coupon-practice-current-eligibility
+    kind: industry_guidance
+    title: Synthetic guidance favoring current-eligibility coupon restoration
+    path: coupon-practice-current-eligibility.md
+    content_sha256: c1b8131738ef5c4708c347c3030cd2bddbaba13f7bd43ef7e63840fe1e792d2f
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [promotions.coupon-restoration-practice]
+  - source_id: card-network-rules
+    kind: network_rules
+    title: Synthetic card-network dispute rules
+    path: card-network-rules.md
+    content_sha256: 56ed07dbc537bb66a5e36fc68009cf58359c8c49a89afc2cb5680ed365bc7690
+    recorded_at: 2026-08-31T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [card-network-dispute-process]
+  - source_id: cn-refund-regulation
+    kind: regulation
+    title: Synthetic consumer refund regulation
+    path: cn-refund-regulation.md
+    content_sha256: b65f5db37ec3669eff72507ea476ff80e9edabb9e3a6f55eac7e7d4b89416932
+    recorded_at: 2026-02-01T00:00:00Z
+    license: CC0-1.0
+    provenance: repository-authored synthetic source
+    authority_scopes: [cn.consumer-refund-duty]

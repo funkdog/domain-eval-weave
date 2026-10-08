@@ -1,91 +1,48 @@
 {
-  "name": "dsh-eval-lab",
-  "version": "0.4.0-alpha.1",
+  "name": "domain-eval-weave-workspace",
+  "version": "0.1.0-alpha.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
-  "description": "DSH-native controlled harness evaluation plugin",
+  "description": "Workspace for DomainEval Weave public packages and private legacy compatibility",
   "engines": {
     "node": ">=24 <25"
   },
   "packageManager": "pnpm@11.7.0",
-  "exports": {
-    "./app": "./dist/app/index.js",
-    "./adapters": "./dist/adapters/index.js",
-    "./author-bridge": "./dist/author-bridge/index.js",
-    "./author-evidence": "./dist/author-evidence/index.js",
-    "./author-forward-carrier": "./dist/carrier/author-forward.js",
-    "./bridge": "./dist/bridge/index.js",
-    "./domain-skill": "./dist/domain/skill-provider.js",
-    "./delivery": "./dist/delivery/index.js",
-    "./phase3c": "./dist/phase3c/index.js",
-    "./capsule": "./dist/capsule/index.js",
-    "./capsule-cli": "./dist/capsule-cli/index.js",
-    "./evaluator": "./dist/evaluator/index.js",
-    "./harness": "./dist/harness/index.js"
-  },
-  "bin": {
-    "dsh-eval-capsule": "./bin/dsh-eval-capsule.mjs"
-  },
-  "files": [
-    "bin",
-    "dist",
-    "contracts",
-    "examples/capsules",
-    "cordis.patch.yml",
-    "runtime-profile",
-    "variants",
-    "task-packs",
-    "harnesses",
-    "registry",
-    "eval-packs",
-    "skills",
-    "README.md"
-  ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
-  },
   "scripts": {
-    "build": "pnpm run build:packages && node scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/bundle-delivery.mjs",
+    "build": "pnpm build:legacy",
     "build:packages": "pnpm --filter @domaineval/weave build && pnpm --filter @domaineval/dsh-adapter build",
     "build:weave": "pnpm --filter @domaineval/weave build",
-    "check": "biome check .",
-    "check:public": "biome check packages src/contracts/canonical-json.ts src/adapters scripts/materialize-phase4b-cleanroom.mjs scripts/verify-phase4b-cleanroom.mjs scripts/open-source-readiness.mjs tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts tests/helpers/phase4b-cleanroom-fixture.ts cleanroom package.json tsconfig.public.json",
-    "check:fix": "biome check --write .",
-    "generate:phase3c-schemas": "node --import tsx scripts/generate-phase3c-schemas.ts",
+    "build:legacy": "pnpm --filter dsh-eval-lab build",
+    "check": "pnpm check:public && pnpm check:legacy",
+    "check:public": "biome check packages scripts tests cleanroom package.json tsconfig.base.json tsconfig.public.json",
+    "check:legacy": "pnpm --filter dsh-eval-lab check",
+    "check:fix": "biome check --write packages scripts tests cleanroom legacy",
+    "lint": "pnpm lint:public && pnpm lint:legacy",
+    "lint:public": "tsc -p tsconfig.public.json",
+    "lint:legacy": "pnpm --filter dsh-eval-lab lint",
+    "test": "pnpm test:public && pnpm test:legacy",
+    "test:public": "node --import tsx --test --test-concurrency=1 packages/weave/tests/unit/*.test.ts packages/weave/tests/contract/*.test.ts packages/weave/tests/e2e/*.test.ts packages/dsh-adapter/tests/unit/*.test.ts packages/dsh-adapter/tests/contract/*.test.ts tests/acceptance/*.test.ts",
+    "test:portable": "pnpm test:public",
+    "test:legacy": "pnpm --filter dsh-eval-lab test",
     "generate:capsule-schemas": "node --import tsx scripts/generate-capsule-schemas.ts",
-    "generate:phase3c-task-pack": "node --import tsx scripts/generate-phase3c-task-pack.ts",
-    "freeze:phase3c-judges": "node --import tsx scripts/freeze-phase3c-judges.ts",
-    "run:phase3c-judge-cohort": "node --import tsx scripts/run-phase3c-judge-cohort.ts",
+    "generate:phase3c-schemas": "pnpm --filter dsh-eval-lab generate:phase3c-schemas",
+    "generate:phase3c-task-pack": "pnpm --filter dsh-eval-lab generate:phase3c-task-pack",
+    "freeze:phase3c-judges": "pnpm --filter dsh-eval-lab freeze:phase3c-judges",
+    "run:phase3c-judge-cohort": "pnpm --filter dsh-eval-lab run:phase3c-judge-cohort",
     "readiness:open-source": "node scripts/open-source-readiness.mjs",
     "cleanroom:materialize": "node scripts/materialize-phase4b-cleanroom.mjs",
-    "cleanroom:verify": "node scripts/verify-phase4b-cleanroom.mjs",
-    "lint": "tsc -p tsconfig.test.json",
-    "lint:public": "tsc -p tsconfig.public.json",
-    "prepare": "pnpm build",
-    "test": "node --import tsx --test --test-concurrency=1 tests/unit/*.test.ts tests/contract/*.test.ts tests/calibration/*.test.ts tests/e2e/*.test.ts",
-    "test:public": "node --import tsx --test --test-concurrency=1 tests/unit/canonical-json.test.ts tests/unit/capsule-*.test.ts tests/contract/capsule-*.test.ts tests/contract/phase4b-*.test.ts tests/e2e/capsule-cli.test.ts tests/e2e/phase4b-*.test.ts",
-    "test:portable": "pnpm test:public",
-    "test:unit": "node --import tsx --test tests/unit/*.test.ts",
-    "test:contract": "node --import tsx --test tests/contract/*.test.ts",
-    "test:calibration": "node --import tsx --test --test-concurrency=1 tests/calibration/*.test.ts",
-    "test:e2e": "node --import tsx --test --test-concurrency=1 tests/e2e/*.test.ts"
-  },
-  "dependencies": {
-    "@deepseek-ai/dsh-session": "0.1.0-rc.6",
-    "yaml": "2.9.0",
-    "zod": "4.4.3"
+    "cleanroom:verify": "node scripts/verify-phase4b-cleanroom.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.8",
-    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
     "@types/node": "24.13.3",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "esbuild": "0.28.2",
     "tsx": "4.23.12",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
   }
 }

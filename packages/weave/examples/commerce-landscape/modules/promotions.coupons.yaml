@@ -1,0 +1,76 @@
+schema_version: domain-first-internal-v0
+module_id: promotions.coupons
+release:
+  version: 1.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: promotions-community
+scope:
+  statement: Coupon entitlement, consumption, restoration and expiry semantics.
+  includes: [coupon-entitlement, coupon-consumption, coupon-restoration, expiry]
+  excludes: [cash-refund, product-cancellation-policy]
+concepts:
+  - concept_id: CouponRestorationLegacy
+    kind: legacy_conflation
+    definition: A retired representation that conflated entitlement restoration with current eligibility reassessment.
+  - concept_id: CouponEntitlement
+    kind: entitlement
+    definition: A bounded right to apply promotional value under eligibility rules.
+  - concept_id: CouponRestoration
+    kind: event
+    definition: Reinstatement of a previously consumed coupon entitlement.
+  - concept_id: CouponEligibilityReassessment
+    kind: process
+    definition: Re-evaluation of restored coupon eligibility and expiry under current rules.
+relations:
+  - relation_id: restoration-restores-entitlement
+    subject_ref: CouponRestoration
+    predicate: restores
+    object_ref: CouponEntitlement
+claims:
+  - claim_id: restoration-retains-original-expiry
+    subject_ref: CouponRestoration
+    kind: industry_practice
+    epistemic_state: contested
+    observability: observable
+    statement: Cancellation restores the consumed coupon with its original expiry.
+    applicability:
+      cancellation_state: accepted
+    source_ids: [coupon-practice-original-expiry]
+    authority_assertions:
+      - authority_id: original-expiry-practice-authority
+        kind: industry_expert
+        source_id: coupon-practice-original-expiry
+        scope: promotions.coupon-restoration-practice
+    conflicts_with: [restoration-rechecks-current-eligibility]
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z
+  - claim_id: restoration-rechecks-current-eligibility
+    subject_ref: CouponEligibilityReassessment
+    kind: industry_practice
+    epistemic_state: contested
+    observability: observable
+    statement: Cancellation restoration creates an entitlement subject to current expiry and eligibility rules.
+    applicability:
+      cancellation_state: accepted
+    source_ids: [coupon-practice-current-eligibility]
+    authority_assertions:
+      - authority_id: current-eligibility-practice-authority
+        kind: industry_expert
+        source_id: coupon-practice-current-eligibility
+        scope: promotions.coupon-restoration-practice
+    conflicts_with: [restoration-retains-original-expiry]
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z
+evolutions:
+  - evolution_id: coupon-restoration-semantics-split
+    kind: split
+    predecessor_ref: CouponRestorationLegacy
+    successor_refs: [CouponRestoration, CouponEligibilityReassessment]
+    source_ids: [coupon-practice-original-expiry, coupon-practice-current-eligibility]
+    recorded_at: 2026-08-31T00:00:00Z
+    impact:
+      affected_mapping_ids: [cancellation-to-coupon-restoration]
+      affected_landscape_ids: [commerce-reference-cn]

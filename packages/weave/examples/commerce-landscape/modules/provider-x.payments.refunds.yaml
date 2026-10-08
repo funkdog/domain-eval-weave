@@ -1,0 +1,42 @@
+schema_version: domain-first-internal-v0
+module_id: provider-x.payments.refunds
+release:
+  version: 3.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: provider-x
+scope:
+  statement: Provider X API v3 refund attempts and settlement semantics.
+  includes: [provider-refund, payout-attempt, provider-settlement]
+  excludes: [merchant-refund-entitlement, order-cancellation]
+concepts:
+  - concept_id: ProviderRefund
+    kind: entity
+    definition: Provider X representation of one accepted refund request.
+  - concept_id: PayoutAttempt
+    kind: event
+    definition: One retryable technical attempt to settle provider refund value.
+relations:
+  - relation_id: attempt-part-of-provider-refund
+    subject_ref: PayoutAttempt
+    predicate: part_of
+    object_ref: ProviderRefund
+claims:
+  - claim_id: provider-x-idempotent-economic-effect
+    subject_ref: ProviderRefund
+    kind: descriptive_fact
+    epistemic_state: confirmed
+    observability: observable
+    statement: Provider X API v3 may retry payout attempts but creates at most one successful economic effect for one idempotency key.
+    applicability:
+      provider: provider-x
+      api_version: v3
+    source_ids: [provider-x-contract]
+    authority_assertions:
+      - authority_id: provider-x-contract-authority
+        kind: service_provider
+        source_id: provider-x-contract
+        scope: provider-x.api-v3-execution
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z
