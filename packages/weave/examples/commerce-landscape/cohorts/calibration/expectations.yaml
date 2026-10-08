@@ -1,0 +1,44 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-calibration
+authored_independently: true
+expectations:
+  - case_id: calibration-gold-complete
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: pass
+  - case_id: calibration-equivalent-provider-retries
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: pass
+  - case_id: calibration-mutant-double-refund
+    atoms:
+      cash-amount-and-original-tender: fail
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: fail
+      ledger-reconciliation: fail
+    overall: fail
+  - case_id: calibration-mutant-missing-coupon-record
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: fail
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: fail
+  - case_id: calibration-mutant-missing-cash-record
+    atoms:
+      cash-amount-and-original-tender: fail
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: fail

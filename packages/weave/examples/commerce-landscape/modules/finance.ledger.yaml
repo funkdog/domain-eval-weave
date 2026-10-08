@@ -1,0 +1,41 @@
+schema_version: domain-first-internal-v0
+module_id: finance.ledger
+release:
+  version: 1.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: finance-community
+scope:
+  statement: Merchant ledger entries, settlement and reconciliation semantics.
+  includes: [ledger-entry, settlement, reconciliation]
+  excludes: [provider-api-attempt, order-cancellation]
+concepts:
+  - concept_id: LedgerEntry
+    kind: accounting_record
+    definition: One debit or credit in the merchant accounting ledger.
+  - concept_id: LedgerReconciliation
+    kind: process
+    definition: Proof that economic effects and ledger entries agree.
+relations:
+  - relation_id: reconciliation-uses-entries
+    subject_ref: LedgerReconciliation
+    predicate: depends_on
+    object_ref: LedgerEntry
+claims:
+  - claim_id: settled-refund-reconciled
+    subject_ref: LedgerReconciliation
+    kind: descriptive_fact
+    epistemic_state: confirmed
+    observability: unobservable
+    statement: Every settled merchant refund is eventually reconciled in the ledger.
+    applicability:
+      ledger: merchant-primary
+    source_ids: [finance-policy]
+    authority_assertions:
+      - authority_id: finance-contract-authority
+        kind: internal_finance_owner
+        source_id: finance-policy
+        scope: merchant-primary-ledger
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z

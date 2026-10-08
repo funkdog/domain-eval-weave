@@ -1,0 +1,20 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-development
+authored_independently: true
+expectations:
+  - case_id: development-happy-path
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: pass
+  - case_id: development-coupon-observation-gap
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: insufficient_evidence
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: insufficient_evidence

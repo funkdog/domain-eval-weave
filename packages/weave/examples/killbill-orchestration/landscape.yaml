@@ -1,0 +1,13 @@
+schema_version: domain-first-internal-v0
+landscape_id: killbill-candidate-compilation
+release:
+  version: 0.1.0-candidate.4
+  recorded_at: 2026-09-06T16:38:23.870Z
+curators:
+  - curator_id: cat-vjdun65e
+module_releases:
+  - module_id: payments.orchestration.killbill
+    version: 0.1.0-candidate.4
+    path: module.yaml
+    content_sha256: b4197c43db0d393e480d12874ce76c0db6d9c51187c99a4c6e4b009fa718d215
+mappings: []

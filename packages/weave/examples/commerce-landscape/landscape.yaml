@@ -1,0 +1,85 @@
+schema_version: domain-first-internal-v0
+landscape_id: commerce-reference-cn
+release:
+  version: 0.1.0
+  recorded_at: 2026-08-31T00:00:00Z
+curators:
+  - curator_id: commerce-reference-curator
+module_releases:
+  - module_id: commerce.orders
+    version: 1.0.0
+    path: modules/commerce.orders.yaml
+    content_sha256: d0714f66442810ec804eda2b729cb901310e8510f916096bf7ea147dee0faf32
+  - module_id: payments.refunds
+    version: 1.0.0
+    path: modules/payments.refunds.yaml
+    content_sha256: 28524a42cdb2a56044361d1c7c7521a654597dc26695d33c23f9a725c40d391d
+  - module_id: provider-x.payments.refunds
+    version: 3.0.0
+    path: modules/provider-x.payments.refunds.yaml
+    content_sha256: acc24b674df15884e73730745b5a34594eeb60d5a14a57f0c875f6ea7ff793ed
+  - module_id: promotions.coupons
+    version: 1.0.0
+    path: modules/promotions.coupons.yaml
+    content_sha256: 7bcfd1a51ed75da2306c26e9a58c07dc3fcf82c63c7add0d4d127fc66d7beee6
+  - module_id: finance.ledger
+    version: 1.0.0
+    path: modules/finance.ledger.yaml
+    content_sha256: f54f1c506f8edbc042219c699d1b05f1cc8bd66c21a354f0a30afdc21e503900
+  - module_id: payments.disputes
+    version: 1.0.0
+    path: modules/payments.disputes.yaml
+    content_sha256: b47638e971ce2032cf6af951f0c31ed34d434a64a0713e09d064c8e59405f625
+  - module_id: consumer.remedies.cn
+    version: 2026.1
+    path: modules/consumer.remedies.cn.yaml
+    content_sha256: 34f70239f7ed37745fb3c3ec991a1e9a92d1026da7fcb20a44edecfd9d5c42ff
+mappings:
+  - mapping_id: cancellation-to-refund-instruction
+    version: 1.0.0
+    from_ref: commerce.orders#OrderCancellation
+    relation: translates_via
+    to_ref: payments.refunds#RefundInstruction
+    scope: accepted paid cancellation
+    required: true
+    reviewers: [commerce-community, payments-community]
+  - mapping_id: cancellation-to-coupon-restoration
+    version: 1.0.0
+    from_ref: commerce.orders#OrderCancellation
+    relation: translates_via
+    to_ref: promotions.coupons#CouponRestoration
+    scope: cancellation with consumed coupon entitlement
+    required: true
+    reviewers: [commerce-community, promotions-community]
+  - mapping_id: provider-attempt-realizes-refund-execution
+    version: 1.0.0
+    from_ref: provider-x.payments.refunds#PayoutAttempt
+    relation: realizes
+    to_ref: payments.refunds#RefundExecution
+    scope: Provider X API v3
+    required: true
+    reviewers: [provider-x, payments-community]
+  - mapping_id: refund-to-ledger-reconciliation
+    version: 1.0.0
+    from_ref: payments.refunds#RefundExecution
+    relation: maps_to
+    to_ref: finance.ledger#LedgerReconciliation
+    scope: settled merchant refund
+    required: true
+    reviewers: [payments-community, finance-community]
+  - mapping_id: chargeback-distinct-from-cash-refund
+    version: 1.0.0
+    from_ref: payments.disputes#Chargeback
+    relation: distinct_from
+    to_ref: payments.refunds#CashRefund
+    scope: card payment dispute
+    required: true
+    reviewers: [disputes-community, payments-community]
+  - mapping_id: consumer-right-governs-cash-refund
+    version: 1.0.0
+    from_ref: consumer.remedies.cn#ConsumerRefundRight
+    relation: governs
+    to_ref: payments.refunds#CashRefund
+    scope: CN B2C consumer transaction
+    required: true
+    reviewers: [consumer-remedies-community, payments-community]

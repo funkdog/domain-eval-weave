@@ -1,0 +1,63 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-calibration
+role: calibration
+cases:
+  - case_id: calibration-gold-complete
+    kind: gold
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: calibration-equivalent-provider-retries
+    kind: equivalent
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 3
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: calibration-mutant-double-refund
+    kind: mutant
+    observations:
+      cash_amount: 160
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 2
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: false
+  - case_id: calibration-mutant-missing-coupon-record
+    kind: mutant
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: null
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: calibration-mutant-missing-cash-record
+    kind: mutant
+    observations:
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true

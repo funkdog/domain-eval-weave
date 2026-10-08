@@ -7,6 +7,36 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.5.8
+        version: 2.5.8
+      '@types/node':
+        specifier: 24.13.3
+        version: 24.13.3
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: 4.23.12
+        version: 4.23.12
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
+  legacy/dsh-eval-lab:
     dependencies:
       '@deepseek-ai/dsh-session':
         specifier: 0.1.0-rc.6

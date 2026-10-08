@@ -1,0 +1,53 @@
+{
+  "format": "janitor-local-task-contract-v1",
+  "task_id": "killbill-janitor-stale-state-recovery",
+  "task_version": "0.1.0-local.1",
+  "claim_scope": "on_the_fly_component_state_updates_only",
+  "editable_source": "src/IncompletePaymentTransactionTask.java",
+  "baseline_variant": "stale_snapshot_regression",
+  "source_revision": "5da9650de60b2fa83dea556d7e95c70b79dabd39",
+  "source_bundle_sha256": "a6848aa19ba4b8483f8798f65aa68bc11aae43949637a82a33a825ec8544bebf",
+  "development_assessment_digest": "6dab3a3f08f35e94331ae0896f31c7cb805cc9e20146744fbe98cefa3403a6e4",
+  "domain_module_digest": "b4197c43db0d393e480d12874ce76c0db6d9c51187c99a4c6e4b009fa718d215",
+  "selected_claims": ["CL-07", "CL-12"],
+  "domain_claim_promotion": false,
+  "build": {
+    "platform": "darwin",
+    "java_release": "11",
+    "annotation_processing": false,
+    "timeout_ms": 30000,
+    "max_output_bytes": 262144,
+    "max_heap_mib": 256,
+    "dependency_policy": "pinned_binaries_without_target_class_or_source_archives",
+    "remove_payment_jar_entries": [
+      "org/killbill/billing/payment/core/janitor/IncompletePaymentTransactionTask.class",
+      "org/killbill/billing/payment/core/janitor/IncompletePaymentTransactionTask$1.class",
+      "org/killbill/billing/payment/core/janitor/IncompletePaymentTransactionTask$2.class",
+      "org/killbill/billing/payment/core/janitor/IncompletePaymentTransactionTask$JanitorIterationCallback.class"
+    ]
+  },
+  "observation": {
+    "entry": "updatePaymentAndTransactionIfNeeded(accountId, transactionId, priorStatus, pluginResult, true, context)",
+    "driver": "org.killbill.billing.payment.core.janitor.JanitorProbe",
+    "cases": ["concurrent_capture", "normal_recovery", "unresolved", "pending_unchanged", "lock_failure"],
+    "behavior_fields": ["payment_state", "last_success", "transaction_status", "processed_amount", "processed_currency", "updates", "changed"],
+    "diagnostic_only_fields": ["transaction_count", "reads_before_lock", "reads_inside_lock"],
+    "required_guards": ["five_distinct_complete_rows", "source_class_loaded", "real_helper_loaded", "detached_initial_snapshot", "same_auth_identity", "balanced_released_lock", "capture_fixture_before_lock_acquired"],
+    "protocol": "nonce-framed-json-observations-v1",
+    "missing_output": "invalid_no_behavior_verdict",
+    "process_or_environment_failure": "invalid_no_behavior_verdict",
+    "scope_limits": ["in_memory_dao", "controlled_lock", "prefetched_plugin_result", "capture_and_count_are_fixture_setup", "same_jvm_observer_not_tamper_proof"]
+  },
+  "expected": {
+    "concurrent_capture": {"payment_state":"CAPTURE_SUCCESS","last_success":"CAPTURE_SUCCESS","transaction_status":"SUCCESS","processed_amount":"10.00","processed_currency":"EUR","updates":0,"changed":false},
+    "normal_recovery": {"payment_state":"AUTH_SUCCESS","last_success":"AUTH_SUCCESS","transaction_status":"SUCCESS","processed_amount":"10.00","processed_currency":"EUR","updates":1,"changed":true},
+    "unresolved": {"payment_state":"AUTH_ERRORED","last_success":null,"transaction_status":"UNKNOWN","processed_amount":"0","processed_currency":"EUR","updates":0,"changed":false},
+    "pending_unchanged": {"payment_state":"AUTH_PENDING","last_success":null,"transaction_status":"PENDING","processed_amount":"0","processed_currency":"EUR","updates":0,"changed":false},
+    "lock_failure": {"payment_state":"AUTH_ERRORED","last_success":null,"transaction_status":"UNKNOWN","processed_amount":"0","processed_currency":"EUR","updates":0,"changed":false}
+  },
+  "amount_comparison": "decimal_value_ignore_trailing_zero_scale",
+  "verdict_shape": "per_scenario_vector_no_general_coding_score",
+  "qualification": "not_qualified",
+  "agent_execution": "not_observed",
+  "preparation_does_not_authorize_model_run": true
+}

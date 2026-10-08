@@ -25,7 +25,8 @@ campaigns/
 .gemini/skills/
 .kimi/skills/
 
-# Provider-specific root shims are intentionally excluded; AGENTS.md is the single guide.
+# Local agent and provider instructions are intentionally excluded from the public repository.
+AGENTS.md
 CLAUDE.md
 GEMINI.md
 KIMI.md

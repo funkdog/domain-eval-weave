@@ -1,0 +1,1364 @@
+schema_version: domain-first-internal-v0
+module_id: payments.orchestration.killbill
+release:
+  version: 0.1.0-candidate.4
+  recorded_at: 2026-09-06T16:38:23.870Z
+maintainers:
+  - maintainer_id: cat-vjdun65e
+scope:
+  statement: Kill Bill 0.24.21 直接支付编排与已有不完整交易恢复；候选知识包。
+  includes:
+    - payment-method-routing
+    - transaction-identity
+    - AUTHORIZE
+    - CAPTURE
+    - PURCHASE
+    - CREDIT
+    - REFUND
+    - VOID
+    - plugin-outcomes
+    - pending-completion
+    - janitor
+    - external-keys
+    - money-propagation
+  excludes:
+    - provider-financial-rules
+    - CHARGEBACK
+    - PAYMENT_SYSTEM_OFF
+    - settlement
+    - reconciliation
+    - china-regulation
+    - payment-control-retry
+concepts:
+  - concept_id: AccountRef
+    kind: external-reference
+    definition: Reference to the Kill Bill account that owns payment methods and payments; the Account lifecycle is not modeled here
+  - concept_id: PaymentMethod
+    kind: entity
+    definition: Kill Bill record that associates one Account with an external key, active flag, plugin name and opaque plugin detail
+  - concept_id: Payment
+    kind: aggregate-candidate
+    definition: Identity-bearing orchestration record that references an Account and PaymentMethod and groups transaction history, aggregate amounts, attempts and internal state names
+  - concept_id: PaymentTransaction
+    kind: entity-within-Payment
+    definition: One independently identified typed payment operation and its requested, processed, status and gateway-result fields
+  - concept_id: PaymentExternalKey
+    kind: correlation-value
+    definition: Caller-provided Payment correlation key; if absent, core persistence may default it to the Payment UUID string
+  - concept_id: TransactionExternalKey
+    kind: correlation-idempotency-value
+    definition: Caller-provided transaction key whose collision behavior depends on existing outcome and operation
+  - concept_id: PaymentMethodExternalKey
+    kind: correlation-value
+    definition: External reference stored on a PaymentMethod
+  - concept_id: TransactionType
+    kind: enum
+    definition: Exact API vocabulary AUTHORIZE, CAPTURE, CHARGEBACK, CREDIT, PURCHASE, REFUND, VOID
+  - concept_id: ActiveDirectTransactionType
+    kind: scoped-enum-view
+    definition: Accepted subset AUTHORIZE, CAPTURE, CREDIT, PURCHASE, REFUND, VOID; CHARGEBACK remains visible but adjacent with reversal
+  - concept_id: TransactionStatus
+    kind: enum
+    definition: Exact API vocabulary SUCCESS, UNKNOWN, PENDING, PAYMENT_FAILURE, PLUGIN_FAILURE, PAYMENT_SYSTEM_OFF
+  - concept_id: ActiveTransactionStatus
+    kind: scoped-enum-view
+    definition: Accepted result surface SUCCESS, UNKNOWN, PENDING, PAYMENT_FAILURE, PLUGIN_FAILURE; PAYMENT_SYSTEM_OFF remains adjacent
+  - concept_id: PaymentStateName
+    kind: internal-state-value
+    definition: Current and last-success state names persisted by Kill Bill and derived from the configured operation state machines
+  - concept_id: PaymentPluginStatus
+    kind: boundary-enum
+    definition: Plugin-side result vocabulary PROCESSED, PENDING, ERROR, UNDEFINED, CANCELED
+  - concept_id: RequestedMoney
+    kind: value-object
+    definition: Amount and currency requested by the merchant-facing Kill Bill operation
+  - concept_id: ProcessedMoney
+    kind: optional-value-object
+    definition: Amount and currency reported by the plugin and persisted as processed values
+  - concept_id: GatewayFailureDetail
+    kind: optional-value-object
+    definition: Gateway error code and message recorded on a PaymentTransaction
+  - concept_id: PluginName
+    kind: service-key-value
+    definition: Registration name stored by PaymentMethod and used to resolve a PaymentPlugin service at runtime
+  - concept_id: PaymentPluginPort
+    kind: external-port
+    definition: Versioned PaymentPluginApi operations used by Kill Bill to add payment methods, execute payment operations and retrieve later payment information
+  - concept_id: ProviderTransactionObservation
+    kind: boundary-observation
+    definition: "PaymentTransactionInfoPlugin data returned by a plugin: Kill Bill IDs, type, processed money, dates, plugin status, gateway errors, provider references and properties"
+  - concept_id: ProviderReference
+    kind: opaque-boundary-value
+    definition: First or second provider reference string reported through the plugin result
+  - concept_id: OpaquePaymentMethodDetail
+    kind: opaque-boundary-value
+    definition: Plugin-owned payment-method detail attached to the Kill Bill PaymentMethod API projection
+  - concept_id: JanitorRecovery
+    kind: recovery-process-candidate
+    definition: Core process that re-observes existing payment information through the plugin and may reconcile incomplete Kill Bill state
+  - concept_id: Money
+    kind: value-object
+    definition: 完整金额与币种值对；requested 与 processed 是不同角色。
+  - concept_id: PaymentAttempt
+    kind: adjacent-reference
+    definition: Payment API 展示的 payment-control 尝试，生命周期属于邻接域。
+relations:
+  - relation_id: account-owns-payment-method
+    subject_ref: AccountRef
+    predicate: owns
+    object_ref: PaymentMethod
+  - relation_id: account-owns-payment
+    subject_ref: AccountRef
+    predicate: owns
+    object_ref: Payment
+  - relation_id: payment-uses-method
+    subject_ref: Payment
+    predicate: uses
+    object_ref: PaymentMethod
+  - relation_id: payment-contains-transaction
+    subject_ref: Payment
+    predicate: contains
+    object_ref: PaymentTransaction
+  - relation_id: transaction-belongs-to-payment
+    subject_ref: PaymentTransaction
+    predicate: belongs_to
+    object_ref: Payment
+  - relation_id: method-routes-via-name
+    subject_ref: PaymentMethod
+    predicate: routes_via
+    object_ref: PluginName
+  - relation_id: name-resolves-plugin
+    subject_ref: PluginName
+    predicate: resolves_at_runtime_to
+    object_ref: PaymentPluginPort
+  - relation_id: transaction-has-type
+    subject_ref: PaymentTransaction
+    predicate: has_type
+    object_ref: TransactionType
+  - relation_id: transaction-has-status
+    subject_ref: PaymentTransaction
+    predicate: has_status
+    object_ref: TransactionStatus
+  - relation_id: transaction-records-requested-money
+    subject_ref: PaymentTransaction
+    predicate: records
+    object_ref: RequestedMoney
+  - relation_id: transaction-records-processed-money
+    subject_ref: PaymentTransaction
+    predicate: records
+    object_ref: ProcessedMoney
+  - relation_id: plugin-reports-observation
+    subject_ref: PaymentPluginPort
+    predicate: reports
+    object_ref: ProviderTransactionObservation
+  - relation_id: observation-refers-to-transaction
+    subject_ref: ProviderTransactionObservation
+    predicate: refers_to
+    object_ref: PaymentTransaction
+  - relation_id: janitor-reobserves-payment
+    subject_ref: JanitorRecovery
+    predicate: reobserves_via
+    object_ref: PaymentPluginPort
+  - relation_id: payment-has-state-name
+    subject_ref: Payment
+    predicate: has_current_state
+    object_ref: PaymentStateName
+claims:
+  - claim_id: KB-CL-01-initial-operation-set
+    subject_ref: Payment
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: 在精确默认配置中，一笔直接 Payment 可以由 AUTHORIZE、PURCHASE 或 CREDIT 开始。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-DOC-9EF10C7
+      - KB-API-0.54.0
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-DOC-9EF10C7
+        kind: implementation_maintainer
+        source_id: KB-DOC-9EF10C7
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-API-0.54.0
+        kind: implementation_maintainer
+        source_id: KB-API-0.54.0
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-02-cross-operation-links
+    subject_ref: PaymentStateName
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: 活动链接集合为：initial→AUTH/PURCHASE/CREDIT；AUTH_SUCCESS→CAPTURE/VOID；CAPTURE_SUCCESS→CAPTURE/REFUND；PURCHASE_SUCCESS→REFUND；REFUND_SUCCESS→REFUND。CREDIT_SUCCESS 和 VOID_SUCCESS 没有活动出边。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+      - KB-COMMONS-0.26.15
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-COMMONS-0.26.15
+        kind: implementation_maintainer
+        source_id: KB-COMMONS-0.26.15
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-03-create-before-plugin
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: 新的直接操作会在调用 Plugin 前先持久化一条初始状态为 UNKNOWN 的 Transaction；首笔操作同时持久化 Payment 与 Transaction。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-04-plugin-result-mapping
+    subject_ref: PaymentPluginStatus
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: PROCESSED→SUCCESS；PENDING→PENDING；ERROR→PAYMENT_FAILURE；CANCELED→PLUGIN_FAILURE；UNDEFINED、timeout、exception 或非法空结果→UNKNOWN。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-DOC-9EF10C7
+      - KB-API-0.54.0
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-DOC-9EF10C7
+        kind: implementation_maintainer
+        source_id: KB-DOC-9EF10C7
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-API-0.54.0
+        kind: implementation_maintainer
+        source_id: KB-API-0.54.0
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-05-processed-money-normalization
+    subject_ref: ProcessedMoney
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: 新的直接操作在 SUCCESS/PENDING 且 Plugin 缺少金额或币种时使用请求上下文默认值；Janitor 恢复路径的默认值来自已有 Transaction.processedAmount/processedCurrency，不保证回填原请求值。其他结果类别的 processed amount 由 helper 保存为零。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-API-0.54.0
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-API-0.54.0
+        kind: implementation_maintainer
+        source_id: KB-API-0.54.0
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-06-explicit-pending-completion
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: 合格的 PENDING Transaction 可以通过显式完成 API 变为 SUCCESS 或 PAYMENT_FAILURE；不创建新 Transaction，也不再次调用 Plugin。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-DOC-9EF10C7
+      - KB-API-0.54.0
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-DOC-9EF10C7
+        kind: implementation_maintainer
+        source_id: KB-DOC-9EF10C7
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-API-0.54.0
+        kind: implementation_maintainer
+        source_id: KB-API-0.54.0
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-07-janitor-reobservation
+    subject_ref: JanitorRecovery
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: Janitor 通过 getPaymentInfo 重新查询已有交易，并可根据匹配的更明确结果修正记录；仍为相同状态时不写交易更新，无法获得更明确结果时保留已有状态。这条 core 恢复路径不重新提交支付操作。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-DOC-9EF10C7
+      - KB-PLUGIN-API-0.27.3
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-DOC-9EF10C7
+        kind: implementation_maintainer
+        source_id: KB-DOC-9EF10C7
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-PLUGIN-API-0.27.3
+        kind: implementation_maintainer
+        source_id: KB-PLUGIN-API-0.27.3
+        scope: killbill.exact-implementation
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-08-failed-operation-new-retry
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: PAYMENT_FAILURE 或 PLUGIN_FAILURE 后，后续合法业务调用可以从最近成功 Payment 状态创建新 Transaction，但仍受 key、类型、币种和状态转换约束。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-09-success-key-reuse-rejected
+    subject_ref: TransactionExternalKey
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: 在活动操作中，复用已有成功 Transaction 的 external key 会被拒绝；chargeback reversal 例外继续留在邻接域。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-10-currency-consistency
+    subject_ref: RequestedMoney
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: observable
+    statement: 新的活动非 chargeback Transaction 如果币种与第一条 Transaction 不同，会在调用 Plugin 前被拒绝。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-11-transaction-event-category
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: SUCCESS/PENDING 更新发布 PaymentInfoEvent；PAYMENT_FAILURE 发布 PaymentErrorEvent；PLUGIN_FAILURE/UNKNOWN 经 transaction update path 发布 PaymentPluginErrorEvent。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-12-account-scoped-core-lock
+    subject_ref: AccountRef
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: dispatch path 可以使用 Account-scoped lock 串行化 Kill Bill core 内的工作；这只是 core 并发机制，不是 Provider 串行化。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions:
+      - authority_id: maintainer-KB-CORE-0.24.21
+        kind: implementation_maintainer
+        source_id: KB-CORE-0.24.21
+        scope: killbill.exact-implementation
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-13-missing-plugin-uniformity
+    subject_ref: PaymentPluginPort
+    kind: descriptive_fact
+    epistemic_state: unknown
+    observability: partially_observable
+    statement: 所有 Plugin 缺失、已删除或无法解析的路径都会产生完全一致的 API error、Transaction state 和 event shape。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions: []
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-14-repeated-pending-surface
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: unknown
+    observability: partially_observable
+    statement: scheduled 与 on-the-fly Janitor 面对重复 PENDING 观测时，对外始终产生同一种稳定结果。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-DOC-9EF10C7
+      - KB-CORE-0.24.21
+    authority_assertions: []
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-15-distributed-account-ordering
+    subject_ref: AccountRef
+    kind: descriptive_fact
+    epistemic_state: unknown
+    observability: partially_observable
+    statement: Account-scoped locking 在所有受支持的多节点部署中提供相同操作顺序保证。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions: []
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+  - claim_id: KB-CL-16-internal-event-feed-complete
+    subject_ref: PaymentTransaction
+    kind: descriptive_fact
+    epistemic_state: unknown
+    observability: unknown
+    statement: 内部支付事件为每次持久化 Transaction 更新提供完整且无缺口的观测流。
+    applicability:
+      implementation: Kill Bill
+      core: 0.24.21
+      core_commit: 5da9650de60b2fa83dea556d7e95c70b79dabd39
+      api: 0.54.0
+      plugin_api: 0.27.3
+      state_machine: default PaymentStates.xml
+      jurisdiction: unspecified
+    source_ids:
+      - KB-CORE-0.24.21
+    authority_assertions: []
+    valid_time:
+      from: 2026-08-12T06:30:33Z
+    recorded_at: 2026-09-06T15:51:49.887Z
+model:
+  source_ids:
+    - KB-CORE-0.24.21
+    - KB-API-0.54.0
+    - KB-PLUGIN-API-0.27.3
+    - KB-DOC-9EF10C7
+    - KB-COMMONS-0.26.15
+    - KB-PARENT-0.146.87
+  structures:
+    - concept_ref: Payment
+      boundary: Identity-bearing orchestration record that references an Account and PaymentMethod and groups transaction history, aggregate amounts, attempts and internal state names
+      fields:
+        - name: id
+          type: PaymentId
+          nullable: false
+          description: Kill Bill 内 Payment 的稳定身份
+          role: identity
+        - name: createdAt
+          type: Instant
+          nullable: true
+          description: 记录创建时间；持久化实体必填，构造中或插件观测允许缺失。
+          role: stored
+        - name: updatedAt
+          type: Instant
+          nullable: true
+          description: 记录最后更新时间，不能代替外部交易发生时间。
+          role: stored
+        - name: accountRef
+          type: AccountRef
+          nullable: false
+          description: 拥有该 Payment 的 Account；这里只引用，不建模 Account 生命周期
+          role: reference
+        - name: paymentMethodRef
+          type: PaymentMethodId
+          nullable: false
+          description: 此 Payment 选择的支付方式记录
+          role: reference
+        - name: paymentNumber
+          type: Integer
+          nullable: false
+          description: Kill Bill 分配的 Payment 序号；不是业务身份，也不能替代 PaymentId
+          role: stored
+        - name: externalKey
+          type: PaymentExternalKey
+          nullable: false
+          description: 调用方用于关联 Payment 的键；输入缺失时 core 可用 Payment UUID 字符串补齐
+          role: stored
+        - name: currentState
+          type: PaymentStateName
+          nullable: true
+          description: 当前状态机状态名；初始持久化阶段可以为空
+          role: stored
+        - name: lastSuccessState
+          type: PaymentStateName
+          nullable: true
+          description: 最近一次成功状态名；与当前状态是两个不同事实
+          role: stored
+        - name: transactions
+          type: PaymentTransaction[1..*]
+          nullable: false
+          description: 共同构成此 Payment 历史的交易记录；首笔创建完成后至少一条
+          role: stored
+        - name: attempts
+          type: PaymentAttempt[0..*]
+          nullable: false
+          description: payment-control 的过去或未来尝试，只作为邻接投影保留
+          role: adjacent
+        - name: currency
+          type: Currency
+          nullable: true
+          description: core 从符合条件的初始交易推导的 Payment 币种；没有可用交易或币种冲突时可为空
+          role: derived
+        - name: authorizedAmount
+          type: Decimal
+          nullable: false
+          description: 成功且未被 VOID 对应掉的 AUTHORIZE 金额汇总
+          role: derived
+        - name: capturedAmount
+          type: Decimal
+          nullable: false
+          description: 成功 CAPTURE 的金额汇总；精确实现还会计入邻接的 chargeback 调整
+          role: derived
+        - name: purchasedAmount
+          type: Decimal
+          nullable: false
+          description: 成功 PURCHASE 的金额汇总；精确实现还会计入邻接的 chargeback 调整
+          role: derived
+        - name: creditedAmount
+          type: Decimal
+          nullable: false
+          description: 成功 CREDIT 的金额汇总
+          role: derived
+        - name: refundedAmount
+          type: Decimal
+          nullable: false
+          description: 成功 REFUND 的金额汇总
+          role: derived
+        - name: authorizationVoided
+          type: Boolean
+          nullable: false
+          description: 是否存在被成功 VOID 对应掉的成功 AUTHORIZE
+          role: derived
+    - concept_ref: PaymentMethod
+      boundary: Kill Bill record that associates one Account with an external key, active flag, plugin name and opaque plugin detail
+      fields:
+        - name: id
+          type: PaymentMethodId
+          nullable: false
+          description: Kill Bill 内 PaymentMethod 的稳定身份
+          role: identity
+        - name: createdAt
+          type: Instant
+          nullable: true
+          description: 记录创建时间；持久化实体必填，构造中或插件观测允许缺失。
+          role: stored
+        - name: updatedAt
+          type: Instant
+          nullable: true
+          description: 记录最后更新时间，不能代替外部交易发生时间。
+          role: stored
+        - name: accountRef
+          type: AccountRef
+          nullable: false
+          description: 拥有该支付方式的 Account 引用
+          role: reference
+        - name: externalKey
+          type: PaymentMethodExternalKey
+          nullable: false
+          description: 调用方对 PaymentMethod 的关联键
+          role: stored
+        - name: active
+          type: Boolean
+          nullable: false
+          description: Kill Bill 是否把该记录视为可用；DDL 默认 true
+          role: stored
+        - name: pluginName
+          type: PluginName
+          nullable: false
+          description: 用来在运行时解析 PaymentPluginPort 的注册名
+          role: stored
+        - name: pluginDetail
+          type: OpaquePaymentMethodDetail
+          nullable: true
+          description: Plugin 提供的支付方式细节；只有请求该信息时才可能出现
+          role: stored
+    - concept_ref: PaymentTransaction
+      owner_ref: Payment
+      boundary: One independently identified typed payment operation and its requested, processed, status and gateway-result fields
+      fields:
+        - name: id
+          type: PaymentTransactionId
+          nullable: false
+          description: 这一次交易操作在 Kill Bill 内的稳定身份
+          role: identity
+        - name: createdAt
+          type: Instant
+          nullable: true
+          description: 记录创建时间；持久化实体必填，构造中或插件观测允许缺失。
+          role: stored
+        - name: updatedAt
+          type: Instant
+          nullable: true
+          description: 记录最后更新时间，不能代替外部交易发生时间。
+          role: stored
+        - name: paymentRef
+          type: PaymentId
+          nullable: false
+          description: 该交易所属的 Payment
+          role: reference
+        - name: attemptRef
+          type: PaymentAttemptId
+          nullable: true
+          description: 触发该交易的 payment-control attempt；直接支付路径允许没有
+          role: adjacent
+        - name: externalKey
+          type: TransactionExternalKey
+          nullable: false
+          description: 调用方对本次交易的关联/幂等键；输入缺失时可用交易 UUID 字符串补齐
+          role: stored
+        - name: type
+          type: TransactionType
+          nullable: false
+          description: 本次操作类别；active subset 为六种直接支付操作
+          role: stored
+        - name: status
+          type: TransactionStatus
+          nullable: false
+          description: Kill Bill 对本次交易结果的记录，不代表外部资金终局
+          role: stored
+        - name: effectiveAt
+          type: Instant
+          nullable: false
+          description: 本次交易在 Kill Bill 语义中的生效时间
+          role: stored
+        - name: requestedMoney
+          type: RequestedMoney
+          nullable: true
+          description: 调用方请求的金额和币种；VOID 等无金额操作可以没有
+          role: stored
+        - name: processedMoney
+          type: ProcessedMoney
+          nullable: true
+          description: Plugin 报告并由 core 投影/保存的处理金额和币种
+          role: derived
+        - name: gatewayFailure
+          type: GatewayFailureDetail
+          nullable: true
+          description: core 记录的 gateway 错误码和消息
+          role: stored
+        - name: providerObservation
+          type: ProviderTransactionObservation
+          nullable: true
+          description: 仅在请求 Plugin 详情时附加的边界观测
+          role: stored
+    - concept_ref: Money
+      boundary: 完整金额与币种值对；requested 与 processed 是不同角色。
+      fields:
+        - name: amount
+          type: Decimal
+          nullable: false
+          description: 精确十进制金额；不使用浮点数计算资金。
+          role: representation
+        - name: currency
+          type: Currency
+          nullable: false
+          description: 与金额配对的币种；Payment 汇总上的币种是交易历史派生值。
+          role: representation
+    - concept_ref: GatewayFailureDetail
+      boundary: Gateway error code and message recorded on a PaymentTransaction
+      fields:
+        - name: code
+          type: String
+          nullable: true
+          description: 网关报告的错误码，可缺失。
+          role: representation
+        - name: message
+          type: String
+          nullable: true
+          description: 网关报告的错误说明，可缺失。
+          role: representation
+    - concept_ref: ProviderTransactionObservation
+      boundary: "PaymentTransactionInfoPlugin data returned by a plugin: Kill Bill IDs, type, processed money, dates, plugin status, gateway errors, provider references and properties"
+      fields:
+        - name: killBillPaymentRef
+          type: PaymentId
+          nullable: true
+          description: 插件回传的 Kill Bill Payment UUID，需匹配已有记录。
+          role: boundary
+        - name: killBillTransactionRef
+          type: PaymentTransactionId
+          nullable: true
+          description: 插件回传的 Kill Bill Transaction UUID，需匹配已有记录。
+          role: boundary
+        - name: transactionType
+          type: TransactionType
+          nullable: true
+          description: 插件报告的交易操作类型。
+          role: boundary
+        - name: processedMoney
+          type: ProcessedMoney
+          nullable: true
+          description: 插件报告的金额与币种。
+          role: boundary
+        - name: pluginStatus
+          type: PaymentPluginStatus
+          nullable: true
+          description: 插件原始处理状态，与 Kill Bill 状态分开。
+          role: boundary
+        - name: createdAt
+          type: Instant
+          nullable: true
+          description: 记录创建时间；持久化实体必填，构造中或插件观测允许缺失。
+          role: boundary
+        - name: effectiveAt
+          type: Instant
+          nullable: true
+          description: 交易生效时间，由此观测的报告者提供。
+          role: boundary
+        - name: gatewayFailure
+          type: GatewayFailureDetail
+          nullable: true
+          description: 插件报告的网关错误码和错误消息，可以缺失。
+          role: boundary
+        - name: firstProviderReference
+          type: ProviderReference
+          nullable: true
+          description: 插件提供的第一条不透明支付引用。
+          role: boundary
+        - name: secondProviderReference
+          type: ProviderReference
+          nullable: true
+          description: 插件提供的第二条不透明支付引用。
+          role: boundary
+        - name: properties
+          type: PluginProperty[0..*]
+          nullable: false
+          description: 插件自定义的属性列表，保留原始不透明语义。
+          role: boundary
+    - concept_ref: JanitorRecovery
+      boundary: Core process that re-observes existing payment information through the plugin and may reconcile incomplete Kill Bill state
+      fields:
+        - name: targetPayment
+          type: PaymentId
+          nullable: false
+          description: 本次重新查询对应的已有 Payment 身份。
+          role: representation
+        - name: targetTransactions
+          type: PaymentTransactionId[1..*] where status in {PENDING, UNKNOWN}
+          nullable: false
+          description: 需要重新查询处理状态的已有交易身份集合。
+          role: representation
+        - name: observationPort
+          type: PaymentPluginPort.getPaymentInfo
+          nullable: false
+          description: 用于重新查询已有操作的端口方法，不再次提交支付命令。
+          role: representation
+        - name: outcome
+          type: RecoveryOutcome
+          nullable: false
+          description: core 状态修正或继续保留不确定性。
+          role: representation
+  states:
+    - state_id: BIG_BANG_INIT
+      description: 尚无成功操作时的起始状态。
+    - state_id: AUTH_INIT
+      description: AUTHORIZE 的 INIT 状态。
+    - state_id: AUTH_PENDING
+      description: AUTHORIZE 的 PENDING 状态。
+    - state_id: AUTH_SUCCESS
+      description: AUTHORIZE 的 SUCCESS 状态。
+    - state_id: AUTH_FAILED
+      description: AUTHORIZE 的 FAILED 状态。
+    - state_id: AUTH_ERRORED
+      description: AUTHORIZE 的 ERRORED 状态。
+    - state_id: CAPTURE_INIT
+      description: CAPTURE 的 INIT 状态。
+    - state_id: CAPTURE_PENDING
+      description: CAPTURE 的 PENDING 状态。
+    - state_id: CAPTURE_SUCCESS
+      description: CAPTURE 的 SUCCESS 状态。
+    - state_id: CAPTURE_FAILED
+      description: CAPTURE 的 FAILED 状态。
+    - state_id: CAPTURE_ERRORED
+      description: CAPTURE 的 ERRORED 状态。
+    - state_id: PURCHASE_INIT
+      description: PURCHASE 的 INIT 状态。
+    - state_id: PURCHASE_PENDING
+      description: PURCHASE 的 PENDING 状态。
+    - state_id: PURCHASE_SUCCESS
+      description: PURCHASE 的 SUCCESS 状态。
+    - state_id: PURCHASE_FAILED
+      description: PURCHASE 的 FAILED 状态。
+    - state_id: PURCHASE_ERRORED
+      description: PURCHASE 的 ERRORED 状态。
+    - state_id: REFUND_INIT
+      description: REFUND 的 INIT 状态。
+    - state_id: REFUND_PENDING
+      description: REFUND 的 PENDING 状态。
+    - state_id: REFUND_SUCCESS
+      description: REFUND 的 SUCCESS 状态。
+    - state_id: REFUND_FAILED
+      description: REFUND 的 FAILED 状态。
+    - state_id: REFUND_ERRORED
+      description: REFUND 的 ERRORED 状态。
+    - state_id: CREDIT_INIT
+      description: CREDIT 的 INIT 状态。
+    - state_id: CREDIT_PENDING
+      description: CREDIT 的 PENDING 状态。
+    - state_id: CREDIT_SUCCESS
+      description: CREDIT 的 SUCCESS 状态。
+    - state_id: CREDIT_FAILED
+      description: CREDIT 的 FAILED 状态。
+    - state_id: CREDIT_ERRORED
+      description: CREDIT 的 ERRORED 状态。
+    - state_id: VOID_INIT
+      description: VOID 的 INIT 状态。
+    - state_id: VOID_PENDING
+      description: VOID 的 PENDING 状态。
+    - state_id: VOID_SUCCESS
+      description: VOID 的 SUCCESS 状态。
+    - state_id: VOID_FAILED
+      description: VOID 的 FAILED 状态。
+    - state_id: VOID_ERRORED
+      description: VOID 的 ERRORED 状态。
+  transitions:
+    - transition_id: AUTH_INIT-SUCCESS
+      from: AUTH_INIT
+      to: AUTH_SUCCESS
+      trigger: SUCCESS
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_INIT-FAILURE
+      from: AUTH_INIT
+      to: AUTH_FAILED
+      trigger: FAILURE
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_INIT-PENDING
+      from: AUTH_INIT
+      to: AUTH_PENDING
+      trigger: PENDING
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_PENDING-SUCCESS
+      from: AUTH_PENDING
+      to: AUTH_SUCCESS
+      trigger: SUCCESS
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_PENDING-FAILURE
+      from: AUTH_PENDING
+      to: AUTH_FAILED
+      trigger: FAILURE
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_PENDING-EXCEPTION
+      from: AUTH_PENDING
+      to: AUTH_ERRORED
+      trigger: EXCEPTION
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: AUTH_INIT-EXCEPTION
+      from: AUTH_INIT
+      to: AUTH_ERRORED
+      trigger: EXCEPTION
+      description: AUTHORIZE 操作结果转换。
+    - transition_id: CAPTURE_INIT-SUCCESS
+      from: CAPTURE_INIT
+      to: CAPTURE_SUCCESS
+      trigger: SUCCESS
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_INIT-FAILURE
+      from: CAPTURE_INIT
+      to: CAPTURE_FAILED
+      trigger: FAILURE
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_INIT-PENDING
+      from: CAPTURE_INIT
+      to: CAPTURE_PENDING
+      trigger: PENDING
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_PENDING-SUCCESS
+      from: CAPTURE_PENDING
+      to: CAPTURE_SUCCESS
+      trigger: SUCCESS
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_PENDING-FAILURE
+      from: CAPTURE_PENDING
+      to: CAPTURE_FAILED
+      trigger: FAILURE
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_PENDING-EXCEPTION
+      from: CAPTURE_PENDING
+      to: CAPTURE_ERRORED
+      trigger: EXCEPTION
+      description: CAPTURE 操作结果转换。
+    - transition_id: CAPTURE_INIT-EXCEPTION
+      from: CAPTURE_INIT
+      to: CAPTURE_ERRORED
+      trigger: EXCEPTION
+      description: CAPTURE 操作结果转换。
+    - transition_id: PURCHASE_INIT-SUCCESS
+      from: PURCHASE_INIT
+      to: PURCHASE_SUCCESS
+      trigger: SUCCESS
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_INIT-FAILURE
+      from: PURCHASE_INIT
+      to: PURCHASE_FAILED
+      trigger: FAILURE
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_INIT-PENDING
+      from: PURCHASE_INIT
+      to: PURCHASE_PENDING
+      trigger: PENDING
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_PENDING-SUCCESS
+      from: PURCHASE_PENDING
+      to: PURCHASE_SUCCESS
+      trigger: SUCCESS
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_PENDING-FAILURE
+      from: PURCHASE_PENDING
+      to: PURCHASE_FAILED
+      trigger: FAILURE
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_PENDING-EXCEPTION
+      from: PURCHASE_PENDING
+      to: PURCHASE_ERRORED
+      trigger: EXCEPTION
+      description: PURCHASE 操作结果转换。
+    - transition_id: PURCHASE_INIT-EXCEPTION
+      from: PURCHASE_INIT
+      to: PURCHASE_ERRORED
+      trigger: EXCEPTION
+      description: PURCHASE 操作结果转换。
+    - transition_id: REFUND_INIT-SUCCESS
+      from: REFUND_INIT
+      to: REFUND_SUCCESS
+      trigger: SUCCESS
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_INIT-FAILURE
+      from: REFUND_INIT
+      to: REFUND_FAILED
+      trigger: FAILURE
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_INIT-PENDING
+      from: REFUND_INIT
+      to: REFUND_PENDING
+      trigger: PENDING
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_PENDING-SUCCESS
+      from: REFUND_PENDING
+      to: REFUND_SUCCESS
+      trigger: SUCCESS
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_PENDING-FAILURE
+      from: REFUND_PENDING
+      to: REFUND_FAILED
+      trigger: FAILURE
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_PENDING-EXCEPTION
+      from: REFUND_PENDING
+      to: REFUND_ERRORED
+      trigger: EXCEPTION
+      description: REFUND 操作结果转换。
+    - transition_id: REFUND_INIT-EXCEPTION
+      from: REFUND_INIT
+      to: REFUND_ERRORED
+      trigger: EXCEPTION
+      description: REFUND 操作结果转换。
+    - transition_id: CREDIT_INIT-SUCCESS
+      from: CREDIT_INIT
+      to: CREDIT_SUCCESS
+      trigger: SUCCESS
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_INIT-FAILURE
+      from: CREDIT_INIT
+      to: CREDIT_FAILED
+      trigger: FAILURE
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_INIT-PENDING
+      from: CREDIT_INIT
+      to: CREDIT_PENDING
+      trigger: PENDING
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_PENDING-SUCCESS
+      from: CREDIT_PENDING
+      to: CREDIT_SUCCESS
+      trigger: SUCCESS
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_PENDING-FAILURE
+      from: CREDIT_PENDING
+      to: CREDIT_FAILED
+      trigger: FAILURE
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_PENDING-EXCEPTION
+      from: CREDIT_PENDING
+      to: CREDIT_ERRORED
+      trigger: EXCEPTION
+      description: CREDIT 操作结果转换。
+    - transition_id: CREDIT_INIT-EXCEPTION
+      from: CREDIT_INIT
+      to: CREDIT_ERRORED
+      trigger: EXCEPTION
+      description: CREDIT 操作结果转换。
+    - transition_id: VOID_INIT-SUCCESS
+      from: VOID_INIT
+      to: VOID_SUCCESS
+      trigger: SUCCESS
+      description: VOID 操作结果转换。
+    - transition_id: VOID_INIT-FAILURE
+      from: VOID_INIT
+      to: VOID_FAILED
+      trigger: FAILURE
+      description: VOID 操作结果转换。
+    - transition_id: VOID_INIT-PENDING
+      from: VOID_INIT
+      to: VOID_PENDING
+      trigger: PENDING
+      description: VOID 操作结果转换。
+    - transition_id: VOID_PENDING-SUCCESS
+      from: VOID_PENDING
+      to: VOID_SUCCESS
+      trigger: SUCCESS
+      description: VOID 操作结果转换。
+    - transition_id: VOID_PENDING-FAILURE
+      from: VOID_PENDING
+      to: VOID_FAILED
+      trigger: FAILURE
+      description: VOID 操作结果转换。
+    - transition_id: VOID_PENDING-EXCEPTION
+      from: VOID_PENDING
+      to: VOID_ERRORED
+      trigger: EXCEPTION
+      description: VOID 操作结果转换。
+    - transition_id: VOID_INIT-EXCEPTION
+      from: VOID_INIT
+      to: VOID_ERRORED
+      trigger: EXCEPTION
+      description: VOID 操作结果转换。
+    - transition_id: link-BIG_BANG_INIT-AUTH_INIT
+      from: BIG_BANG_INIT
+      to: AUTH_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-BIG_BANG_INIT-PURCHASE_INIT
+      from: BIG_BANG_INIT
+      to: PURCHASE_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-BIG_BANG_INIT-CREDIT_INIT
+      from: BIG_BANG_INIT
+      to: CREDIT_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-AUTH_SUCCESS-CAPTURE_INIT
+      from: AUTH_SUCCESS
+      to: CAPTURE_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-AUTH_SUCCESS-VOID_INIT
+      from: AUTH_SUCCESS
+      to: VOID_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-CAPTURE_SUCCESS-CAPTURE_INIT
+      from: CAPTURE_SUCCESS
+      to: CAPTURE_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-CAPTURE_SUCCESS-REFUND_INIT
+      from: CAPTURE_SUCCESS
+      to: REFUND_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-PURCHASE_SUCCESS-REFUND_INIT
+      from: PURCHASE_SUCCESS
+      to: REFUND_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+    - transition_id: link-REFUND_SUCCESS-REFUND_INIT
+      from: REFUND_SUCCESS
+      to: REFUND_INIT
+      trigger: NEXT_OPERATION
+      description: 按最近成功状态选择下一操作；仍需通过账户、key、币种和未决交易校验。
+  flows:
+    - flow_id: direct-operation
+      description: 新直接操作的记录、执行和结果处理
+      concept_refs:
+        - Payment
+        - PaymentTransaction
+        - PaymentMethod
+        - PaymentPluginPort
+      steps:
+        - step_id: step-1
+          description: 解析已有 Payment 身份。
+        - step_id: step-2
+          description: 校验所属 Account。
+        - step_id: step-3
+          description: 按开关先调用 Janitor 重新观测。
+        - step_id: step-4
+          description: 校验 external key、类型与完成候选。
+        - step_id: step-5
+          description: 从最近成功状态选择操作与配置。
+        - step_id: step-6
+          description: 币种和状态转换检查通过后创建 UNKNOWN 交易。
+        - step_id: step-7
+          description: 按 PaymentMethod 的 pluginName 解析并调用插件。
+        - step_id: step-8
+          description: 映射结果并保存交易和 Payment 状态。
+        - step_id: step-9
+          description: 发布内部事件并返回 Payment 投影。
+    - flow_id: authorize-capture-void
+      description: 授权后扣款或撤销
+      concept_refs:
+        - Payment
+        - PaymentTransaction
+      steps:
+        - step_id: step-1
+          description: AUTHORIZE 成功后可 CAPTURE 或 VOID。
+        - step_id: step-2
+          description: CAPTURE 成功后可再次 CAPTURE 或 REFUND。
+        - step_id: step-3
+          description: 默认配置 CAPTURE 成功后不再允许 VOID。
+    - flow_id: purchase-refund
+      description: 购买或扣款后的退款
+      concept_refs:
+        - Payment
+        - PaymentTransaction
+      steps:
+        - step_id: step-1
+          description: PURCHASE 可发起新 Payment。
+        - step_id: step-2
+          description: PURCHASE 或 CAPTURE 成功后可提交 REFUND。
+        - step_id: step-3
+          description: REFUND 成功后可继续 REFUND；金额上限由 Provider/产品规则另行规定。
+    - flow_id: credit
+      description: 独立 CREDIT 操作
+      concept_refs:
+        - Payment
+        - PaymentTransaction
+      steps:
+        - step_id: step-1
+          description: CREDIT 可以发起 Payment。
+        - step_id: step-2
+          description: 默认 CREDIT_SUCCESS 没有活动后继操作；不得解释成账本 credit 或退款。
+    - flow_id: pending-completion
+      description: 可信调用方显式完成 PENDING
+      concept_refs:
+        - PaymentTransaction
+      steps:
+        - step_id: step-1
+          description: 核验目标交易为 PENDING、身份和类型匹配。
+        - step_id: step-2
+          description: 复用原交易，显式结果路径不再次调用操作插件。
+        - step_id: step-3
+          description: 更新为 SUCCESS 或 PAYMENT_FAILURE；结果依据由调用方负责。
+        - step_id: step-4
+          description: 仅显式完成入口绕过操作插件；普通 PURCHASE 复用同 key 的 PENDING 交易时仍可能调用 purchasePayment。
+    - flow_id: janitor-recovery
+      description: 重新查询已有操作
+      concept_refs:
+        - JanitorRecovery
+        - PaymentPluginPort
+        - PaymentTransaction
+      steps:
+        - step_id: step-1
+          description: 定时、读取或新操作触发已有交易查询。
+        - step_id: step-2
+          description: 调用 getPaymentInfo 并按交易身份匹配。
+        - step_id: step-3
+          description: 可以修正状态，未获得足够信息时保留不确定性。
+        - step_id: step-4
+          description: core 不重新提交支付操作；不等同新业务重试。
+        - step_id: step-5
+          description: 匹配状态再次为 PENDING 时不写交易更新；无法取得更明确状态时保留已有状态。
+        - step_id: step-6
+          description: 恢复时 Plugin 缺失的金额/币种使用已有 processed money 默认值；不得假定回填原请求金额。
+        - step_id: step-7
+          description: getPaymentInfo 是 core 端口名，不保证适配器纯读取；Stripe Plugin 8.0.4 的 confirm/cancel、Search 空结果推断和幂等关联条件见行为文档 E2，不能由 core Claim 替代验证。
+  invariants:
+    - rule_id: definition-1
+      description: "`Payment`, `PaymentMethod` and `PaymentTransaction` retain distinct UUID identities."
+    - rule_id: definition-2
+      description: Every active PaymentTransaction refers to exactly one Payment; equal external keys do not merge    transactions.
+    - rule_id: definition-3
+      description: Payment-, transaction- and payment-method external keys remain role-qualified values even when a    missing key defaults to an entity UUID string.
+    - rule_id: definition-4
+      description: "`TransactionType`, `TransactionStatus`, `PaymentStateName` and `PaymentPluginStatus` remain different    semantic axes."
+    - rule_id: definition-5
+      description: RequestedMoney and ProcessedMoney remain distinguishable; equal values do not make the roles identical.
+    - rule_id: definition-6
+      description: A ProviderTransactionObservation is boundary data reported through a plugin, not an independently    authoritative provider or financial record.
+    - rule_id: definition-7
+      description: ProviderReference values do not establish cross-system identity without a Mapping and observation    contract.
+    - rule_id: definition-8
+      description: "`PENDING` and `UNKNOWN` remain distinct incomplete orchestration statuses; neither may be collapsed into    success or known failure."
+    - rule_id: definition-9
+      description: JanitorRecovery updates knowledge/state about an existing orchestration record; it is not by definition    a new external economic attempt.
+    - rule_id: definition-10
+      description: Kill Bill orchestration success remains distinct from provider authorization, clearing, settlement,     payout, bank receipt and accounting closure.
+    - rule_id: definition-11
+      description: Adjacent enum values and API types remain visible even when excluded from the active scoped model.
+  documents:
+    - document_id: model-doc-1
+      title: behavioral-model
+      path: docs/killbill-payment-orchestration-behavioral-model.md
+      content_sha256: d34f0eaae97fac733b0f867021b23b0399645582ccd99ae0b6520a17b5892a66
+    - document_id: model-doc-2
+      title: claim-ledger
+      path: docs/killbill-payment-orchestration-claim-ledger.md
+      content_sha256: 2bdcd9dc5500b985bab477fd1ee13bfdaf0407b005c50b6dfd1c93349e7de19f
+    - document_id: model-doc-3
+      title: scope-declaration
+      path: docs/killbill-payment-orchestration-scope-declaration.md
+      content_sha256: f7b98bbac884b5c18bad0b85c83d4ca8dfe7a16c7fc784d7ec06ec1c7e412657
+    - document_id: model-doc-4
+      title: semantic-model
+      path: docs/killbill-payment-orchestration-semantic-model.md
+      content_sha256: d7e16c384d8180ba51f1e0f35ab1aefbf80ecfcb93e5004d7ff65a58ae7c8ab4
+    - document_id: model-doc-5
+      title: source-feasibility-matrix
+      path: docs/killbill-payment-orchestration-source-feasibility-matrix.md
+      content_sha256: 0baf2828230fb74012cef7cf29c008a62b9c93bcf76f7c1c3811bab23c855d58

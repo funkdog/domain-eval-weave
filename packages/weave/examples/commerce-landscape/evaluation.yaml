@@ -1,0 +1,251 @@
+schema_version: domain-first-internal-v0
+episode:
+  episode_id: cancellation-order-100
+  identities:
+    order_id: order-100
+    refund_instruction_id: refund-instruction-100
+    provider_refund_id: provider-refund-100
+    coupon_entitlement_id: coupon-entitlement-100
+    ledger_reconciliation_id: ledger-reconciliation-100
+  opportunity:
+    order_id: order-100
+    paid: true
+    fulfillment_state: before_handoff
+    cancellation_accepted_at: 2026-08-31T08:00:00Z
+  original_value:
+    currency: CNY
+    cash: 80
+    coupon: 20
+  expected_consequence:
+    cash_to_original_tender: 80
+    coupon_entitlement_restored: 20
+    successful_economic_refund_count: 1
+    ledger_balanced: true
+projections:
+  - projection_id: acme-full-value-restoration
+    version: 1.0.0
+    domain_view_ref: cn-b2c-paid-unshipped@1.0.0
+    product_contract_ref: acme-cn-order-cancellation@1.0.0
+    selected_refs:
+      - commerce.orders#OrderCancellation
+      - payments.refunds#CashRefund
+      - payments.refunds#RefundExecution
+      - promotions.coupons#CouponRestoration
+      - finance.ledger#LedgerReconciliation
+    exclusions:
+      - concept_ref: payments.disputes#Chargeback
+        reason: A card-network dispute is not merchant refund execution.
+      - concept_ref: payments.refunds#GoodwillCredit
+        reason: Discretionary credit does not restore original consideration.
+  - projection_id: acme-cash-refund-only
+    version: 1.0.0
+    domain_view_ref: cn-b2c-paid-unshipped@1.0.0
+    product_contract_ref: acme-cn-order-cancellation@1.0.0
+    selected_refs:
+      - commerce.orders#OrderCancellation
+      - payments.refunds#CashRefund
+      - payments.refunds#RefundExecution
+    exclusions:
+      - concept_ref: promotions.coupons#CouponRestoration
+        reason: This narrower question reports cash only; it does not change Domain Coverage or scope.
+observation_profiles:
+  - observation_profile_id: complete-reference-observation
+    time_semantics:
+      business_time_field: settled_after_hours
+      observation_time_field: recorded_after_hours
+      allowed_lateness:
+        value: 24
+        unit: hour
+    absence_semantics:
+      complete_channel_absence: fail
+      unavailable_channel_absence: insufficient_evidence
+    bindings:
+      - concept_ref: commerce.orders#OrderCancellation
+        source: order-event-stream
+        completeness: complete
+        covers_refs: [commerce.orders#OrderCancellation]
+      - concept_ref: payments.refunds#RefundExecution
+        source: provider-settlement-feed
+        completeness: complete
+        covers_refs: [payments.refunds#RefundExecution, payments.refunds#CashRefund]
+      - concept_ref: promotions.coupons#CouponRestoration
+        source: coupon-entitlement-ledger
+        completeness: complete
+        covers_refs: [promotions.coupons#CouponRestoration]
+      - concept_ref: finance.ledger#LedgerReconciliation
+        source: finance-ledger
+        completeness: complete
+        covers_refs: [finance.ledger#LedgerReconciliation]
+  - observation_profile_id: coupon-observation-gap
+    time_semantics:
+      business_time_field: settled_after_hours
+      observation_time_field: recorded_after_hours
+      allowed_lateness:
+        value: 24
+        unit: hour
+    absence_semantics:
+      complete_channel_absence: fail
+      unavailable_channel_absence: insufficient_evidence
+    bindings:
+      - concept_ref: commerce.orders#OrderCancellation
+        source: order-event-stream
+        completeness: complete
+        covers_refs: [commerce.orders#OrderCancellation]
+      - concept_ref: payments.refunds#RefundExecution
+        source: provider-settlement-feed
+        completeness: complete
+        covers_refs: [payments.refunds#RefundExecution, payments.refunds#CashRefund]
+      - concept_ref: promotions.coupons#CouponRestoration
+        source: coupon-entitlement-ledger
+        completeness: unavailable
+        covers_refs: [promotions.coupons#CouponRestoration]
+      - concept_ref: finance.ledger#LedgerReconciliation
+        source: finance-ledger
+        completeness: complete
+        covers_refs: [finance.ledger#LedgerReconciliation]
+closure_expectations:
+  - closure_id: acme-full-value-complete
+    projection_ref: acme-full-value-restoration@1.0.0
+    observation_profile_ref: complete-reference-observation
+    expected_status: complete
+  - closure_id: acme-full-value-coupon-gap
+    projection_ref: acme-full-value-restoration@1.0.0
+    observation_profile_ref: coupon-observation-gap
+    expected_status: refused
+    expected_blocker: observation_completeness_gap
+    blocker_ref: promotions.coupons#CouponRestoration
+grade_atoms:
+  - grade_id: cash-amount-and-original-tender
+    target_claim_ref: payments.refunds#cash-refund-original-tender
+    expected_outcomes: [pass, fail, not_applicable, insufficient_evidence, indeterminate]
+    utility_claim: Passing means the Episode restored the expected cash consideration to the original tender.
+    estimator:
+      predicate_id: expected-cash-on-original-tender
+      input_fields: [cash_amount, original_tender]
+    validity_bounds: [single-currency-cny, expected-cash-fixed-by-closure]
+    consumer:
+      role: evaluation-owner
+      action: reject-cash-restoration-claim-on-fail
+    calibration_plan:
+      development_cohort_ref: domain-first-development
+      calibration_cohort_ref: domain-first-calibration
+      validation_cohort_ref: domain-first-public-validation
+    repeatability_contract:
+      mode: artifact-only
+      allowed_variance: zero
+      frozen_inputs: [closure, grader, cohort, observations]
+  - grade_id: cash-refund-timeliness
+    target_claim_ref: acme-cn-order-cancellation#acme-cash-refund-24h
+    expected_outcomes: [pass, fail, not_applicable, insufficient_evidence, indeterminate]
+    utility_claim: Passing means economic cash settlement occurred within the product commitment window.
+    estimator:
+      predicate_id: settlement-within-24-hours
+      input_fields: [settled_after_hours]
+    validity_bounds: [accepted-cancellation-opportunity, business-time-not-log-arrival-time]
+    consumer:
+      role: product-authority
+      action: reject-timeliness-commitment-on-fail
+    calibration_plan:
+      development_cohort_ref: domain-first-development
+      calibration_cohort_ref: domain-first-calibration
+      validation_cohort_ref: domain-first-public-validation
+    repeatability_contract:
+      mode: artifact-only
+      allowed_variance: zero
+      frozen_inputs: [closure, grader, cohort, observations]
+  - grade_id: coupon-entitlement-restoration
+    target_claim_ref: acme-cn-order-cancellation#acme-coupon-restoration
+    expected_outcomes: [pass, fail, not_applicable, insufficient_evidence, indeterminate]
+    utility_claim: Passing means the consumed coupon entitlement was restored rather than replaced by unrelated goodwill.
+    estimator:
+      predicate_id: coupon-restored-with-complete-observation
+      input_fields: [coupon_restored, coupon_observation_complete]
+    validity_bounds: [coupon-ledger-channel-declared, observation-window-closed]
+    consumer:
+      role: product-authority
+      action: reject-coupon-restoration-commitment-on-fail
+    calibration_plan:
+      development_cohort_ref: domain-first-development
+      calibration_cohort_ref: domain-first-calibration
+      validation_cohort_ref: domain-first-public-validation
+    repeatability_contract:
+      mode: artifact-only
+      allowed_variance: zero
+      frozen_inputs: [closure, grader, cohort, observations]
+  - grade_id: economic-effect-exactly-once
+    target_claim_ref: payments.refunds#economic-refund-exactly-once
+    expected_outcomes: [pass, fail, not_applicable, insufficient_evidence, indeterminate]
+    utility_claim: Passing means one refund instruction produced exactly one successful economic effect regardless of technical retries.
+    estimator:
+      predicate_id: one-successful-economic-effect
+      input_fields: [successful_economic_effects]
+    validity_bounds: [refund-instruction-identity-closed, economic-effects-deduplicated]
+    consumer:
+      role: payments-owner
+      action: reject-exactly-once-claim-on-fail
+    calibration_plan:
+      development_cohort_ref: domain-first-development
+      calibration_cohort_ref: domain-first-calibration
+      validation_cohort_ref: domain-first-public-validation
+    repeatability_contract:
+      mode: artifact-only
+      allowed_variance: zero
+      frozen_inputs: [closure, grader, cohort, observations]
+  - grade_id: ledger-reconciliation
+    target_claim_ref: finance.ledger#settled-refund-reconciled
+    expected_outcomes: [pass, fail, not_applicable, insufficient_evidence, indeterminate]
+    utility_claim: Passing means the observed refund economic effect and merchant ledger agree for the Episode.
+    estimator:
+      predicate_id: ledger-reconciled
+      input_fields: [ledger_reconciled]
+    validity_bounds: [merchant-primary-ledger, reconciliation-window-closed]
+    consumer:
+      role: finance-owner
+      action: reject-ledger-reconciliation-claim-on-fail
+    calibration_plan:
+      development_cohort_ref: domain-first-development
+      calibration_cohort_ref: domain-first-calibration
+      validation_cohort_ref: domain-first-public-validation
+    repeatability_contract:
+      mode: artifact-only
+      allowed_variance: zero
+      frozen_inputs: [closure, grader, cohort, observations]
+verdict_policy:
+  preserve_atomic_vector: true
+  precedence: [fail, indeterminate, insufficient_evidence, pass, not_applicable]
+validation_cohort_plan:
+  development:
+    cohort_id: domain-first-development
+    cases_path: cohorts/development/cases.yaml
+    expectations_path: cohorts/development/expectations.yaml
+    content_sha256: ea9d8dcc6d080797fd42bc1228ab2270a70c5646b2b495417e18582853c1e0f2
+  calibration:
+    cohort_id: domain-first-calibration
+    cases_path: cohorts/calibration/cases.yaml
+    expectations_path: cohorts/calibration/expectations.yaml
+    content_sha256: 0104f6f1f804128311a874f76f4f56db57edbe5faf93669204627301dc5cefe0
+  validation:
+    cohort_id: domain-first-public-validation
+    cases_path: cohorts/validation/cases.yaml
+    expectations_path: cohorts/validation/expectations.yaml
+    content_sha256: d71536295ecb45d3413834d5ac0c0329692ef88f741c76a90efe03e62f2dc515
+  cohorts_must_be_disjoint: true
+qualification_protocol:
+  candidate_freeze_schema: domain-first-qualification-candidate-v0
+  curator_freeze_schema: domain-first-holdout-freeze-v0
+  execution_schema: domain-first-holdout-execution-v0
+  unseal_schema: domain-first-holdout-unseal-v0
+  independent_curator_required: true
+  retired_holdout_observation_digests:
+    - 46ef2e740745c733a40302f8829503c9ca1a9c9c980590ab006b9ba5451a478c
+    - 9ff65162079b9f027a00187c8f57d0dbc2a4f676da07896f4df3bf0c1fc79fe1
+    - 60c851fb7788b0f4ab7336dde409a14a8dfaf876795f75ef3b84c6ceffcc7bb1
+    - 3509742ca6965492889d3f597feb8f9238d6a6a002a0db048f0368a988fcca7d
+    - b8955a2736cfe060e72cd35d9ebcfe05fd3555482435c8a2f38ce1057b98d56a
+    - 7f472b1558e7155ea6996d6dc9f08d9e57124dcece5a2207b5118776f265934c
+    - 8a45d1dbc89ac92c13030f61c2c3bf1b3344c91ab339b971817b490215102ee0
+    - 48687f0857fbfdb9fe844891505ebde662aa62879e85cd2ab49514195f1cdda0
+    - 86b1d9b6d37f40ec0fd3aa7f1b8d719a796f7d5f22f218814f79170626db7ca2
+    - e91cb3909e4ab71bb040eaa9572720b269a12693f3d167f1418bed3180fc6b5f
+    - 54ab04d883957b872961f2460fbfaf4eec06967ba15421bd71e3d0c239b06f91
+    - d5fc4bed11003dc531841e9ba89da212cfd0c04693f70f858be5b33b6807fe47

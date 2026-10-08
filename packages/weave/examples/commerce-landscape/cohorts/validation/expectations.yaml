@@ -1,0 +1,28 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-public-validation
+reference_expectations: true
+expectations:
+  - case_id: qualification-equivalent-late-log
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: pass
+  - case_id: qualification-mutant-late-settlement
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: fail
+      coupon-entitlement-restoration: pass
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: fail
+  - case_id: qualification-mutant-goodwill-for-coupon
+    atoms:
+      cash-amount-and-original-tender: pass
+      cash-refund-timeliness: pass
+      coupon-entitlement-restoration: fail
+      economic-effect-exactly-once: pass
+      ledger-reconciliation: pass
+    overall: fail

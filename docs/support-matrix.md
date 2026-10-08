@@ -3,7 +3,7 @@ feature_ids: [F192, F266, F267]
 topics: [dsh, eval-lab, capsule, platforms, sandbox, support]
 doc_kind: guide
 created: 2026-08-26
-description: "Phase 4B platform and package support matrix."
+description: "Current DomainEval Weave Developer Preview platform and package support matrix."
 ---
 
 # Support matrix
@@ -23,4 +23,4 @@ labels, releases, calibrations and Runs.
 The Developer Preview workflow targets Node 24 on current GitHub-hosted macOS and Ubuntu runners. Both run
 the runner-neutral Capsule, Evaluator, adapter, package and clean-room suites; Ubuntu uses a real bubblewrap
 installation. The complete historical DSH regression remains a separate maintainer compatibility gate and is
-not a prerequisite for a public Capsule/Evaluator contribution. Windows support is not a Phase 4B commitment.
+not a prerequisite for a public Capsule/Evaluator contribution. Windows support is not a current Developer Preview commitment.

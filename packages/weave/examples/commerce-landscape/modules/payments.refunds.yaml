@@ -1,0 +1,71 @@
+schema_version: domain-first-internal-v0
+module_id: payments.refunds
+release:
+  version: 1.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: payments-community
+scope:
+  statement: Refund instruction, execution, tender and economic-effect semantics.
+  includes: [refund-instruction, refund-execution, payment-tender, economic-effect]
+  excludes: [order-eligibility, coupon-entitlement, ledger-accounting]
+concepts:
+  - concept_id: RefundInstruction
+    kind: entity
+    definition: A uniquely identified request to return value from an original payment.
+  - concept_id: RefundExecution
+    kind: process
+    definition: Provider-independent realization of one refund instruction.
+  - concept_id: CashRefund
+    kind: economic_effect
+    definition: Return of original cash consideration to the original payment tender.
+  - concept_id: GoodwillCredit
+    kind: economic_effect
+    definition: Discretionary compensation that does not return original consideration.
+  - concept_id: PaymentTender
+    kind: value_object
+    definition: The instrument through which monetary consideration was paid.
+relations:
+  - relation_id: execution-realizes-instruction
+    subject_ref: RefundExecution
+    predicate: realizes
+    object_ref: RefundInstruction
+  - relation_id: cash-refund-distinct-from-goodwill
+    subject_ref: CashRefund
+    predicate: distinct_from
+    object_ref: GoodwillCredit
+claims:
+  - claim_id: cash-refund-original-tender
+    subject_ref: CashRefund
+    kind: industry_practice
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: A cash refund returns the refundable cash amount to the original payment tender.
+    applicability:
+      tender_kind: cash_equivalent
+    source_ids: [payments-standard]
+    authority_assertions:
+      - authority_id: payments-standard-authority
+        kind: industry_standard
+        source_id: payments-standard
+        scope: payments.refund-semantics
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z
+  - claim_id: economic-refund-exactly-once
+    subject_ref: RefundExecution
+    kind: normative_rule
+    epistemic_state: confirmed
+    observability: observable
+    statement: One refund instruction creates at most one successful economic refund effect.
+    applicability:
+      execution_scope: all-supported-providers
+    source_ids: [payments-standard]
+    authority_assertions:
+      - authority_id: payments-effect-authority
+        kind: industry_standard
+        source_id: payments-standard
+        scope: payments.economic-effect
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z

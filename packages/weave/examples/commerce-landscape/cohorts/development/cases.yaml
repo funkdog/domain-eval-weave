@@ -1,0 +1,28 @@
+schema_version: domain-first-internal-v0
+cohort_id: domain-first-development
+role: development
+cases:
+  - case_id: development-happy-path
+    kind: development
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: true
+      coupon_observation_complete: true
+      ledger_reconciled: true
+  - case_id: development-coupon-observation-gap
+    kind: development
+    observations:
+      cash_amount: 80
+      original_tender: true
+      settled_after_hours: 20
+      recorded_after_hours: 20
+      provider_attempts: 1
+      successful_economic_effects: 1
+      coupon_restored: null
+      coupon_observation_complete: false
+      ledger_reconciled: true

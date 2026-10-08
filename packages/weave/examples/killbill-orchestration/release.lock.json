@@ -1,0 +1,37 @@
+{
+  "schema_version": "killbill-candidate-lock-v1",
+  "lifecycle": "candidate",
+  "module_id": "payments.orchestration.killbill",
+  "version": "0.1.0-candidate.4",
+  "module_digest": "b4197c43db0d393e480d12874ce76c0db6d9c51187c99a4c6e4b009fa718d215",
+  "compilation_digest": "ffceac0cec887de411e48cf4e809649d69c0242ffd0a345b5c10554669909fb2",
+  "compiled_content_sha256": "531261f54ae9b9ff50a59cdaf2089b2207f55831001148a94a26c000e9e30e55",
+  "counts": {
+    "concepts": 24,
+    "fields": 58,
+    "states": 31,
+    "transitions": 51,
+    "flows": 6,
+    "model_documents": 5,
+    "grounded_claims": 12,
+    "unknown_claims": 4,
+    "source_files": 42
+  },
+  "files": {
+    "README.md": "d0068bc47faf51d8bb7c436079f932ac2480ccce6173a01c79f2c8ec8a378cb8",
+    "docs/killbill-payment-orchestration-behavioral-model.md": "d34f0eaae97fac733b0f867021b23b0399645582ccd99ae0b6520a17b5892a66",
+    "docs/killbill-payment-orchestration-claim-ledger.md": "2bdcd9dc5500b985bab477fd1ee13bfdaf0407b005c50b6dfd1c93349e7de19f",
+    "docs/killbill-payment-orchestration-scope-declaration.md": "f7b98bbac884b5c18bad0b85c83d4ca8dfe7a16c7fc784d7ec06ec1c7e412657",
+    "docs/killbill-payment-orchestration-semantic-model.md": "d7e16c384d8180ba51f1e0f35ab1aefbf80ecfcb93e5004d7ff65a58ae7c8ab4",
+    "docs/killbill-payment-orchestration-source-feasibility-matrix.md": "0baf2828230fb74012cef7cf29c008a62b9c93bcf76f7c1c3811bab23c855d58",
+    "landscape.yaml": "bfb2dea0dd729c2396f0ed84ae01a32ef955597f499ff1e28bd641486cfa0987",
+    "module.yaml": "70ad8564baedd1c4298b8cff35a9b35fb4c3ff195af280bec2f7a8208001e9ca",
+    "sources/api.json": "a8fbbf4e84a5b3a611fb2eea42d8ec5a8bd09832e952a83d0f763ca53265ff4b",
+    "sources/commons.json": "dd96a5201f61860e55e57afa91c5bd84095f37eddd4ed76067f34f40ff05e25f",
+    "sources/core.json": "a6848aa19ba4b8483f8798f65aa68bc11aae43949637a82a33a825ec8544bebf",
+    "sources/docs.json": "a693615dfc35fa16cd1f4a557ff13be32e2687e39fa12097fefaa8aa9f88100c",
+    "sources/index.yaml": "2750b1463651e700728abe4919a39e7980d4df428055095218a030db28dd9a6e",
+    "sources/parent.json": "b4bb9240ba25ff91fad511a3ccaaef81230e10bf6df128b07d10d3b790a47454",
+    "sources/plugin-api.json": "0e405020b0c5ab82943e9c9cadfc810c9386cee0729c7cb681770438a6daa6be"
+  }
+}

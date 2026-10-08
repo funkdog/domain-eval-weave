@@ -1,0 +1,41 @@
+schema_version: domain-first-internal-v0
+module_id: payments.disputes
+release:
+  version: 1.0.0
+  recorded_at: 2026-08-31T00:00:00Z
+maintainers:
+  - maintainer_id: disputes-community
+scope:
+  statement: Card-network payment disputes and chargeback lifecycle semantics.
+  includes: [payment-dispute, chargeback, evidence, adjudication]
+  excludes: [merchant-refund-execution, order-cancellation]
+concepts:
+  - concept_id: PaymentDispute
+    kind: process
+    definition: A contested payment claim resolved through a dispute authority.
+  - concept_id: Chargeback
+    kind: process
+    definition: Issuer- or network-mediated reversal pursued through a payment dispute.
+relations:
+  - relation_id: chargeback-specializes-dispute
+    subject_ref: Chargeback
+    predicate: specializes
+    object_ref: PaymentDispute
+claims:
+  - claim_id: chargeback-issuer-initiated
+    subject_ref: Chargeback
+    kind: descriptive_fact
+    epistemic_state: grounded
+    observability: partially_observable
+    statement: A chargeback is initiated through issuer or card-network dispute authority rather than merchant refund execution.
+    applicability:
+      payment_network: supported-card-network
+    source_ids: [card-network-rules]
+    authority_assertions:
+      - authority_id: network-rules-authority
+        kind: payment_network
+        source_id: card-network-rules
+        scope: card-network-dispute-process
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-08-31T00:00:00Z

@@ -1,0 +1,272 @@
+{
+  "format": "janitor-development-dependencies-v1",
+  "scope": "on-the-fly-janitor-feasibility-not-complete-maven-closure",
+  "provenance": "explicit_release_coordinates_with_repository_sha1_and_local_sha256",
+  "total_bytes": 8025641,
+  "artifacts": [
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-payment",
+      "version": "0.24.21",
+      "classifier": null,
+      "filename": "killbill-payment-0.24.21.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-payment/0.24.21/killbill-payment-0.24.21.jar",
+      "bytes": 429557,
+      "sha256": "e12ee27ab6560f54d16f5665860ebe14350dfa500dd008eba3eb576713d0849b",
+      "repository_sha1": "540f7f10cd96bda3c0200489752322f5621a8d1d"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-payment",
+      "version": "0.24.21",
+      "classifier": "sources",
+      "filename": "killbill-payment-0.24.21-sources.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-payment/0.24.21/killbill-payment-0.24.21-sources.jar",
+      "bytes": 236554,
+      "sha256": "d85ecc112a77bf2069740693acee90b16a862f6bbd576322ced66ddc6a5892b2",
+      "repository_sha1": "de579457bc37b18ffe1aea1a4cb8bfe69904383b"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-internal-api",
+      "version": "0.24.21",
+      "classifier": null,
+      "filename": "killbill-internal-api-0.24.21.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-internal-api/0.24.21/killbill-internal-api-0.24.21.jar",
+      "bytes": 95802,
+      "sha256": "61a46f95ed932c1c3ca15acbcdc492a303f76d30520d51f9c30e02f4dfb1cc9d",
+      "repository_sha1": "d048d502d0fcd0c0d8a4a81bf8700a1ed348e874"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-util",
+      "version": "0.24.21",
+      "classifier": null,
+      "filename": "killbill-util-0.24.21.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-util/0.24.21/killbill-util-0.24.21.jar",
+      "bytes": 543216,
+      "sha256": "2fec80a4f5fa38301b3d532f492bd14f2489110dbb0596d22bb27b3f88699b1e",
+      "repository_sha1": "e6e9878aa9d63af40a2268a5eac67769f0eb7131"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-api",
+      "version": "0.54.0",
+      "classifier": null,
+      "filename": "killbill-api-0.54.0.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-api/0.54.0/killbill-api-0.54.0.jar",
+      "bytes": 170899,
+      "sha256": "43cdfce3782742e111aaebf7e3c411c3dff1ded09892e44e319c1b1d905f89de",
+      "repository_sha1": "9f3ed0c37930595b5608d6a2a70ec068ecf499a7"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-platform-api",
+      "version": "0.41.23",
+      "classifier": null,
+      "filename": "killbill-platform-api-0.41.23.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-platform-api/0.41.23/killbill-platform-api-0.41.23.jar",
+      "bytes": 10030,
+      "sha256": "0eb7f78496f02a849b6f3950fa98f48ed2bf02af0edcfb467a6bbe3b4d59f894",
+      "repository_sha1": "0cddd626f924a43f2fcc707a261dbdabf9a4174f"
+    },
+    {
+      "group": "org.kill-bill.billing",
+      "artifact": "killbill-platform-osgi-api",
+      "version": "0.41.23",
+      "classifier": null,
+      "filename": "killbill-platform-osgi-api-0.41.23.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/killbill-platform-osgi-api/0.41.23/killbill-platform-osgi-api-0.41.23.jar",
+      "bytes": 8674,
+      "sha256": "dbc65df6ff20555b5eb00d851f6d8499c46dc68067df18431f351ae7e857d3fe",
+      "repository_sha1": "4c6c0893cd7a98b5edc0bb3eb3316e58163fd3e0"
+    },
+    {
+      "group": "org.kill-bill.billing.plugin",
+      "artifact": "killbill-plugin-api-payment",
+      "version": "0.27.3",
+      "classifier": null,
+      "filename": "killbill-plugin-api-payment-0.27.3.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/billing/plugin/killbill-plugin-api-payment/0.27.3/killbill-plugin-api-payment-0.27.3.jar",
+      "bytes": 5571,
+      "sha256": "f494884560a5dd2250f8bb2b527f6b23ac291ea510ce8b624e7671dfc8c4803c",
+      "repository_sha1": "e2c412dda227ac51f831fa2cdea24faefb334ef8"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-automaton",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-automaton-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-automaton/0.26.15/killbill-automaton-0.26.15.jar",
+      "bytes": 33988,
+      "sha256": "de21cb70fca2a855a599770a67abae37e57951d6a7fe39545d5ef56939ca62cc",
+      "repository_sha1": "09a4e86db535126c5bcbf0c689e84f552ee8aff4"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-locker",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-locker-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-locker/0.26.15/killbill-locker-0.26.15.jar",
+      "bytes": 26897,
+      "sha256": "9f9cf6f4769c33572af1729fed6d7e4a1aee41605240c915f223b9733ed6e9f4",
+      "repository_sha1": "3a9a1df183c47a6dddfa550f73e4764c022b220b"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-config-magic",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-config-magic-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-config-magic/0.26.15/killbill-config-magic-0.26.15.jar",
+      "bytes": 55410,
+      "sha256": "4b3606d18fbe61837537f3b2c522f67ddbcea94505b0f093f9db798d9fd91d40",
+      "repository_sha1": "e706bb3a2bdfb0e502f5bd3df99ef4532e66dc46"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-utils",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-utils-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-utils/0.26.15/killbill-utils-0.26.15.jar",
+      "bytes": 79409,
+      "sha256": "7647e4601936e5d4ffef115a1f2cad1b3e04bdc047ab290f3b5cff2ad2500b89",
+      "repository_sha1": "77c38bdff573ffdb8822bf999f30118da9edac07"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-clock",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-clock-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-clock/0.26.15/killbill-clock-0.26.15.jar",
+      "bytes": 4712,
+      "sha256": "1b14e9d1272234019523b775815845af75c89c5a33d82fd644ef07d60d87999b",
+      "repository_sha1": "d12385a0aa3ef16ef5ba6a68551c0f6c14fd73eb"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-jdbi",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-jdbi-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-jdbi/0.26.15/killbill-jdbi-0.26.15.jar",
+      "bytes": 458518,
+      "sha256": "fd9d48e14309e6d4910d0adada96f96ecd47a217e3ef7e47ce09b7bc19ca559b",
+      "repository_sha1": "01e6e99dc01c15fa3893e54ce649f60863ad4822"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-metrics-api",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-metrics-api-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-metrics-api/0.26.15/killbill-metrics-api-0.26.15.jar",
+      "bytes": 22285,
+      "sha256": "55c64a7a749cd688c06b9b95cd9ed8b8829f71c625e0f56477ea55b77de93e41",
+      "repository_sha1": "bb7e1f152b4406c5f83e4cc1d3f91b11b9d61c49"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-xmlloader",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-xmlloader-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-xmlloader/0.26.15/killbill-xmlloader-0.26.15.jar",
+      "bytes": 14686,
+      "sha256": "d5b3de47aa0803c80ccc5ee60263122a3dae72ebffa028a32c36b503c5040b85",
+      "repository_sha1": "9f998633bf21e8ef37431bb8b88e594e0535ed34"
+    },
+    {
+      "group": "org.kill-bill.commons",
+      "artifact": "killbill-queue",
+      "version": "0.26.15",
+      "classifier": null,
+      "filename": "killbill-queue-0.26.15.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/kill-bill/commons/killbill-queue/0.26.15/killbill-queue-0.26.15.jar",
+      "bytes": 173751,
+      "sha256": "7e34af21d8f77b431e517e2c50791099aca215cbda399c1e339016b39ca3209c",
+      "repository_sha1": "5c7858b963ed0e01faa30c72f1c8e3314fdc2c1b"
+    },
+    {
+      "group": "javax.inject",
+      "artifact": "javax.inject",
+      "version": "1",
+      "classifier": null,
+      "filename": "javax.inject-1.jar",
+      "url": "https://repo.maven.apache.org/maven2/javax/inject/javax.inject/1/javax.inject-1.jar",
+      "bytes": 2497,
+      "sha256": "91c77044a50c481636c32d916fd89c9118a72195390452c81065080f957de7ff",
+      "repository_sha1": "6975da39a7040257bd51d21a231b76c915872d38"
+    },
+    {
+      "group": "com.google.code.findbugs",
+      "artifact": "jsr305",
+      "version": "3.0.2",
+      "classifier": null,
+      "filename": "jsr305-3.0.2.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar",
+      "bytes": 19936,
+      "sha256": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+      "repository_sha1": "25ea2e8b0c338a877313bd4672d3fe056ea78f0d"
+    },
+    {
+      "group": "org.slf4j",
+      "artifact": "slf4j-api",
+      "version": "2.0.9",
+      "classifier": null,
+      "filename": "slf4j-api-2.0.9.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.9/slf4j-api-2.0.9.jar",
+      "bytes": 64579,
+      "sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "repository_sha1": "7cf2726fdcfbc8610f9a71fb3ed639871f315340"
+    },
+    {
+      "group": "joda-time",
+      "artifact": "joda-time",
+      "version": "2.12.5",
+      "classifier": null,
+      "filename": "joda-time-2.12.5.jar",
+      "url": "https://repo.maven.apache.org/maven2/joda-time/joda-time/2.12.5/joda-time-2.12.5.jar",
+      "bytes": 637993,
+      "sha256": "10628411ecb40c4634196c544f34681abdeef826f377096357433d1f9a135bc6",
+      "repository_sha1": "698ce67b5e58becfb4ef2cf0393422775e59dff4"
+    },
+    {
+      "group": "org.mockito",
+      "artifact": "mockito-core",
+      "version": "5.3.1",
+      "classifier": null,
+      "filename": "mockito-core-5.3.1.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/mockito/mockito-core/5.3.1/mockito-core-5.3.1.jar",
+      "bytes": 689027,
+      "sha256": "37f4dbaed25ffa6bdedaba78746c449e224b105d56fcedee8755936642d992a8",
+      "repository_sha1": "7cac313592a29ae5e29c52c22b15c3ae5ab561b2"
+    },
+    {
+      "group": "net.bytebuddy",
+      "artifact": "byte-buddy",
+      "version": "1.14.5",
+      "classifier": null,
+      "filename": "byte-buddy-1.14.5.jar",
+      "url": "https://repo.maven.apache.org/maven2/net/bytebuddy/byte-buddy/1.14.5/byte-buddy-1.14.5.jar",
+      "bytes": 4192227,
+      "sha256": "e99761a526df0fefbbd3fe14436b0f953000cdfa5151dc63c0b18d37d9c46f1c",
+      "repository_sha1": "28a424c0c4f362568e904d992c239c996cf7adc7"
+    },
+    {
+      "group": "org.objenesis",
+      "artifact": "objenesis",
+      "version": "3.3",
+      "classifier": null,
+      "filename": "objenesis-3.3.jar",
+      "url": "https://repo.maven.apache.org/maven2/org/objenesis/objenesis/3.3/objenesis-3.3.jar",
+      "bytes": 49423,
+      "sha256": "02dfd0b0439a5591e35b708ed2f5474eb0948f53abf74637e959b8e4ef69bfeb",
+      "repository_sha1": "1049c09f1de4331e8193e579448d0916d75b7631"
+    }
+  ]
+}

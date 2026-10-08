@@ -1,0 +1,37 @@
+schema_version: domain-first-internal-v0
+negative_cases:
+  - case_id: provider-authority-cannot-confirm-law
+    mutation:
+      claim_ref: consumer.remedies.cn#legal-refund-deadline
+      replace_authority_kind: service_provider
+    expected_error: authority_scope_mismatch
+  - case_id: product-owner-cannot-confirm-law
+    mutation:
+      claim_ref: consumer.remedies.cn#legal-refund-deadline
+      replace_authority_kind: product_owner
+    expected_error: authority_scope_mismatch
+  - case_id: claim-axes-must-remain-independent
+    mutation:
+      claim_ref: finance.ledger#settled-refund-reconciled
+      remove_field: observability
+    expected_error: claim_axes_incomplete
+  - case_id: provider-and-community-identities-must-not-collapse
+    mutation:
+      landscape_module_ref: provider-x.payments.refunds@3.0.0
+      replace_module_id: payments.refunds
+    expected_error: module_identity_mismatch
+  - case_id: floating-module-release-is-forbidden
+    mutation:
+      module_ref: payments.refunds@latest
+    expected_error: floating_release_reference
+  - case_id: projection-cannot-truncate-domain-coverage
+    mutation:
+      projection_ref: acme-cash-refund-only@1.0.0
+      reclassify_ref: promotions.coupons#CouponRestoration
+      new_coverage_status: out_of_scope
+    expected_error: projection_scope_truncation
+  - case_id: absent-coupon-record-is-not-failure-with-gap
+    mutation:
+      closure_ref: acme-full-value-coupon-gap
+      force_outcome: fail
+    expected_error: insufficient_evidence_required

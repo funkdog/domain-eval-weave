@@ -1,0 +1,52 @@
+{
+  "candidate_id": "xianxian-authored-development-example",
+  "origin": "authored_example",
+  "task_sha256": "ca64b0e4a65d4ceb818df632e16ffd30057e1063bf82d12dd2104b4026be15e9",
+  "decisions": [
+    {
+      "case_id": "search-empty",
+      "operation_ref": "synthetic-purchase-A",
+      "context_ref": "synthetic-tenant-A/stripe-test",
+      "action": "WAIT_FOR_EVIDENCE",
+      "evidence_refs": ["A-local-search", "A-wait-path"],
+      "reason": "本地 CANCELED 不能证明原支付没有发生；按已安排且未到期的日志补证路径等待，不换键重扣。"
+    },
+    {
+      "case_id": "known-success",
+      "operation_ref": "synthetic-purchase-B",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "action": "RECORD_ORIGINAL_SUCCESS",
+      "evidence_refs": ["B-provider-result"],
+      "reason": "可靠原对象的新鲜成功与实际处理金额、币种均吻合；记录原结果，既不新扣也不声称已结算。"
+    },
+    {
+      "case_id": "safe-replay",
+      "operation_ref": "synthetic-purchase-C",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "action": "REPLAY_ORIGINAL_REQUEST",
+      "evidence_refs": ["C-original-request", "C-replay-permission"],
+      "reason": "本合成场景明确给齐重放条件，且没有可先查询的对象；推进原请求而非创建新支付，未来执行前仍须重新核对许可。",
+      "replay": {
+        "idempotency_key": "SYNTHETIC-J-C-NOT-A-CREDENTIAL",
+        "request_fingerprint": "synthetic-POST-purchase-C-100-CNY-v1",
+        "context_ref": "synthetic-tenant-A/provider-test"
+      }
+    },
+    {
+      "case_id": "read-before-replay",
+      "operation_ref": "synthetic-purchase-D",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "action": "OBSERVE_ORIGINAL",
+      "evidence_refs": ["D-read-capability"],
+      "reason": "用本例已确认的只读方法按原对象 ID 查一次再判定，不用带 confirm/cancel 副作用的接口冒充读取。"
+    },
+    {
+      "case_id": "identity-conflict",
+      "operation_ref": "synthetic-purchase-E",
+      "context_ref": "synthetic-tenant-A/provider-test",
+      "action": "RECONCILE_REQUIRED",
+      "evidence_refs": ["E-context-conflict"],
+      "reason": "成功结果来自另一个账号，不能认领，也不能据此授权重扣；交责任人核对身份。"
+    }
+  ]
+}

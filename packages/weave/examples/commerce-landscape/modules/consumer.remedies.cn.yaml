@@ -1,0 +1,42 @@
+schema_version: domain-first-internal-v0
+module_id: consumer.remedies.cn
+release:
+  version: 2026.1
+  recorded_at: 2026-02-01T00:00:00Z
+maintainers:
+  - maintainer_id: consumer-remedies-community
+scope:
+  statement: Synthetic consumer refund rights applicable in the CN reference jurisdiction.
+  includes: [consumer-refund-right, jurisdictional-deadline]
+  excludes: [provider-implementation, product-promise]
+concepts:
+  - concept_id: ConsumerRefundRight
+    kind: entitlement
+    definition: A consumer entitlement to return qualifying original consideration.
+  - concept_id: JurisdictionalDeadline
+    kind: normative_constraint
+    definition: The maximum legally applicable interval for satisfying a duty.
+relations:
+  - relation_id: right-constrained-by-deadline
+    subject_ref: ConsumerRefundRight
+    predicate: constrained_by
+    object_ref: JurisdictionalDeadline
+claims:
+  - claim_id: legal-refund-deadline
+    subject_ref: ConsumerRefundRight
+    kind: normative_rule
+    epistemic_state: confirmed
+    observability: partially_observable
+    statement: A qualifying consumer cash refund settles within seven business days.
+    applicability:
+      jurisdiction: CN
+      customer_type: consumer
+    source_ids: [cn-refund-regulation]
+    authority_assertions:
+      - authority_id: cn-regulator-authority
+        kind: regulator
+        source_id: cn-refund-regulation
+        scope: cn.consumer-refund-duty
+    valid_time:
+      from: 2026-01-01T00:00:00Z
+    recorded_at: 2026-02-01T00:00:00Z
